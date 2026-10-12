@@ -153,19 +153,71 @@ export class Dispatcher {
     return this;
   }
 
+  /** Já existe resultado guardado para este operationId (reenvio será um replay). */
+  recorded(operationId: string): boolean {
+    return this.idempotency.get(operationId) !== undefined;
+  }
+
   operations(): string[] {
     return [...this.handlers.keys()].sort();
   }
 
-  async dispatch(raw: unknown): Promise<OperationResult> {
-    const result = await this.dispatchInner(raw);
+  /**
+   * Checagem sem efeitos usada pelo executor de lotes antes de executar qualquer passo:
+   * forma da requisição, operação conhecida, argumentos (quando não há $bind pendente) e decisão de autorização.
+   */
+  async inspect(raw: unknown): Promise<{ error?: ContractError; decision?: AuthorizationDecision }> {
+    if (!validateRequest(raw)) {
+      const err = primaryError(validateRequest.errors);
+      return {
+        error: {
+          code: "INVALID_ARGUMENTS",
+          message: `Requisição fora do contrato: ${describeErrors(validateRequest.errors)}`,
+          retryable: false,
+          argumentPath: err?.instancePath || "/",
+        },
+      };
+    }
+    const request = raw as OperationRequest;
+    const entry = this.handlers.get(request.operation);
+    if (!entry) {
+      return {
+        error: {
+          code: "UNKNOWN_OPERATION",
+          message: `Operação '${request.operation}' não está registrada.`,
+          retryable: false,
+          details: { known: this.operations() },
+        },
+      };
+    }
+    const bound = containsBinding(request.arguments) || containsBinding(request.targetId);
+    if (!bound && entry.validateArgs && !entry.validateArgs(request.arguments)) {
+      const err = primaryError(entry.validateArgs.errors);
+      return {
+        error: {
+          code: "INVALID_ARGUMENTS",
+          message: describeErrors(entry.validateArgs.errors),
+          retryable: false,
+          argumentPath: "/arguments" + (err?.instancePath ?? ""),
+        },
+      };
+    }
+    return { decision: await this.policy(request, entry.handler) };
+  }
+
+  /**
+   * `preapproved` é só para chamadores internos de confiança (o executor de lotes, depois que o usuário
+   * aprovou o cartão de confirmação do lote inteiro). Nunca é exposto à interface ou ao agente.
+   */
+  async dispatch(raw: unknown, options: { preapproved?: boolean } = {}): Promise<OperationResult> {
+    const result = await this.dispatchInner(raw, options.preapproved ?? false);
     if (this.validateResults && !validateResult(result)) {
       throw new Error(`OperationResult fora do contrato: ${describeErrors(validateResult.errors)}`);
     }
     return result;
   }
 
-  private async dispatchInner(raw: unknown): Promise<OperationResult> {
+  private async dispatchInner(raw: unknown, preapproved: boolean): Promise<OperationResult> {
     if (!validateRequest(raw)) {
       const err = primaryError(validateRequest.errors);
       const candidate = (raw as { operationId?: unknown } | null)?.operationId;
@@ -195,7 +247,7 @@ export class Dispatcher {
       return { ...stored.result, replayed: true };
     }
 
-    const promise = this.run(request, fingerprint);
+    const promise = this.run(request, fingerprint, preapproved);
     this.inFlight.set(request.operationId, { fingerprint, promise });
     try {
       return await promise;
@@ -204,7 +256,7 @@ export class Dispatcher {
     }
   }
 
-  private async run(request: OperationRequest, fingerprint: string): Promise<OperationResult> {
+  private async run(request: OperationRequest, fingerprint: string, preapproved: boolean): Promise<OperationResult> {
     const requestedAt = this.now();
     const reject = (error: ContractError) => this.complete(request, requestedAt, "rejected", { error, changes: [] });
 
@@ -263,7 +315,7 @@ export class Dispatcher {
     if (decision.decision === "deny") {
       return reject({ code: "UNAUTHORIZED", message: decision.reason, retryable: false });
     }
-    if (decision.decision === "confirm") {
+    if (decision.decision === "confirm" && !preapproved) {
       const token = request.authorization.confirmationToken;
       if (!token) return this.askConfirmation(request, fingerprint, decision);
       const pending = this.confirmations.get(token);
@@ -414,7 +466,7 @@ export function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function containsBinding(value: unknown): boolean {
+export function containsBinding(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(containsBinding);
   if (value && typeof value === "object") {
     if ("$bind" in value) return true;

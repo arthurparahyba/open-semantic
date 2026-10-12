@@ -4,12 +4,17 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
-  "scripts": { "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
+    "@open-semantic/diagram-engine": "workspace:*",
     "@open-semantic/mod-runtime": "workspace:*",
     "@open-semantic/navigator": "workspace:*",
     "@open-semantic/project-runtime": "workspace:*",
     "@open-semantic/protocol": "workspace:*",
+    "@open-semantic/semantic": "workspace:*",
     "@open-semantic/workspace-store": "workspace:*"
   }
 }

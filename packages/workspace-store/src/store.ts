@@ -2,8 +2,14 @@ import type {
   ArtifactReference,
   Camera,
   CanvasObject,
+  DiagramModel,
+  Evidence,
   ModInstance,
+  NavigationState,
   Project,
+  Region,
+  SemanticEntity,
+  SemanticRelation,
   WorkspaceSnapshot,
 } from "@open-semantic/protocol";
 
@@ -191,10 +197,114 @@ export class WorkspaceStore {
     this.doc.canvas.objects.splice(i, 1);
   }
 
+  // ---------- regiões ----------
+  region(id: string): Region | undefined {
+    return this.doc.canvas.regions.find((r) => r.id === id);
+  }
+
+  putRegion(region: Region): Region {
+    this.touch();
+    const i = this.doc.canvas.regions.findIndex((r) => r.id === region.id);
+    const next = structuredClone(region);
+    next.revision = i >= 0 ? (this.doc.canvas.regions[i]!.revision ?? 0) + 1 : 1;
+    if (i >= 0) this.doc.canvas.regions[i] = next;
+    else this.doc.canvas.regions.push(next);
+    return next;
+  }
+
+  /** Remove a região; os objetos dentro dela continuam no canvas, só perdem o vínculo. */
+  deleteRegion(id: string): boolean {
+    const i = this.doc.canvas.regions.findIndex((r) => r.id === id);
+    if (i < 0) return false;
+    this.touch();
+    this.doc.canvas.regions.splice(i, 1);
+    for (const o of this.doc.canvas.objects) if (o.regionId === id) delete o.regionId;
+    return true;
+  }
+
+  // ---------- diagramas ----------
+  diagram(id: string): DiagramModel | undefined {
+    return this.doc.diagrams.find((d) => d.id === id);
+  }
+
+  /** Grava o diagrama incrementando a revisão dele. */
+  putDiagram(diagram: DiagramModel): DiagramModel {
+    this.touch();
+    const i = this.doc.diagrams.findIndex((d) => d.id === diagram.id);
+    const next = structuredClone(diagram);
+    next.revision = i >= 0 ? this.doc.diagrams[i]!.revision + 1 : 1;
+    if (i >= 0) this.doc.diagrams[i] = next;
+    else this.doc.diagrams.push(next);
+    return next;
+  }
+
+  deleteDiagram(id: string): boolean {
+    const i = this.doc.diagrams.findIndex((d) => d.id === id);
+    if (i < 0) return false;
+    this.touch();
+    this.doc.diagrams.splice(i, 1);
+    this.removeCanvasObject(id);
+    return true;
+  }
+
+  // ---------- Open Semantic (armazenamento no snapshot; ver decisão D2) ----------
+  entity(id: string): SemanticEntity | undefined {
+    return this.doc.semantic.entities.find((e) => e.id === id);
+  }
+
+  relation(id: string): SemanticRelation | undefined {
+    return this.doc.semantic.relations.find((r) => r.id === id);
+  }
+
+  evidence(id: string): Evidence | undefined {
+    return this.doc.semantic.evidence.find((e) => e.id === id);
+  }
+
+  putEntity(entity: SemanticEntity): SemanticEntity {
+    this.touch();
+    const list = this.doc.semantic.entities;
+    const i = list.findIndex((e) => e.id === entity.id);
+    const next = structuredClone(entity);
+    next.revision = i >= 0 ? list[i]!.revision + 1 : 1;
+    if (i >= 0) list[i] = next;
+    else list.push(next);
+    return next;
+  }
+
+  putRelation(relation: SemanticRelation): SemanticRelation {
+    this.touch();
+    const list = this.doc.semantic.relations;
+    const i = list.findIndex((r) => r.id === relation.id);
+    const next = structuredClone(relation);
+    next.revision = i >= 0 ? list[i]!.revision + 1 : 1;
+    if (i >= 0) list[i] = next;
+    else list.push(next);
+    return next;
+  }
+
+  /** Evidências são imutáveis: gravar de novo o mesmo id não altera nada. */
+  addEvidence(evidence: Evidence): boolean {
+    if (this.evidence(evidence.id)) return false;
+    this.touch();
+    this.doc.semantic.evidence.push(structuredClone(evidence));
+    return true;
+  }
+
   // ---------- navegação ----------
   setCamera(camera: Camera) {
     this.touch();
     this.doc.navigation.camera = structuredClone(camera);
+  }
+
+  /** Substitui partes do estado de navegação (câmera, foco, histórico, movimento, controle). */
+  updateNavigation(patch: Partial<NavigationState>) {
+    this.touch();
+    this.doc.navigation = { ...this.doc.navigation, ...structuredClone(patch) };
+  }
+
+  setSettings(patch: Partial<WorkspaceSnapshot["workspace"]["settings"]>) {
+    this.touch();
+    this.doc.workspace.settings = { ...this.doc.workspace.settings, ...patch };
   }
 
   // ---------- consultas genéricas ----------
@@ -202,9 +312,15 @@ export class WorkspaceStore {
   revisionOf(id: string): number | undefined {
     if (id === this.doc.workspace.id) return this.doc.workspace.revision;
     const found =
-      this.mod(id) ?? this.project(id) ?? this.canvasObject(id) ?? this.doc.diagrams.find((d) => d.id === id);
+      this.mod(id) ??
+      this.project(id) ??
+      this.diagram(id) ??
+      this.region(id) ??
+      this.entity(id) ??
+      this.relation(id) ??
+      this.canvasObject(id);
     if (found) return found.revision ?? 0;
-    if (this.artifact(id)) return 0;
+    if (this.artifact(id) || this.evidence(id)) return 0;
     return undefined;
   }
 

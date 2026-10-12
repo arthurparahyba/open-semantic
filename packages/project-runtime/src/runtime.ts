@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 
 import {
@@ -80,6 +80,63 @@ export class ProjectRuntime {
       this.store.transact(() => this.store.upsertArtifact(artifact));
     }
     return artifact;
+  }
+
+  /**
+   * Cria um diretório (e os intermediários) dentro da raiz. Se já existe, devolve o artefato existente
+   * com `created: false`: a operação é idempotente pelo caminho.
+   */
+  async createDir(
+    projectId: string,
+    rootId: string,
+    path: string,
+    actor: Actor,
+    operationId?: string,
+  ): Promise<{ artifact: ArtifactReference; created: boolean }> {
+    const { project } = this.rootOf(projectId, rootId, "write");
+    const normalized = normalize(path);
+    if (normalized === "") {
+      throw new OperationError("INVALID_ARGUMENTS", "Informe o caminho do diretório a criar.", { argumentPath: "/path" });
+    }
+    const existing = await this.safeAbsolute(project, rootId, normalized, { mustExist: true }).catch((err: unknown) => {
+      if (err instanceof OperationError && err.code === "TARGET_NOT_FOUND") return undefined;
+      throw err;
+    });
+    if (existing) {
+      if (!(await stat(existing)).isDirectory()) {
+        throw new OperationError("PRECONDITION_FAILED", `'${normalized}' já existe e não é um diretório.`, { argumentPath: "/path" });
+      }
+      return { artifact: await this.resolve(projectId, rootId, normalized, actor, operationId), created: false };
+    }
+    // O ancestral mais próximo que existe precisa estar dentro da raiz (nada de escapar por link).
+    const segments = normalized.split("/");
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const prefix = segments.slice(0, i).join("/");
+      const found = await this.safeAbsolute(project, rootId, prefix, { mustExist: true }).catch(() => undefined);
+      if (found) break;
+    }
+    const target = await this.safeAbsolute(project, rootId, normalized, { mustExist: false }).catch(async (err: unknown) => {
+      if (!(err instanceof OperationError) || err.code !== "TARGET_NOT_FOUND") throw err;
+      // Diretórios intermediários ainda não existem: cria a partir do ancestral validado acima.
+      const rootAbs = await realpath(join(project.location.kind === "local" ? project.location.rootPath : "", project.roots.find((r) => r.id === rootId)!.path));
+      return join(rootAbs, ...segments);
+    });
+    await mkdir(target, { recursive: true });
+    assertInside(
+      await realpath(join(project.location.kind === "local" ? project.location.rootPath : "", project.roots.find((r) => r.id === rootId)!.path)),
+      await realpath(target),
+    );
+    const at = this.now().toISOString();
+    const artifact: ArtifactReference = {
+      id: this.store.findArtifact(projectId, rootId, normalized)?.id ?? `art_${suffixOf(projectId)}_${this.newId("x").slice(2)}`,
+      projectId,
+      kind: "directory",
+      locator: { rootId, path: normalized },
+      validity: { status: "valid", checkedAt: at },
+      provenance: { source: "execution", actor, ...(operationId ? { operationId } : {}), recordedAt: at },
+    };
+    this.store.transact(() => this.store.upsertArtifact(artifact));
+    return { artifact, created: true };
   }
 
   /** Revalida um artefato e devolve validade + fingerprint, sem lançar se ele sumiu. */

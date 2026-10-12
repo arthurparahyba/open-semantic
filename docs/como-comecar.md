@@ -20,7 +20,7 @@ Critério: uma linguagem só de ponta a ponta, para que os tipos gerados dos sch
 | Casca do app | Electron (Tauri como alternativa mais leve) | Acesso ao disco e a processos locais | Web app + servidor local Node |
 | Interface | React | Ecossistema das libs abaixo | Svelte, Solid |
 | Canvas infinito | Canvas próprio em React (câmera, arrastar, redimensionar, enquadrar) | Sem dependência de licença comercial; a câmera e o enquadramento já são lógica nossa (`packages/navigator`). Decidido no M1 | tldraw (exige licença para uso comercial), React Flow (mais limitado como canvas geral) |
-| Layout de diagramas | elkjs | Layout em camadas de qualidade, roda no navegador | dagre |
+| Layout de diagramas | elkjs (licença EPL-2.0) | Layout em camadas de qualidade, roda no navegador e no Node. Decidido no M2 | dagre |
 | Editor de texto | CodeMirror 6 | Leve, extensível, licença MIT. Decidido no M1 | Monaco (mais pesado) |
 | Terminal | xterm.js + node-pty | Padrão de mercado | — |
 | Observar arquivos | chokidar | Multiplataforma | fs.watch nativo |
@@ -98,6 +98,17 @@ Tarefas:
 7. Confirmações: cartão na interface, token, reenvio.
 
 **Pronto quando:** passam D1, D3, D4, D5, E1 a E5, e o pedido “crie o backend, abra o Explorer e mostre a arquitetura” funciona com a IA real.
+
+**Como o M2 está sendo entregue (12/10):**
+- **Parte 1, protocolo:** executor de lotes, regiões, diagramas com elkjs, navegação automática com `user_hold`, cartão de confirmação e agente roteirizado no painel do app. Testes em `packages/core/test/aceitacao-m2.test.ts` e `apps/desktop/e2e/m2.spec.ts`.
+- **Parte 2, conversa:** laço do agente dentro do app com uma camada de provedor. O primeiro provedor é a API da Anthropic, com Haiku como padrão. Há limites de passos e tokens por pedido, e o custo de cada conversa fica visível. Outros provedores (compatíveis com OpenAI) entram depois. A assinatura do claude.ai não pode ser usada por apps de terceiros; o app usa chave de API.
+- **Depois:** servidor MCP para agentes externos (Claude Code, Cursor) usarem as mesmas operações.
+
+Decisões tomadas na parte 1:
+- O fluxo de referência usa `semantic.upsert_observation` e `semantic.upsert_inference`, então a parte mínima do Open Semantic (gravar e consultar por nome) entrou no M2. Revalidação, `trace` e `diagram.open_linked` continuam no M3.
+- Os passos de um lote rodam um de cada vez, na ordem topológica (entre passos prontos, o primeiro declarado). Assim as revisões são determinísticas.
+- `confirmation: "per_step"` é aceito e, por enquanto, se comporta como `upfront`: um único cartão antes de qualquer efeito.
+- Operação nova `diagram.move_node` para o arraste de um nó pelo usuário (muda só o layout e fixa o nó).
 
 ### M3 · Open Semantic integrado (incremento 3)
 

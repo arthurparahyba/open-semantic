@@ -6,9 +6,8 @@ import {
   type ModInstance,
   type ModTypeDescriptor,
   type OperationHandler,
-  type Rect,
 } from "@open-semantic/protocol";
-import { findFreeSpot, placedBy, type WorkspaceStore } from "@open-semantic/workspace-store";
+import { placeNew, placedBy, requireEntities, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
 
 const ref = (path: string) => ({ $ref: SCHEMA_BASE_URI + path });
 
@@ -150,8 +149,10 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
           placement: {
             type: "object",
             properties: {
+              strategy: { const: "free_space_near" },
               position: ref("common.schema.json#/$defs/Point"),
-              anchorIds: { type: "array", items: ref("common.schema.json#/$defs/CanvasObjectId") },
+              anchorIds: { type: "array", items: ref("common.schema.json#/$defs/VisualTargetId") },
+              regionId: ref("common.schema.json#/$defs/RegionId"),
             },
             additionalProperties: false,
           },
@@ -167,6 +168,11 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
           });
         }
         validateConfig(type, args.config as Record<string, unknown>);
+        requireEntities(store, args.semanticEntityIds as string[] | undefined, "/semanticEntityIds");
+        const regionId = (args.placement as { regionId?: string } | undefined)?.regionId;
+        if (regionId && !store.region(regionId)) {
+          throw new OperationError("REFERENCE_INVALID", `Região '${regionId}' não existe.`, { argumentPath: "/placement/regionId", targetId: regionId });
+        }
         if (args.uiState) validateUi(type, args.uiState as Record<string, unknown>);
         const existing = store.mod(args.modId as string);
         if (existing && (existing.type !== type || JSON.stringify(existing.config) !== JSON.stringify(args.config))) {
@@ -186,13 +192,7 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
         const config = args.config as Record<string, unknown>;
         const artifact = validateConfig(type, config);
         const size = descriptor.defaultSize ?? { width: 360, height: 480 };
-        const placement = (args.placement ?? {}) as { position?: Rect["position"]; anchorIds?: string[] };
-        const occupied = store.read().canvas.objects.map((o) => ({ position: o.position, size: o.size }));
-        const anchors = (placement.anchorIds ?? [])
-          .map((id) => store.canvasObject(id))
-          .filter((o) => o !== undefined)
-          .map((o) => ({ position: o.position, size: o.size }));
-        const rect = placement.position ? { position: placement.position, size } : findFreeSpot(occupied, size, anchors);
+        const { rect, regionId, grownRegion } = placeNew(store.read(), size, (args.placement ?? {}) as PlacementRequest);
         const name = artifact && "rootId" in artifact.locator ? artifact.locator.path.split("/").pop() : undefined;
 
         const mod: ModInstance = {
@@ -211,7 +211,15 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
         };
         const saved = store.transact(() => {
           const zIndex = Math.max(0, ...store.read().canvas.objects.map((o) => o.zIndex ?? 0)) + 1;
-          store.placeObject({ id: modId, objectKind: "mod", ...rect, zIndex, placedBy: placedBy(request.authorization.actor) });
+          if (grownRegion) store.putRegion(grownRegion);
+          store.placeObject({
+            id: modId,
+            objectKind: "mod",
+            ...rect,
+            zIndex,
+            ...(regionId ? { regionId } : {}),
+            placedBy: placedBy(request.authorization.actor),
+          });
           return store.putMod(mod);
         });
         return {

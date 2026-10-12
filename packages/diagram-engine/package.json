@@ -1,0 +1,16 @@
+{
+  "name": "@open-semantic/diagram-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@open-semantic/protocol": "workspace:*",
+    "@open-semantic/workspace-store": "workspace:*",
+    "elkjs": "^0.12.0"
+  }
+}

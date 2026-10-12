@@ -41,6 +41,7 @@ Dois diagramas podem ter nós vinculados à mesma entidade. É assim que um arqu
 | `diagram.apply_patch` | `diagramId`, `DiagramPatch` (`ops`, `relayout`) | alterações aplicadas | Sim (ids escolhidos pelo cliente) | Não |
 | `diagram.layout` | `diagramId`, `algorithm`, `direction?`, `respectPinned=true` | novo layout | Sim | Não |
 | `diagram.delete` | `diagramId` | — | Sim | Sempre para o agente |
+| `diagram.move_node` | `diagramId`, `nodeId`, `position` | posição | Sim | Não |
 | `diagram.open_linked` | `nodeId`, `as` (`explorer`/`editor`) | `modId` aberto ou focado | Sim | Não |
 
 `diagram.apply_patch` é atômico **dentro do diagrama**: ou todas as ops do patch valem, ou nenhuma. Erros apontam o índice da op (`argumentPath: "/ops/3"`).

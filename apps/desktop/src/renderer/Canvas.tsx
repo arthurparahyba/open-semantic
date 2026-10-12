@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { computeFrame, pan, zoomAt, type FrameOptions, type Viewport } from "@open-semantic/navigator";
-import type { Camera, CanvasObject, ModInstance, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
+import type { Camera, CanvasObject, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import { run } from "./client.js";
+import { api, run } from "./client.js";
 
 export interface CanvasHandle {
   /** Enquadra os objetos (todos, se ids vazio) com animação. */
@@ -12,9 +12,12 @@ export interface CanvasHandle {
   viewportCenter(): Point;
 }
 
-export interface ModRenderProps {
-  mod: ModInstance;
+export interface ObjectRenderProps {
   object: CanvasObject;
+  zoom: number;
+  highlighted: boolean;
+  /** Ids destacados pelo último enquadramento (inclui nós de diagrama). */
+  highlightIds: ReadonlySet<string>;
   onHeaderPointerDown(event: React.PointerEvent): void;
   onResizePointerDown(event: React.PointerEvent): void;
 }
@@ -22,7 +25,7 @@ export interface ModRenderProps {
 interface Props {
   snapshot: WorkspaceSnapshot;
   handle: Ref<CanvasHandle>;
-  renderMod(props: ModRenderProps): ReactNode;
+  renderObject(props: ObjectRenderProps): ReactNode;
   onZoomChange?(zoom: number): void;
 }
 
@@ -31,59 +34,109 @@ type Gesture =
   | { kind: "move" | "resize"; id: string; start: Point; origin: Rect; rect?: Rect };
 
 const MIN_SIZE = { width: 220, height: 120 };
+const HIGHLIGHT_MS = 2600;
+
+const sameCamera = (a: Camera, b: Camera) =>
+  Math.abs(a.zoom - b.zoom) < 1e-4 && Math.abs(a.center.x - b.center.x) < 0.5 && Math.abs(a.center.y - b.center.y) < 0.5;
 
 /**
- * Canvas infinito: câmera (pan/zoom), objetos posicionados no mundo e gestos do usuário.
- * A geometria do enquadramento vem de @open-semantic/navigator.
+ * Canvas infinito: câmera (pan/zoom), regiões, objetos posicionados no mundo e gestos do usuário.
+ * Movimentos pedidos pelo agente chegam pelo snapshot (navigation.motion) e são animados aqui;
+ * qualquer gesto do usuário durante a animação a interrompe e avisa o núcleo (navigation.cancel).
  */
-export function Canvas({ snapshot, handle, renderMod, onZoomChange }: Props) {
+export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ width: 1, height: 1 });
   const [camera, setCameraState] = useState<Camera>(snapshot.navigation.camera);
   const cameraRef = useRef(camera);
   const gesture = useRef<Gesture | null>(null);
   const animation = useRef<number | null>(null);
+  /** Movimento do núcleo em curso (pedido pelo agente ou por uma sugestão). */
+  const coreMotion = useRef<string | null>(null);
+  const lastSent = useRef<Camera>(snapshot.navigation.camera);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [highlight, setHighlight] = useState<string[]>([]);
   // Posições locais durante arrasto, até o núcleo confirmar a nova revisão.
   const [overrides, setOverrides] = useState<Record<string, { rect: Rect; revision: number }>>({});
+
+  const sendCamera = () => {
+    lastSent.current = cameraRef.current;
+    void run("navigation.set_camera", { camera: cameraRef.current });
+  };
 
   const setCamera = useCallback(
     (next: Camera, persist = true) => {
       cameraRef.current = next;
       setCameraState(next);
       onZoomChange?.(next.zoom);
-      if (persist) {
-        if (saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current = setTimeout(() => void run("navigation.set_camera", { camera: cameraRef.current }), 600);
-      }
+      if (!persist) return;
+      // O primeiro movimento vai na hora (o núcleo passa a segurar a câmera para o usuário);
+      // os seguintes são agrupados.
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      else sendCamera();
+      saveTimer.current = setTimeout(() => {
+        saveTimer.current = null;
+        if (!sameCamera(lastSent.current, cameraRef.current)) sendCamera();
+      }, 500);
     },
     [onZoomChange],
   );
 
-  const cancelAnimation = () => {
+  const stopAnimation = () => {
     if (animation.current !== null) cancelAnimationFrame(animation.current);
     animation.current = null;
   };
 
+  /** Gesto do usuário: para qualquer animação e, se era do núcleo, avisa que foi interrompida. */
+  const userTakesOver = () => {
+    stopAnimation();
+    if (coreMotion.current) {
+      void run("navigation.cancel", { navigationId: coreMotion.current, camera: cameraRef.current });
+      lastSent.current = cameraRef.current;
+      coreMotion.current = null;
+    }
+  };
+
   const animateTo = useCallback(
-    (target: Camera) => {
-      cancelAnimation();
+    (target: Camera, options: { persist: boolean; duration?: number; onDone?: () => void }) => {
+      stopAnimation();
       const from = cameraRef.current;
       const started = performance.now();
-      const duration = 380;
+      const duration = options.duration ?? 420;
       const step = (now: number) => {
         const t = Math.min((now - started) / duration, 1);
         const k = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
         // Interpola o zoom em escala logarítmica para o movimento parecer uniforme.
         const zoom = Math.exp(Math.log(from.zoom) + (Math.log(target.zoom) - Math.log(from.zoom)) * k);
         const center = { x: from.center.x + (target.center.x - from.center.x) * k, y: from.center.y + (target.center.y - from.center.y) * k };
-        setCamera({ center, zoom }, t === 1);
-        animation.current = t < 1 ? requestAnimationFrame(step) : null;
+        setCamera(t === 1 ? target : { center, zoom }, options.persist && t === 1);
+        if (t < 1) animation.current = requestAnimationFrame(step);
+        else {
+          animation.current = null;
+          options.onDone?.();
+        }
       };
       animation.current = requestAnimationFrame(step);
     },
     [setCamera],
   );
+
+  // A câmera do núcleo mudou sem ter sido este canvas: é um movimento do agente (ou de uma sugestão).
+  const storeCamera = snapshot.navigation.camera;
+  const motion = snapshot.navigation.motion;
+  useEffect(() => {
+    if (sameCamera(storeCamera, lastSent.current) || sameCamera(storeCamera, cameraRef.current)) return;
+    lastSent.current = storeCamera;
+    const navigationId = motion.status === "animating" ? (motion.navigationId ?? null) : null;
+    coreMotion.current = navigationId;
+    animateTo(storeCamera, { persist: false, duration: 650, onDone: () => (coreMotion.current = null) });
+    const ids = snapshot.navigation.focus.highlightIds ?? [];
+    setHighlight(ids);
+    if (!ids.length) return undefined;
+    const timer = setTimeout(() => setHighlight([]), HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeCamera.center.x, storeCamera.center.y, storeCamera.zoom]);
 
   const objects = snapshot.canvas.objects.map((o) => {
     const override = overrides[o.id];
@@ -94,27 +147,42 @@ export function Canvas({ snapshot, handle, renderMod, onZoomChange }: Props) {
     handle,
     () => ({
       frame(ids = [], intent = "focus") {
+        userTakesOver();
         const pool = ids.length ? objects.filter((o) => ids.includes(o.id)) : objects;
         const rects = pool.map((o) => ({ position: o.position, size: o.collapsed ? { width: o.size.width, height: 40 } : o.size }));
+        if (!ids.length) rects.push(...snapshot.canvas.regions.map((r) => r.bounds));
         const target = computeFrame(rects, viewport, { intent, padding: 64 });
-        if (target) animateTo(target);
+        if (target) animateTo(target, { persist: true });
       },
       zoomBy(factor) {
-        cancelAnimation();
+        userTakesOver();
         setCamera(zoomAt(cameraRef.current, viewport, { x: viewport.width / 2, y: viewport.height / 2 }, factor));
       },
       viewportCenter: () => cameraRef.current.center,
     }),
-    [objects, viewport, animateTo, setCamera],
+    [objects, viewport, animateTo, setCamera, snapshot.canvas.regions],
   );
 
   useLayoutEffect(() => {
     const el = viewportRef.current!;
-    const update = () => setViewport({ width: el.clientWidth, height: el.clientHeight });
+    const update = () => {
+      const next = { width: el.clientWidth, height: el.clientHeight };
+      setViewport(next);
+      api().setViewport(next);
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
+  }, []);
+
+  // Esc interrompe um movimento automático.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && coreMotion.current) userTakesOver();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   // Roda: Ctrl/⌘ + roda (ou pinça no trackpad) faz zoom; roda sozinha desloca. Dentro de um mod, rola o mod.
@@ -123,7 +191,7 @@ export function Canvas({ snapshot, handle, renderMod, onZoomChange }: Props) {
     const onWheel = (event: WheelEvent) => {
       if ((event.target as HTMLElement).closest(".mod-body")) return;
       event.preventDefault();
-      cancelAnimation();
+      userTakesOver();
       const rect = el.getBoundingClientRect();
       const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       if (event.ctrlKey || event.metaKey) setCamera(zoomAt(cameraRef.current, viewport, point, Math.exp(-event.deltaY * 0.01)));
@@ -134,7 +202,7 @@ export function Canvas({ snapshot, handle, renderMod, onZoomChange }: Props) {
   }, [viewport, setCamera]);
 
   const startGesture = (event: React.PointerEvent, next: Gesture) => {
-    cancelAnimation();
+    userTakesOver();
     event.preventDefault();
     event.stopPropagation();
     viewportRef.current!.setPointerCapture(event.pointerId);
@@ -191,7 +259,7 @@ export function Canvas({ snapshot, handle, renderMod, onZoomChange }: Props) {
   const tx = viewport.width / 2 - center.x * zoom;
   const ty = viewport.height / 2 - center.y * zoom;
   const grid = 24 * zoom;
-  const mods = new Map(snapshot.mods.map((m) => [m.id, m]));
+  const lit = new Set(highlight);
 
   return (
     <div
@@ -205,28 +273,46 @@ export function Canvas({ snapshot, handle, renderMod, onZoomChange }: Props) {
       onPointerCancel={onPointerUp}
     >
       <div className="world" style={{ transform: `translate(${tx}px, ${ty}px) scale(${zoom})` }}>
+        {snapshot.canvas.regions.map((region) => (
+          <div
+            key={region.id}
+            className={`region${lit.has(region.id) ? " is-highlighted" : ""}`}
+            data-region-id={region.id}
+            style={{
+              left: region.bounds.position.x,
+              top: region.bounds.position.y,
+              width: region.bounds.size.width,
+              height: region.bounds.size.height,
+            }}
+          >
+            <span className="region-title">{region.title}</span>
+          </div>
+        ))}
         {objects
           .slice()
           .sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-          .map((object) => {
-            const mod = mods.get(object.id);
-            if (!mod) return null;
-            return (
-              <div
-                key={object.id}
-                className="mod-slot"
-                style={{
-                  left: object.position.x,
-                  top: object.position.y,
-                  width: object.size.width,
-                  height: object.collapsed ? undefined : object.size.height,
-                  zIndex: object.zIndex ?? 0,
-                }}
-              >
-                {renderMod({ mod, object, onHeaderPointerDown: objectGesture(object, "move"), onResizePointerDown: objectGesture(object, "resize") })}
-              </div>
-            );
-          })}
+          .map((object) => (
+            <div
+              key={object.id}
+              className="mod-slot"
+              style={{
+                left: object.position.x,
+                top: object.position.y,
+                width: object.size.width,
+                height: object.collapsed ? undefined : object.size.height,
+                zIndex: (object.zIndex ?? 0) + 1,
+              }}
+            >
+              {renderObject({
+                object,
+                zoom,
+                highlighted: lit.has(object.id),
+                highlightIds: lit,
+                onHeaderPointerDown: objectGesture(object, "move"),
+                onResizePointerDown: objectGesture(object, "resize"),
+              })}
+            </div>
+          ))}
       </div>
     </div>
   );

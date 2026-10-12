@@ -2,7 +2,7 @@ import { basename, join } from "node:path";
 
 import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 
-import { createCore, type Core } from "@open-semantic/core";
+import { SCRIPTS, ScriptError, createCore, scriptedPlan, type Core } from "@open-semantic/core";
 
 import { CHANNELS, type UiOperationRequest } from "../shared/api.js";
 
@@ -53,6 +53,7 @@ app.whenReady().then(async () => {
     onRevision: (revision) => send(CHANNELS.revision, revision),
     onPersist: (status) => send(CHANNELS.persist, status),
     onEvent: (event) => send(CHANNELS.event, event),
+    onActivity: (activity) => send(CHANNELS.agentActivity, activity),
   });
 
   ipcMain.handle(CHANNELS.dispatch, (_event, request: UiOperationRequest) =>
@@ -67,6 +68,24 @@ app.whenReady().then(async () => {
       path = result.filePaths[0];
     }
     return { path, name: basename(path) };
+  });
+
+  ipcMain.on(CHANNELS.viewport, (_event, viewport: { width: number; height: number }) => {
+    if (typeof viewport?.width === "number" && typeof viewport?.height === "number") core!.setViewport(viewport);
+  });
+  ipcMain.handle(CHANNELS.agentScripts, () => SCRIPTS);
+  ipcMain.handle(CHANNELS.agentActivityList, () => core!.agent.list());
+  ipcMain.handle(CHANNELS.agentRun, async (_event, scriptId: string) => {
+    try {
+      // O plano é montado aqui, no processo principal: a interface só escolhe o roteiro.
+      await core!.agent.run(scriptedPlan(String(scriptId), core!.store.snapshot()));
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, message: err instanceof ScriptError || err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle(CHANNELS.agentRespond, async (_event, batchId: string, approve: boolean) => {
+    await core!.agent.respond(String(batchId), approve === true);
   });
 
   createWindow();

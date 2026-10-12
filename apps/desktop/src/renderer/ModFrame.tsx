@@ -1,9 +1,15 @@
 import type { ReactNode } from "react";
 
-import type { ModRenderProps } from "./Canvas.js";
+import type { CanvasObject, ModInstance } from "@open-semantic/protocol";
+
 import { run } from "./client.js";
 
-interface Props extends ModRenderProps {
+interface Props {
+  mod: ModInstance;
+  object: CanvasObject;
+  highlighted?: boolean;
+  onHeaderPointerDown(event: React.PointerEvent): void;
+  onResizePointerDown(event: React.PointerEvent): void;
   icon: string;
   badge?: ReactNode;
   onFocus(): void;
@@ -12,7 +18,7 @@ interface Props extends ModRenderProps {
 }
 
 /** Moldura comum: cabeçalho arrastável, recolher/abrir (close/reopen), enquadrar, remover e redimensionar. */
-export function ModFrame({ mod, object, icon, badge, onHeaderPointerDown, onResizePointerDown, onFocus, onError, children }: Props) {
+export function ModFrame({ mod, object, highlighted, icon, badge, onHeaderPointerDown, onResizePointerDown, onFocus, onError, children }: Props) {
   const closed = mod.lifecycle === "closed";
   const act = async (operation: string) => {
     const result = await run(operation, { modId: mod.id });
@@ -23,7 +29,7 @@ export function ModFrame({ mod, object, icon, badge, onHeaderPointerDown, onResi
   };
 
   return (
-    <section className={`mod mod-${mod.type}${closed ? " is-closed" : ""}`} data-mod-id={mod.id} data-testid={`mod-${mod.type}`}>
+    <section className={`mod mod-${mod.type}${closed ? " is-closed" : ""}${highlighted ? " is-highlighted" : ""}`} data-mod-id={mod.id} data-testid={`mod-${mod.type}`}>
       <header className="mod-header" onPointerDown={onHeaderPointerDown} onDoubleClick={onFocus} title="Arraste para mover · duplo clique para enquadrar">
         <span className="mod-icon" aria-hidden>
           {icon}

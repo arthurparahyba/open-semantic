@@ -4,9 +4,13 @@
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 
+import { diagramHandlers } from "@open-semantic/diagram-engine";
 import { modHandlers } from "@open-semantic/mod-runtime";
+import type { Viewport } from "@open-semantic/navigator";
+import { navigationHandlers } from "@open-semantic/navigator/handlers";
 import { ProjectRuntime, artifactUnchanged, projectHandlers } from "@open-semantic/project-runtime";
 import {
+  BatchExecutor,
   Dispatcher,
   type ActionLog,
   type ActionRecord,
@@ -21,6 +25,12 @@ import {
   workspacePreconditions,
   type PersistStatus,
 } from "@open-semantic/workspace-store";
+import { semanticHandlers } from "@open-semantic/semantic";
+
+import { AgentRunner, type AgentActivity } from "./agent.js";
+
+export { AgentRunner, describeStep, summarizeBatch, type ActivityStep, type AgentActivity } from "./agent.js";
+export { AGENT, SCRIPTS, ScriptError, scriptedPlan, type ScriptInfo } from "./scripts.js";
 
 export const DEFAULT_WORKSPACE_ID = "ws_default";
 
@@ -33,11 +43,14 @@ export interface CoreOptions {
   onEvent?: (event: DomainEvent) => void;
   onPersist?: (status: PersistStatus) => void;
   onRevision?: (revision: number) => void;
+  onActivity?: (activity: AgentActivity) => void;
+  /** Duração da animação de navegação no núcleo (testes usam 0). */
+  animationMs?: number;
 }
 
 /**
- * Política de autorização do M1. O usuário age livremente pela interface; pedidos do agente
- * que excluem ou escrevem exigem confirmação (docs/funcionalidades/06, tabela de autorização).
+ * Política de autorização. O usuário age livremente pela interface; pedidos do agente
+ * que excluem ou escrevem conteúdo exigem confirmação (docs/funcionalidades/06, tabela de autorização).
  */
 export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
   return (request) => {
@@ -47,6 +60,15 @@ export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
         return store.read().workspace.settings.agentMayDeleteMods
           ? { decision: "allow" }
           : { decision: "confirm", risk: "medium", summary: "Remover um mod do canvas (os arquivos não são apagados).", reversible: false };
+      case "diagram.delete":
+        return { decision: "confirm", risk: "medium", summary: "Excluir um diagrama do canvas.", reversible: false };
+      case "region.delete": {
+        const regionId = (request.arguments as { regionId?: string }).regionId;
+        const occupied = store.read().canvas.objects.some((o) => o.regionId === regionId);
+        return occupied
+          ? { decision: "confirm", risk: "low", summary: "Remover a moldura de uma região que tem objetos (os objetos ficam).", reversible: true }
+          : { decision: "allow" };
+      }
       case "project.write_file":
         return { decision: "confirm", risk: "high", summary: "Gravar alterações em um arquivo do projeto.", reversible: false };
       default:
@@ -91,10 +113,31 @@ export async function createCore(options: CoreOptions) {
     ...(options.onEvent ? { onEvent: options.onEvent } : {}),
   });
 
+  // Tamanho da área do canvas na tela, informado pela interface; o Navigator precisa dele para enquadrar.
+  let viewport: Viewport = { width: 1400, height: 860 };
   const isDirectory = async (path: string) => (await stat(path).catch(() => undefined))?.isDirectory() ?? false;
-  for (const handler of [...workspaceHandlers({ store, isDirectory }), ...projectHandlers(runtime), ...modHandlers({ store })]) {
+  for (const handler of [
+    ...workspaceHandlers({ store, isDirectory }),
+    ...projectHandlers(runtime),
+    ...modHandlers({ store }),
+    ...semanticHandlers({ store }),
+    ...diagramHandlers({ store }),
+    ...navigationHandlers({
+      store,
+      viewport: () => viewport,
+      ...(options.animationMs !== undefined ? { animationMs: options.animationMs } : {}),
+      ...(options.onEvent ? { onEvent: options.onEvent } : {}),
+    }),
+  ]) {
     dispatcher.register(handler);
   }
+
+  const batches = new BatchExecutor({ dispatcher, ...(options.onEvent ? { onEvent: options.onEvent } : {}) });
+  const agent = new AgentRunner({
+    executor: batches,
+    snapshot: () => store.snapshot(),
+    ...(options.onActivity ? { onActivity: options.onActivity } : {}),
+  });
 
   const saver = autosave(store, persistence, {
     debounceMs: options.debounceMs ?? 300,
@@ -109,8 +152,13 @@ export async function createCore(options: CoreOptions) {
     store,
     runtime,
     dispatcher,
+    batches,
+    agent,
     log,
     revalidated,
+    setViewport(next: Viewport) {
+      if (next.width > 0 && next.height > 0) viewport = next;
+    },
     /** Grava tudo que estiver pendente. Chamar antes de sair. */
     async close() {
       await saver.flush();
