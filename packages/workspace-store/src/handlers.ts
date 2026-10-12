@@ -78,6 +78,7 @@ export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps):
         const projectId = args.projectId as string;
         const existing = store.project(projectId);
         if (existing) {
+          if (store.read().workspace.activeProjectId !== projectId) store.transact(() => store.setActiveProject(projectId));
           return {
             output: { projectId, rootArtifactId: existing.rootRef, rootId: existing.roots[0]!.id },
             changes: [{ id: projectId, change: "unchanged" }],
@@ -103,6 +104,8 @@ export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps):
         };
         store.transact(() => {
           store.addProject(project);
+          // A pasta que o usuário acabou de abrir vira o projeto em que o agente trabalha.
+          store.setActiveProject(projectId);
           store.upsertArtifact({
             id: rootArtifactId,
             projectId,
@@ -128,6 +131,50 @@ export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps):
       },
     },
 
+    {
+      // O usuário reabriu uma pasta que já estava no workspace: ela volta a ser o projeto ativo.
+      operation: "workspace.set_active_project",
+      argumentsSchema: {
+        type: "object",
+        required: ["projectId"],
+        properties: { projectId: ref("common.schema.json#/$defs/ProjectId") },
+        additionalProperties: false,
+      },
+      check(args, { request }) {
+        if (request.authorization.actor.kind !== "user") throw new OperationError("UNAUTHORIZED", "Somente o usuário escolhe o projeto ativo.");
+        if (!store.project(args.projectId as string)) {
+          throw new OperationError("REFERENCE_INVALID", "Esse projeto não está no workspace.", { argumentPath: "/projectId" });
+        }
+      },
+      handle(args) {
+        const projectId = args.projectId as string;
+        if (store.read().workspace.activeProjectId === projectId) return { output: { projectId }, changes: [{ id: projectId, change: "unchanged" }] };
+        store.transact(() => store.setActiveProject(projectId));
+        return { output: { projectId }, changes: [{ id: projectId, change: "updated" }], workspaceRevision: store.revision };
+      },
+    },
+
+    {
+      // Tira o projeto do workspace. Os arquivos no disco não são tocados.
+      operation: "workspace.remove_project",
+      argumentsSchema: {
+        type: "object",
+        required: ["projectId"],
+        properties: { projectId: ref("common.schema.json#/$defs/ProjectId") },
+        additionalProperties: false,
+      },
+      check(args, { request }) {
+        if (request.authorization.actor.kind !== "user") throw new OperationError("UNAUTHORIZED", "Somente o usuário pode tirar pastas do workspace.");
+        if (!store.project(args.projectId as string)) {
+          throw new OperationError("REFERENCE_INVALID", "Esse projeto não está no workspace.", { argumentPath: "/projectId" });
+        }
+      },
+      handle(args) {
+        const projectId = args.projectId as string;
+        const removed = store.transact(() => store.removeProject(projectId));
+        return { output: { projectId, removed }, changes: [{ id: projectId, change: "deleted" }], workspaceRevision: store.revision };
+      },
+    },
     {
       operation: "canvas.place",
       argumentsSchema: {

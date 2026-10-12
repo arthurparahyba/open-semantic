@@ -319,6 +319,10 @@ export type SemanticRelation = KnowledgeRules & SemanticRelation1;
  * Contador monotônico por objeto, usado para concorrência otimista e pré-condições.
  */
 export type Revision1 = number;
+/**
+ * Projeto em que o agente trabalha quando o pedido não diz outro. É o último aberto pelo usuário.
+ */
+export type ProjectId1 = string;
 
 export interface OpenSemanticContracts {}
 /**
@@ -1369,6 +1373,7 @@ export interface Workspace {
   id: WorkspaceId;
   name: string;
   revision: Revision1;
+  activeProjectId?: ProjectId1;
   projectIds: ProjectId[];
   settings: {
     autoNavigate?: boolean;

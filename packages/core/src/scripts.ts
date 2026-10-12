@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 
 import type { BatchPlan, WorkspaceSnapshot } from "@open-semantic/protocol";
 
+import { activeProject } from "./conversation.js";
+
 export const AGENT = { kind: "agent" as const, id: "roteirizado" };
 
 export interface ScriptInfo {
@@ -34,7 +36,7 @@ export class ScriptError extends Error {}
 
 /** Monta o plano do roteiro sobre o primeiro projeto aberto. Ids de operação são novos a cada execução. */
 export function scriptedPlan(scriptId: string, snapshot: WorkspaceSnapshot, newId = () => randomUUID().replaceAll("-", "").slice(0, 12)): BatchPlan {
-  const project = snapshot.projects[0];
+  const project = activeProject(snapshot);
   if (!project) throw new ScriptError("Abra uma pasta antes de pedir algo ao agente.");
   const run = newId();
   const op = (n: number) => `act_${run}_${String(n).padStart(3, "0")}`;

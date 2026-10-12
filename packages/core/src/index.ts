@@ -36,6 +36,7 @@ export {
   Conversation,
   ConversationBusyError,
   DEFAULT_LIMITS,
+  activeProject,
   compactHistory,
   summarizeWorkspace,
   type ChatEntry,

@@ -263,3 +263,11 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .confirm-card ul { margin: 6px 0; padding-left: 18px; }
 .confirm-actions { display: flex; gap: 8px; margin-top: 8px; }
 .suggestion { margin-top: 8px; border-color: var(--accent); color: var(--accent); }
+
+/* Projetos do workspace: o ativo é onde o agente trabalha */
+.projects { display: flex; gap: 6px; align-items: center; margin-left: 8px; min-width: 0; overflow: hidden; }
+.project-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); overflow: hidden; }
+.project-chip button { border: 0; border-radius: 0; background: transparent; padding: 2px 8px; font-size: 12px; }
+.project-chip .project-remove { padding: 2px 7px 2px 2px; color: var(--text-2); }
+.project-chip.is-active { border-color: var(--accent); background: var(--accent-soft); }
+.project-chip.is-active .project-name { font-weight: 600; }
