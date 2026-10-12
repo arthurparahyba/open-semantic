@@ -162,6 +162,11 @@ export class Dispatcher {
     return [...this.handlers.keys()].sort();
   }
 
+  /** JSON Schema dos argumentos de uma operação (pode citar os contratos por $ref). */
+  argumentsSchema(operation: string): object | undefined {
+    return this.handlers.get(operation)?.handler.argumentsSchema;
+  }
+
   /**
    * Checagem sem efeitos usada pelo executor de lotes antes de executar qualquer passo:
    * forma da requisição, operação conhecida, argumentos (quando não há $bind pendente) e decisão de autorização.
