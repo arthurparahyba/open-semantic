@@ -30,6 +30,20 @@ import { semanticHandlers } from "@open-semantic/semantic";
 import { AgentRunner, type AgentActivity } from "./agent.js";
 
 export { AgentRunner, describeStep, summarizeBatch, type ActivityStep, type AgentActivity } from "./agent.js";
+export {
+  AGENT_OPERATIONS,
+  CLAUDE_AGENT,
+  Conversation,
+  ConversationBusyError,
+  DEFAULT_LIMITS,
+  compactHistory,
+  summarizeWorkspace,
+  type ChatEntry,
+  type ConversationSettings,
+  type ConversationView,
+  type TurnLimits,
+} from "./conversation.js";
+export { SYSTEM_PROMPT } from "./prompt.js";
 export { AGENT, SCRIPTS, ScriptError, scriptedPlan, type ScriptInfo } from "./scripts.js";
 
 export const DEFAULT_WORKSPACE_ID = "ws_default";

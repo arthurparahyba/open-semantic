@@ -1,7 +1,26 @@
-import type { AgentActivity, ScriptInfo } from "@open-semantic/core";
+import type { AgentActivity, ChatEntry, ConversationView, ScriptInfo } from "@open-semantic/core";
 import type { DomainEvent, OperationResult, WorkspaceSnapshot } from "@open-semantic/protocol";
 
-export type { AgentActivity, ScriptInfo };
+export type { AgentActivity, ChatEntry, ConversationView, ScriptInfo };
+
+/** O que a interface sabe das configurações do agente de IA. A chave em si nunca chega aqui. */
+export interface AgentSettingsView {
+  provider: string;
+  providerLabel: string;
+  models: { id: string; label: string; note: string; inputPerMTok: number; outputPerMTok: number }[];
+  model: string;
+  maxCostPerRequestUsd: number;
+  key: {
+    configured: boolean;
+    /** saved: cifrada no cofre do sistema; memory: só até fechar o app; env: variável ANTHROPIC_API_KEY; test: provedor roteirizado. */
+    source: "saved" | "memory" | "env" | "test" | "none";
+    /** Últimos 4 caracteres, para o usuário reconhecer a chave. */
+    hint?: string;
+  };
+  encryptionAvailable: boolean;
+}
+
+export type Outcome = { ok: true } | { ok: false; message: string };
 
 export type PersistState =
   | { state: "saved"; revision: number }
@@ -35,6 +54,17 @@ export interface OpenSemanticApi {
   respondToAgent(batchId: string, approve: boolean): Promise<void>;
   agentActivity(): Promise<AgentActivity[]>;
   onAgentActivity(listener: (activity: AgentActivity) => void): () => void;
+
+  /** Conversa com o agente de IA (M2). */
+  agentSettings(): Promise<AgentSettingsView>;
+  saveAgentSettings(patch: { model?: string; maxCostPerRequestUsd?: number }): Promise<AgentSettingsView>;
+  /** Envia a chave para o processo principal, que a cifra e guarda. null apaga. */
+  setApiKey(key: string | null): Promise<{ ok: true; view: AgentSettingsView } | { ok: false; message: string }>;
+  conversation(): Promise<ConversationView>;
+  onConversation(listener: (view: ConversationView) => void): () => void;
+  sendChat(text: string): Promise<Outcome>;
+  stopChat(): Promise<void>;
+  resetChat(): Promise<Outcome>;
 }
 
 export const CHANNELS = {
@@ -50,4 +80,12 @@ export const CHANNELS = {
   agentRespond: "os:agent-respond",
   agentActivity: "os:agent-activity",
   agentActivityList: "os:agent-activity-list",
+  agentSettings: "os:agent-settings",
+  agentSettingsSave: "os:agent-settings-save",
+  agentKey: "os:agent-key",
+  chat: "os:chat",
+  chatChanged: "os:chat-changed",
+  chatSend: "os:chat-send",
+  chatStop: "os:chat-stop",
+  chatReset: "os:chat-reset",
 } as const;

@@ -61,3 +61,39 @@ export function describeErrors(errors: ErrorObject[] | null | undefined): string
     .map((e) => `${e.instancePath || "/"} ${e.message ?? ""}`.trim())
     .join("; ");
 }
+
+const byFile = new Map<string, Record<string, unknown>>(
+  contractSchemas.map((s) => [String((s as { $id: string }).$id).slice(SCHEMA_BASE_URI.length), s as Record<string, unknown>]),
+);
+
+/**
+ * Copia um schema substituindo cada $ref aos contratos pelo conteúdo citado, para mostrar a um agente
+ * de IA (que não consegue seguir $ref). Além de `maxDepth` níveis, a referência vira só uma descrição.
+ */
+export function inlineContractRefs(schema: unknown, maxDepth = 6): unknown {
+  const walk = (node: unknown, file: string | undefined, depth: number): unknown => {
+    if (Array.isArray(node)) return node.map((n) => walk(n, file, depth));
+    if (!node || typeof node !== "object") return node;
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.$ref === "string") {
+      const ref = obj.$ref.startsWith(SCHEMA_BASE_URI) ? obj.$ref.slice(SCHEMA_BASE_URI.length) : obj.$ref;
+      const [target = "", pointer = ""] = ref.split("#");
+      const targetFile = target || file;
+      const doc = targetFile ? byFile.get(targetFile) : undefined;
+      const name = pointer.split("/").pop() ?? ref;
+      if (!doc || depth >= maxDepth) return { description: `(${name})` };
+      let resolved: unknown = doc;
+      for (const part of pointer.split("/").filter(Boolean)) resolved = (resolved as Record<string, unknown> | undefined)?.[part];
+      if (resolved === undefined) return { description: `(${name})` };
+      const { $ref: _ignored, ...rest } = obj;
+      return walk({ ...(resolved as object), ...rest }, targetFile, depth + 1);
+    }
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (k === "$id" || k === "$schema" || k === "$defs" || k === "$comment") continue;
+      out[k] = walk(v, file, depth);
+    }
+    return out;
+  };
+  return walk(schema, undefined, 0);
+}

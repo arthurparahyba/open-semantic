@@ -8,5 +8,6 @@ export {
   compileWithContracts,
   createAjv,
   describeErrors,
+  inlineContractRefs,
 } from "./schemas.js";
 export * from "./batch.js";

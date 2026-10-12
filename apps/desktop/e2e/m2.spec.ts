@@ -43,12 +43,15 @@ const snapshot = (page: Page) => page.evaluate(() => window.openSemantic.snapsho
 const shot = async (page: Page, name: string) => {
   if (screenshots) await page.screenshot({ path: join(screenshots, name) });
 };
-const lastBatch = (page: Page) => page.getByTestId("agent-batch").first();
+const lastBatch = (page: Page) => page.getByTestId("agent-batch").last();
 
 test("o agente roteirizado monta a arquitetura, respeita a câmera do usuário e pede confirmação", async () => {
   const { app, page } = await launch();
   await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
   await expect(page.getByTestId("mod-explorer")).toBeVisible();
+
+  // Os roteiros ficam recolhidos sob o chat.
+  await page.locator(".agent-scripts summary").click();
 
   // Fluxo de referência.
   await page.locator('[data-script="arquitetura"]').click();

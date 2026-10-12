@@ -55,6 +55,16 @@ O painel **Agente**, à direita, tem um agente roteirizado: ainda sem IA, ele ex
 
 Arraste os nós do diagrama para fixá-los; Esc ou qualquer gesto interrompe um movimento automático.
 
+### O que dá para fazer no M2 (parte 2): conversa com o Claude
+
+O painel **Agente** agora é um chat. Na engrenagem (⚙), coloque uma chave da API da Anthropic (crie em [console.anthropic.com](https://console.anthropic.com); o uso é cobrado na conta da API, separado da assinatura do Claude). A chave é cifrada com o cofre do sistema e fica só no processo principal; a variável `ANTHROPIC_API_KEY` também funciona.
+
+- **Modelo:** Claude Haiku 5.5 por padrão (US$ 0,10 / 0,50 por milhão de tokens). Sonnet 5.5 e Opus 5.5 ficam como opção.
+- **Custo visível:** o cabeçalho mostra o custo da conversa e do último pedido.
+- **Tetos por pedido:** custo (padrão US$ 0,10, ajustável), 12 chamadas ao modelo, 6 lotes, 60 passos e 600 mil tokens. Ao bater num teto, o agente para e avisa.
+- **Contexto:** quando o prompt de uma chamada passa de 80 mil tokens, os pedidos anteriores são compactados (fica o que foi pedido, respondido e feito). “Nova conversa” zera tudo.
+- O agente lê o projeto (listar pasta, ler arquivo) e muda as coisas só por lotes, com o mesmo cartão de confirmação dos roteiros. Os roteiros de teste continuam no rodapé do painel.
+
 O estado do workspace fica em `workspaces/ws_default.json` e o histórico de ações em `history/ws_default.jsonl`, dentro da pasta de dados do Electron (`~/.config/Open Semantic` no Linux, `~/Library/Application Support/Open Semantic` no macOS, `%APPDATA%\Open Semantic` no Windows).
 
 ## Estrutura
@@ -69,7 +79,8 @@ packages/mod-runtime/     tipos de mod (Explorer, Editor) e seu ciclo de vida
 packages/navigator/       câmera e enquadramento
 packages/semantic/        Open Semantic (parte mínima do M2: observações, inferências, consulta)
 packages/diagram-engine/  diagramas: modelo, patches atômicos e layout com elkjs
-packages/core/            liga tudo: Dispatcher, lotes, políticas, histórico, autosave, agente
+packages/llm/             provedores de LLM: interface neutra, adaptador do Claude, preços
+packages/core/            liga tudo: Dispatcher, lotes, políticas, histórico, autosave, agente e laço da conversa
 apps/desktop/             aplicativo Electron (main, preload e interface React)
 scripts/gen-types.mjs     gera packages/protocol/src/generated/contracts.ts
 ```

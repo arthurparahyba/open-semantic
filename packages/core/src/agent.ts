@@ -1,4 +1,4 @@
-// Ponte entre um agente (roteirizado no M2, de IA depois) e o executor de lotes:
+// Ponte entre um agente (roteirizado ou de IA) e o executor de lotes:
 // guarda lotes à espera de confirmação, aplica a decisão do usuário e narra o resultado efetivo.
 import {
   type BatchExecutor,
@@ -46,6 +46,7 @@ interface Pending {
 export class AgentRunner {
   private readonly activities = new Map<string, AgentActivity>();
   private readonly pending = new Map<string, Pending>();
+  private readonly waiters = new Map<string, ((result: BatchResult) => void)[]>();
   private readonly now: () => Date;
 
   constructor(private readonly options: AgentRunnerOptions) {
@@ -68,6 +69,20 @@ export class AgentRunner {
     };
     this.publish(activity);
     return this.execute(plan, activity);
+  }
+
+  /** Há um lote esperando a confirmação do usuário. */
+  isPending(batchId: string): boolean {
+    return this.pending.has(batchId);
+  }
+
+  /**
+   * Resolve quando o lote termina de verdade: na hora, se já terminou; senão, depois que o usuário
+   * responder ao cartão de confirmação e o lote rodar (ou for recusado).
+   */
+  settled(batchId: string, current: BatchResult): Promise<BatchResult> {
+    if (current.status !== "awaiting_confirmation" || !this.pending.has(batchId)) return Promise.resolve(current);
+    return new Promise((resolve) => this.waiters.set(batchId, [...(this.waiters.get(batchId) ?? []), resolve]));
   }
 
   /** Resposta do usuário ao cartão de confirmação. */
@@ -99,6 +114,9 @@ export class AgentRunner {
       activity.status = "rejected";
       activity.summary = `Não executei nada: ${err instanceof Error ? err.message : String(err)}`;
       this.publish(activity);
+      const waiting = this.waiters.get(plan.batchId) ?? [];
+      this.waiters.delete(plan.batchId);
+      for (const resolve of waiting) resolve({ batchId: plan.batchId, status: "rejected", steps: {} });
       throw err;
     }
     if (result.status === "awaiting_confirmation") {
@@ -126,6 +144,11 @@ export class AgentRunner {
     }
     if (final && result.status !== "awaiting_confirmation") activity.summary = summarizeBatch(plan, result, activity);
     this.publish(activity);
+    if (final && result.status !== "awaiting_confirmation") {
+      const waiting = this.waiters.get(plan.batchId) ?? [];
+      this.waiters.delete(plan.batchId);
+      for (const resolve of waiting) resolve(result);
+    }
   }
 
   private publish(activity: AgentActivity) {

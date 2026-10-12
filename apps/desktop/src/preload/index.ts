@@ -23,6 +23,14 @@ const api: OpenSemanticApi = {
   respondToAgent: (batchId, approve) => ipcRenderer.invoke(CHANNELS.agentRespond, batchId, approve),
   agentActivity: () => ipcRenderer.invoke(CHANNELS.agentActivityList),
   onAgentActivity: (listener) => subscribe(CHANNELS.agentActivity, listener),
+  agentSettings: () => ipcRenderer.invoke(CHANNELS.agentSettings),
+  saveAgentSettings: (patch) => ipcRenderer.invoke(CHANNELS.agentSettingsSave, patch),
+  setApiKey: (key) => ipcRenderer.invoke(CHANNELS.agentKey, key),
+  conversation: () => ipcRenderer.invoke(CHANNELS.chat),
+  onConversation: (listener) => subscribe(CHANNELS.chatChanged, listener),
+  sendChat: (text) => ipcRenderer.invoke(CHANNELS.chatSend, text),
+  stopChat: () => ipcRenderer.invoke(CHANNELS.chatStop),
+  resetChat: () => ipcRenderer.invoke(CHANNELS.chatReset),
 };
 
 contextBridge.exposeInMainWorld("openSemantic", api);

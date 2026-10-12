@@ -156,7 +156,14 @@ Da V0.1: E1 a E5, D1, D3. Mais:
 - Passos rodam em sequência, na ordem topológica estável. `per_step` se comporta como `upfront` por enquanto.
 - O token de confirmação é um só para o lote e nunca vai para a interface: ela aprova ou recusa pelo `batchId`.
 
+## Estado da implementação (M2, parte 2)
+
+- Provedores em `packages/llm` (interface `LlmProvider`, adaptador `AnthropicProvider`, preços por modelo). O laço está em `packages/core/src/conversation.ts` e o prompt de sistema em `packages/core/src/prompt.ts`.
+- Tetos por pedido (`DEFAULT_LIMITS`): 12 chamadas ao modelo, 6 lotes, 60 passos, 600 mil tokens, 8 mil tokens por resposta, além do teto de custo configurável.
+- O resultado de `run_batch` devolvido ao modelo traz o status real de cada passo e a narração mostrada ao usuário.
+
 ## Questões abertas
 
-- Limite de passos por lote e de lotes por turno (proposto: 50 passos, 5 lotes).
+- Limites de passos e lotes por turno: implementados como 60 passos e 6 lotes; revisar com uso real.
+- Persistir a conversa entre aberturas do app (hoje ela vive só enquanto o app está aberto).
 - Desfazer em cascata (desfazer o lote inteiro) é desejável; o modelo de `undo` por registro já permite implementar depois.
