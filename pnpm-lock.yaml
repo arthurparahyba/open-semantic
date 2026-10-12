@@ -21,6 +21,52 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4(@types/node@26.6.5)(vite@8.3.4(@types/node@26.6.5))
 
+  packages/core:
+    dependencies:
+      '@open-semantic/mod-runtime':
+        specifier: workspace:*
+        version: link:../mod-runtime
+      '@open-semantic/navigator':
+        specifier: workspace:*
+        version: link:../navigator
+      '@open-semantic/project-runtime':
+        specifier: workspace:*
+        version: link:../project-runtime
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../workspace-store
+
+  packages/mod-runtime:
+    dependencies:
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../workspace-store
+    devDependencies:
+      '@open-semantic/project-runtime':
+        specifier: workspace:*
+        version: link:../project-runtime
+
+  packages/navigator:
+    dependencies:
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
+  packages/project-runtime:
+    dependencies:
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../workspace-store
+
   packages/protocol:
     dependencies:
       ajv:
@@ -29,6 +75,12 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
+
+  packages/workspace-store:
+    dependencies:
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
 packages:
 

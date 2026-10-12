@@ -1,0 +1,15 @@
+{
+  "name": "@open-semantic/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run" },
+  "dependencies": {
+    "@open-semantic/mod-runtime": "workspace:*",
+    "@open-semantic/navigator": "workspace:*",
+    "@open-semantic/project-runtime": "workspace:*",
+    "@open-semantic/protocol": "workspace:*",
+    "@open-semantic/workspace-store": "workspace:*"
+  }
+}
