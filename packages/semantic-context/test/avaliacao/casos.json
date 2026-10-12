@@ -1,0 +1,263 @@
+[
+  {
+    "nome": "back e front da loja",
+    "texto": "Como é a interação entre o back-end e o front-end da loja?",
+    "assunto": [
+      "sem_loja_api_pedidos",
+      "sem_loja_app_web"
+    ],
+    "foco": "dgm_loja_seq_pedido",
+    "pergunta": false
+  },
+  {
+    "nome": "front pelo nome, back pelo grafo",
+    "texto": "Como o app-web conversa com o back-end?",
+    "assunto": [
+      "sem_loja_api_pedidos",
+      "sem_loja_app_web"
+    ],
+    "foco": "dgm_loja_seq_pedido",
+    "pergunta": false,
+    "suposicao": "sem_loja_api_pedidos"
+  },
+  {
+    "nome": "portal fala com dois back-ends: pergunta",
+    "texto": "Como o portal fala com o back-end?",
+    "pergunta": [
+      "sem_banco_api_contas",
+      "sem_banco_api_cartoes"
+    ]
+  },
+  {
+    "nome": "app mobile só fala com contas: supõe",
+    "texto": "Como o app mobile fala com o back-end?",
+    "assunto": [
+      "sem_banco_api_contas",
+      "sem_banco_app_mobile"
+    ],
+    "foco": "dgm_banco_arquitetura",
+    "pergunta": false,
+    "suposicao": "sem_banco_api_contas"
+  },
+  {
+    "nome": "texto longo: o ponto é pagamento e antifraude",
+    "texto": "Revisei o checkout e o cadastro de clientes ontem, estão ok. Mas o ponto aqui é que o pagamento está lento; acho que a chamada do serviço de pagamentos ao antifraude é síncrona. Como isso está desenhado hoje?",
+    "assunto": [
+      "sem_loja_pagamentos",
+      "sem_loja_antifraude"
+    ],
+    "foco": "dgm_loja_seq_pagamento",
+    "pergunta": false,
+    "foraDoAssunto": [
+      "sem_loja_checkout",
+      "sem_loja_cadastro"
+    ]
+  },
+  {
+    "nome": "fluxo do checkout",
+    "texto": "Mostre o fluxo do checkout",
+    "assunto": [
+      "sem_loja_checkout"
+    ],
+    "foco": "dgm_loja_fluxo_checkout",
+    "pergunta": false
+  },
+  {
+    "nome": "continuação: e o back-end? (depois do app mobile)",
+    "texto": "e o back-end?",
+    "recentes": [
+      "sem_banco_app_mobile"
+    ],
+    "assunto": [
+      "sem_banco_api_contas"
+    ],
+    "pergunta": false,
+    "suposicao": "sem_banco_api_contas"
+  },
+  {
+    "nome": "back-end sem contexto: pergunta",
+    "texto": "Como é o back-end?",
+    "pergunta": [
+      "sem_loja_api_pedidos",
+      "sem_banco_api_contas",
+      "sem_banco_api_cartoes"
+    ]
+  },
+  {
+    "nome": "back-end com a loja na conversa recente",
+    "texto": "Como é o back-end?",
+    "recentes": [
+      "sem_loja_app_web"
+    ],
+    "assunto": [
+      "sem_loja_api_pedidos"
+    ],
+    "pergunta": false,
+    "suposicao": "sem_loja_api_pedidos"
+  },
+  {
+    "nome": "seleção no canvas resolve",
+    "texto": "Como esse back-end valida o cartão?",
+    "selecionados": [
+      "nd_bc_cartoes"
+    ],
+    "assunto": [
+      "sem_banco_api_cartoes"
+    ],
+    "foco": "dgm_banco_seq_cartao",
+    "pergunta": false
+  },
+  {
+    "nome": "o que temos sobre um repositório",
+    "texto": "O que temos sobre estoque?",
+    "assunto": [
+      "sem_estoque"
+    ],
+    "foco": "sem_estoque",
+    "pergunta": false
+  },
+  {
+    "nome": "worker e fila de um repositório gerado",
+    "texto": "Como o worker de faturamento consome a fila?",
+    "assunto": [
+      "sem_faturamento_worker",
+      "sem_faturamento_fila"
+    ],
+    "foco": "dgm_faturamento_arquitetura",
+    "pergunta": false
+  },
+  {
+    "nome": "inglês",
+    "texto": "How does the payments service call antifraud?",
+    "assunto": [
+      "sem_loja_pagamentos",
+      "sem_loja_antifraude"
+    ],
+    "foco": "dgm_loja_seq_pagamento",
+    "pergunta": false
+  },
+  {
+    "nome": "id explícito",
+    "texto": "Detalhe sem_banco_api_cartoes, por favor",
+    "assunto": [
+      "sem_banco_api_cartoes"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "menção com @",
+    "texto": "@api-contas tem cache?",
+    "assunto": [
+      "sem_banco_api_contas"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "diagrama de sequência pelo título",
+    "texto": "Explique o diagrama de criação do pedido",
+    "assunto": [
+      "sem_loja_api_pedidos"
+    ],
+    "foco": "dgm_loja_seq_pedido",
+    "pergunta": false
+  },
+  {
+    "nome": "texto longo com ruído: o principal são os cupons",
+    "texto": "Ontem conversei com o time sobre logística e frete, está tudo certo por lá. O principal agora é a API de cupons: como ela grava no banco de cupons?",
+    "assunto": [
+      "sem_cupons_api",
+      "sem_cupons_db"
+    ],
+    "foco": "dgm_cupons_arquitetura",
+    "pergunta": false,
+    "foraDoAssunto": [
+      "sem_logistica",
+      "sem_frete"
+    ]
+  },
+  {
+    "nome": "plural e acento",
+    "texto": "quais serviços gravam no banco de pedidos",
+    "assunto": [
+      "sem_loja_db"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "banco de dados de um repositório pelo nome",
+    "texto": "Preciso ajustar o banco de reservas",
+    "assunto": [
+      "sem_reservas_db"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "validação de cartão no portal",
+    "texto": "Como o portal valida o cartão?",
+    "assunto": [
+      "sem_banco_portal",
+      "sem_banco_api_cartoes"
+    ],
+    "foco": "dgm_banco_seq_cartao",
+    "pergunta": false
+  },
+  {
+    "nome": "quais diagramas mostram um serviço",
+    "texto": "Quais diagramas mostram o antifraude?",
+    "assunto": [
+      "sem_loja_antifraude"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "front chamando serviço indireto",
+    "texto": "O app-web chama o serviço de pagamentos direto?",
+    "assunto": [
+      "sem_loja_app_web",
+      "sem_loja_pagamentos"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "arquitetura de um repositório",
+    "texto": "Explique a arquitetura do banco digital",
+    "assunto": [
+      "sem_banco"
+    ],
+    "foco": "dgm_banco_arquitetura",
+    "pergunta": false
+  },
+  {
+    "nome": "continuação: e o banco de dados? (depois da api de pedidos)",
+    "texto": "E o banco de dados?",
+    "recentes": [
+      "sem_loja_api_pedidos"
+    ],
+    "assunto": [
+      "sem_loja_db"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "componente de um repositório gerado",
+    "texto": "Qual o papel da fila de notificações?",
+    "assunto": [
+      "sem_notificacoes_fila"
+    ],
+    "pergunta": false
+  },
+  {
+    "nome": "texto longo com cumprimento e ruído: portal e cartões",
+    "texto": "Bom dia! Hoje cedo tive reunião sobre marketing e relatórios, nada urgente. Preciso entender uma coisa: quando o portal valida o cartão, quem responde é a api-cartoes? Obrigado.",
+    "assunto": [
+      "sem_banco_portal",
+      "sem_banco_api_cartoes"
+    ],
+    "foco": "dgm_banco_seq_cartao",
+    "pergunta": false,
+    "foraDoAssunto": [
+      "sem_marketing",
+      "sem_relatorios"
+    ]
+  }
+]

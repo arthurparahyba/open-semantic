@@ -179,6 +179,8 @@ importers:
         specifier: workspace:*
         version: link:../workspace-store
 
+  packages/semantic-context: {}
+
   packages/workspace-store:
     dependencies:
       '@open-semantic/protocol':
