@@ -2,7 +2,9 @@ import { basename, join } from "node:path";
 
 import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 
-import { SCRIPTS, ScriptError, createCore, scriptedPlan, type Core } from "@open-semantic/core";
+import { Conversation, ConversationBusyError, SCRIPTS, ScriptError, createCore, scriptedPlan, type Core } from "@open-semantic/core";
+
+import { AgentSettings } from "./agentSettings.js";
 
 import { CHANNELS, type UiOperationRequest } from "../shared/api.js";
 
@@ -10,6 +12,8 @@ import { CHANNELS, type UiOperationRequest } from "../shared/api.js";
 const dataDir = process.env.OPEN_SEMANTIC_DATA_DIR ?? app.getPath("userData");
 const testFolder = process.env.OPEN_SEMANTIC_TEST_FOLDER;
 const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+/** Só nos testes: respostas prontas no lugar do Claude (sem rede e sem custo). */
+const scriptedLlm = process.env.OPEN_SEMANTIC_SCRIPTED_LLM;
 
 /** Tudo que chega pela interface é ação do usuário local. A interface não pode se passar pelo agente. */
 const LOCAL_USER = { kind: "user" as const, id: "local" };
@@ -54,6 +58,43 @@ app.whenReady().then(async () => {
     onPersist: (status) => send(CHANNELS.persist, status),
     onEvent: (event) => send(CHANNELS.event, event),
     onActivity: (activity) => send(CHANNELS.agentActivity, activity),
+  });
+
+  const settings = await AgentSettings.load(dataDir, scriptedLlm);
+  const conversation = new Conversation({
+    provider: () => settings.activeProvider(),
+    settings: () => settings.current(),
+    dispatcher: core.dispatcher,
+    agent: core.agent,
+    snapshot: () => core!.store.snapshot(),
+    onChange: (view) => send(CHANNELS.chatChanged, view),
+  });
+  const failure = (err: unknown) => ({ ok: false as const, message: err instanceof Error ? err.message : String(err) });
+
+  ipcMain.handle(CHANNELS.agentSettings, () => settings.view());
+  ipcMain.handle(CHANNELS.agentSettingsSave, (_event, patch: { model?: unknown; maxCostPerRequestUsd?: unknown }) =>
+    settings.update({
+      ...(typeof patch?.model === "string" ? { model: patch.model } : {}),
+      ...(typeof patch?.maxCostPerRequestUsd === "number" ? { maxCostPerRequestUsd: patch.maxCostPerRequestUsd } : {}),
+    }),
+  );
+  ipcMain.handle(CHANNELS.agentKey, (_event, key: unknown) => settings.setKey(typeof key === "string" ? key : null));
+  ipcMain.handle(CHANNELS.chat, () => conversation.view());
+  ipcMain.handle(CHANNELS.chatSend, (_event, text: unknown) => {
+    if (typeof text !== "string" || !text.trim()) return { ok: false, message: "Escreva um pedido." };
+    if (conversation.view().status !== "idle") return failure(new ConversationBusyError("O agente ainda está trabalhando no pedido anterior."));
+    // Não espera o pedido terminar: o progresso chega pelo canal de mudanças da conversa.
+    void conversation.send(text).catch(() => {});
+    return { ok: true };
+  });
+  ipcMain.handle(CHANNELS.chatStop, () => conversation.stop());
+  ipcMain.handle(CHANNELS.chatReset, () => {
+    try {
+      conversation.reset();
+      return { ok: true };
+    } catch (err) {
+      return failure(err);
+    }
   });
 
   ipcMain.handle(CHANNELS.dispatch, (_event, request: UiOperationRequest) =>

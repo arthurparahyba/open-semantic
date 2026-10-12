@@ -21,6 +21,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.14",
     "@open-semantic/core": "workspace:*",
+    "@open-semantic/llm": "workspace:*",
     "@open-semantic/navigator": "workspace:*",
     "@open-semantic/protocol": "workspace:*",
     "codemirror": "^6.0.2",

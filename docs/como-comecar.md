@@ -104,6 +104,14 @@ Tarefas:
 - **Parte 2, conversa:** laço do agente dentro do app com uma camada de provedor. O primeiro provedor é a API da Anthropic, com Haiku como padrão. Há limites de passos e tokens por pedido, e o custo de cada conversa fica visível. Outros provedores (compatíveis com OpenAI) entram depois. A assinatura do claude.ai não pode ser usada por apps de terceiros; o app usa chave de API.
 - **Depois:** servidor MCP para agentes externos (Claude Code, Cursor) usarem as mesmas operações.
 
+Decisões tomadas na parte 2:
+- O laço é manual (`packages/core/src/conversation.ts`) e só conhece a interface de `packages/llm`. Trocar de provedor é escrever um adaptador.
+- Ferramentas do modelo: `get_workspace`, `list_dir`, `read_file`, `describe_operation` e `run_batch`. Leituras passam pelo Dispatcher com o ator `agent:claude` e ficam no histórico de ações. Mudanças só por `run_batch`, que espera a resposta do usuário quando há confirmação.
+- O resumo do workspace vai junto de cada pedido; o prompt de sistema é fixo e há cache automático do histórico, o que barateia as voltas do laço.
+- Resposta cortada (`max_tokens`) ou recusada não executa ferramentas. Toda chamada de ferramenta sem resultado recebe um resultado de erro, para o histórico seguir válido.
+- Compactação sem chamar o modelo, acima de 80 mil tokens de prompt (o Haiku cobra 5 vezes mais acima de 100 mil).
+- Testes com provedor falso (`packages/core/test/conversa.test.ts`) e ponta a ponta com provedor roteirizado (`apps/desktop/e2e/chat.spec.ts`, variável `OPEN_SEMANTIC_SCRIPTED_LLM`).
+
 Decisões tomadas na parte 1:
 - O fluxo de referência usa `semantic.upsert_observation` e `semantic.upsert_inference`, então a parte mínima do Open Semantic (gravar e consultar por nome) entrou no M2. Revalidação, `trace` e `diagram.open_linked` continuam no M3.
 - Os passos de um lote rodam um de cada vez, na ordem topológica (entre passos prontos, o primeiro declarado). Assim as revisões são determinísticas.

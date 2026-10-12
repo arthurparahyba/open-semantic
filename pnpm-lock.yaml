@@ -41,6 +41,9 @@ importers:
       '@open-semantic/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@open-semantic/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@open-semantic/navigator':
         specifier: workspace:*
         version: link:../../packages/navigator
