@@ -6,13 +6,13 @@ Ambiente de desenvolvimento de software orientado por IA que une conversa, canva
 
 | Marco | Conteúdo | Situação |
 |---|---|---|
-| M0 · Fundação | Contratos (JSON Schema), tipos gerados, Dispatcher de operações, testes e CI | Este marco |
-| M1 · Workspace persistente | Primeira janela: canvas, Explorer e Editor que persistem ao reabrir | Próximo |
+| M0 · Fundação | Contratos (JSON Schema), tipos gerados, Dispatcher de operações, testes e CI | Pronto |
+| M1 · Workspace persistente | Primeira janela: canvas, Explorer e Editor que persistem ao reabrir | Este marco |
 | M2 · Conversa e protocolo | Lotes, agente de IA, diagramas, navegação automática | — |
 | M3 · Open Semantic | Entidades, relações, evidências | — |
 | M4 · Execução | Terminal, Tabela, sincronização, conflitos, permissões | — |
 
-O plano completo está em [docs/como-comecar.md](docs/como-comecar.md). Por enquanto (M0) não há janela para abrir; o que roda são os testes. A partir do M1, `pnpm dev` abre o aplicativo.
+O plano completo está em [docs/como-comecar.md](docs/como-comecar.md).
 
 ## Rodar no seu computador
 
@@ -25,18 +25,41 @@ Pré-requisitos:
 git clone https://github.com/arthurparahyba/open-semantic.git
 cd open-semantic
 pnpm install
+pnpm dev           # abre o aplicativo (Electron) com recarga automática da interface
+```
+
+Na primeira execução o Electron baixa o próprio binário, o que pode levar um minuto. Outras formas de rodar:
+
+```bash
+pnpm start         # compila e abre o aplicativo sem servidor de desenvolvimento
 pnpm test          # testes de todos os pacotes
 pnpm typecheck     # checagem de tipos
+pnpm test:e2e      # abre o app real e percorre o fluxo do M1 (no Linux sem tela: xvfb-run -a pnpm test:e2e)
 pnpm validate:contracts
 ```
+
+### O que dá para fazer no M1
+
+1. Clique em **Abrir pasta…** e escolha a pasta de um projeto. O Explorer aparece no canvas.
+2. Clique num arquivo: ele abre num Editor ao lado. `Ctrl/⌘+S` salva no disco. Se o arquivo mudou fora do app, o Editor mostra o conflito em vez de sobrescrever.
+3. Arraste o fundo para mover, use `Ctrl/⌘ + roda` para zoom, arraste o título de um mod para movê-lo e o canto inferior direito para redimensioná-lo.
+4. Feche o app e abra de novo: mods, posições, pastas expandidas e câmera continuam onde estavam.
+
+O estado do workspace fica em `workspaces/ws_default.json` e o histórico de ações em `history/ws_default.jsonl`, dentro da pasta de dados do Electron (`~/.config/Open Semantic` no Linux, `~/Library/Application Support/Open Semantic` no macOS, `%APPDATA%\Open Semantic` no Windows).
 
 ## Estrutura
 
 ```
-contracts/            JSON Schemas, exemplos do fluxo de referência e validar.py
-docs/                 visão, especificação V0.1, documentação por funcionalidade e plano
-packages/protocol/    tipos gerados dos contratos + Dispatcher de operações
-scripts/gen-types.mjs gera packages/protocol/src/generated/contracts.ts
+contracts/                JSON Schemas, exemplos do fluxo de referência e validar.py
+docs/                     visão, especificação V0.1, documentação por funcionalidade e plano
+packages/protocol/        tipos gerados dos contratos + Dispatcher de operações
+packages/workspace-store/ estado do workspace, persistência em arquivo e operações de canvas
+packages/project-runtime/ acesso seguro ao projeto real (listar, ler, escrever, conflitos)
+packages/mod-runtime/     tipos de mod (Explorer, Editor) e seu ciclo de vida
+packages/navigator/       câmera e enquadramento
+packages/core/            liga tudo: Dispatcher, políticas, histórico, autosave
+apps/desktop/             aplicativo Electron (main, preload e interface React)
+scripts/gen-types.mjs     gera packages/protocol/src/generated/contracts.ts
 ```
 
 ## Contratos e tipos
