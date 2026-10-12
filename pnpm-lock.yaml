@@ -50,6 +50,9 @@ importers:
       '@open-semantic/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../../packages/workspace-store
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2

@@ -9,6 +9,7 @@ import {
   type Region,
 } from "@open-semantic/protocol";
 
+import { repositoryUnit } from "./anchoring.js";
 import { placeNew, regionAt } from "./placement.js";
 import type { WorkspaceStore } from "./store.js";
 
@@ -76,6 +77,24 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
       });
     });
     await importRepo?.(projectId);
+    // Unidade de contexto do repositório (doc 09). Se o repositório já trouxe a sua, vale a dele.
+    if (!repositoryUnit(store.read(), projectId)) {
+      const at = now().toISOString();
+      const evidenceId = `evd_${suffix}_repo`;
+      store.transact(() => {
+        store.addEvidence({ id: evidenceId, kind: "directory_listing", artifactId: rootArtifactId, summary: `Raiz do repositório ${name}.`, status: "current", observedAt: at });
+        store.putEntity({
+          id: `sem_${suffix}_repo`,
+          kind: "repository",
+          name,
+          projectId,
+          artifactIds: [rootArtifactId],
+          status: "verified",
+          provenance: { source: "user_statement", actor, operationId, recordedAt: at, evidenceIds: [evidenceId] },
+          revision: 1,
+        });
+      });
+    }
     return { projectId, rootArtifactId, rootId };
   };
   return [

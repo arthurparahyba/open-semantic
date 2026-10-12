@@ -222,6 +222,8 @@ export async function createCore(options: CoreOptions) {
     setViewport(next: Viewport) {
       if (next.width > 0 && next.height > 0) viewport = next;
     },
+    /** Espera as gravações pendentes (workspace e `.open-semantic/` dos repositórios). */
+    flush: () => saver.flush(),
     /** Grava tudo que estiver pendente. Chamar antes de sair. */
     async close() {
       await saver.flush();

@@ -76,7 +76,8 @@ describe("Tirar um projeto do workspace", () => {
 
     const removed = await op("workspace.remove_project", { projectId: "prj_petclinic" });
     expect(removed.status, JSON.stringify(removed.error)).toBe("succeeded");
-    expect(removed.output!.removed).toMatchObject({ mods: 1, diagrams: 1, entities: 2 });
+    // Entidades: backend, frontend e a unidade do repositório.
+    expect(removed.output!.removed).toMatchObject({ mods: 1, diagrams: 1, entities: 3 });
 
     const snap = core.store.snapshot();
     expect(validateSnapshot(snap), JSON.stringify(validateSnapshot.errors)).toBe(true);
@@ -85,9 +86,10 @@ describe("Tirar um projeto do workspace", () => {
     expect(snap.workspace.activeProjectId).toBe("prj_tests");
     expect(snap.mods.map((m) => m.id)).toEqual(["mod_tests_explorer"]);
     expect(snap.diagrams).toHaveLength(0);
-    expect(snap.semantic.entities).toHaveLength(0);
+    // Fica só a unidade do repositório que continua no workspace.
+    expect(snap.semantic.entities.map((e) => e.id)).toEqual(["sem_tests_repo"]);
     expect(snap.semantic.relations).toHaveLength(0);
-    expect(snap.semantic.evidence).toHaveLength(0);
+    expect(snap.semantic.evidence.map((e) => e.id)).toEqual(["evd_tests_repo"]);
     expect(snap.artifacts.every((a) => a.projectId === "prj_tests")).toBe(true);
     expect(snap.canvas.objects.map((o) => o.id)).toEqual(["mod_tests_explorer"]);
     // A região fica (é só uma moldura), sem o vínculo com o que saiu.

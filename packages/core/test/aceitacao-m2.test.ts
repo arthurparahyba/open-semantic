@@ -159,6 +159,7 @@ describe("E. Protocolo e confiabilidade", () => {
   });
 
   it("um runtime que falha de propósito nunca vira sucesso na narração", async () => {
+    await core.flush(); // o app ainda pode estar gravando o .open-semantic/ do repositório
     await rm(projectDir, { recursive: true, force: true }); // a pasta do projeto some: create_dir falha de verdade
     const p = plan("arquitetura");
     const result = await core.agent.run(p);
@@ -292,7 +293,10 @@ describe("Persistência do que o M2 cria", () => {
     const after = snap();
     expect(after.diagrams).toEqual(before.diagrams);
     expect(after.canvas).toEqual(before.canvas);
-    expect(after.semantic).toEqual(before.semantic);
+    // No repositório os itens ficam em ordem de id (arquivos estáveis); a ordem não é parte do estado.
+    const byId = (s: typeof before.semantic) =>
+      Object.fromEntries(Object.entries(s).map(([k, v]) => [k, [...(v as { id: string }[])].sort((a, b) => a.id.localeCompare(b.id))]));
+    expect(byId(after.semantic)).toEqual(byId(before.semantic));
     expect(after.navigation.camera).toEqual(before.navigation.camera);
   });
 });
@@ -316,7 +320,7 @@ function normalize(s: WorkspaceSnapshot) {
       confidence: e.provenance.confidence,
       artifacts: (e.artifactIds ?? []).map(pathOf),
       evidence: (e.provenance.evidenceIds ?? []).length,
-    })),
+    })).sort((a, b) => a.id.localeCompare(b.id)),
     relations: s.semantic.relations.map((r) => ({
       id: r.id,
       type: r.type,
@@ -327,7 +331,9 @@ function normalize(s: WorkspaceSnapshot) {
       source: r.provenance.source,
       confidence: r.provenance.confidence,
     })),
-    evidence: s.semantic.evidence.map((e) => ({ kind: e.kind, artifact: e.artifactId && pathOf(e.artifactId), status: e.status })),
+    evidence: s.semantic.evidence
+      .map((e) => ({ kind: e.kind, artifact: e.artifactId && pathOf(e.artifactId), status: e.status }))
+      .sort((a, b) => String(a.artifact).localeCompare(String(b.artifact))),
     mods: s.mods.map((m) => ({
       id: m.id,
       type: m.type,
@@ -341,6 +347,7 @@ function normalize(s: WorkspaceSnapshot) {
       id: d.id,
       title: d.title,
       kind: d.kind,
+      anchorIds: d.anchorIds,
       nodes: d.nodes,
       edges: d.edges,
       algorithm: d.layout.algorithm,

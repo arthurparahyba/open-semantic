@@ -9,7 +9,7 @@ import {
   type OperationHandler,
   type Point,
 } from "@open-semantic/protocol";
-import { placeNew, placedBy, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
+import { placeNew, placedBy, repositoryUnit, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
 
 import { computeLayout, contentSize, type LayoutAlgorithm, type LayoutDirection } from "./layout.js";
 import { applyPatch, checkModel, type DiagramOp } from "./model.js";
@@ -27,6 +27,8 @@ const placementSchema = {
   },
   additionalProperties: false,
 };
+
+const anchorIdsSchema = { type: "array", items: ref("common.schema.json#/$defs/SemanticEntityId"), uniqueItems: true, minItems: 1 };
 
 const layoutRequestSchema = {
   type: "object",
@@ -82,6 +84,26 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
     }
   };
 
+  /** Âncoras precisam ser unidades de contexto que existem (doc 09). */
+  const checkAnchors = (anchorIds: string[] | undefined) => {
+    for (const [i, id] of (anchorIds ?? []).entries()) {
+      if (!store.entity(id)) {
+        throw new OperationError("REFERENCE_INVALID", `Unidade de contexto '${id}' não existe no Open Semantic.`, { argumentPath: `/anchorIds/${i}`, targetId: id });
+      }
+    }
+  };
+
+  /**
+   * Todo diagrama nasce ancorado. Sem âncora pedida, vale a unidade do repositório do diagrama
+   * (ou do projeto ativo); sem projeto pedido, vale o da primeira âncora.
+   */
+  const anchoring = (projectId: string | undefined, anchorIds: string[] | undefined) => {
+    const project = projectId ?? (anchorIds?.length ? store.entity(anchorIds[0]!)?.projectId : undefined) ?? store.activeProject()?.id;
+    if (anchorIds?.length) return { projectId: project, anchorIds };
+    const repo = project ? repositoryUnit(store.read(), project) : undefined;
+    return { projectId: project, anchorIds: repo ? [repo.id] : [] };
+  };
+
   /** Ajusta o tamanho do objeto no canvas ao conteúdo; só cresce, para não desfazer o que o usuário esticou. */
   const fitObject = (diagram: DiagramModel) => {
     const object = store.canvasObject(diagram.id);
@@ -112,6 +134,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           title: { type: "string", minLength: 1 },
           kind: { enum: ["architecture", "flow", "sequence", "dependency", "freeform"] },
           projectId: ref("common.schema.json#/$defs/ProjectId"),
+          anchorIds: anchorIdsSchema,
           nodes: { type: "array", items: ref("diagram.schema.json#/$defs/DiagramNode") },
           edges: { type: "array", items: ref("diagram.schema.json#/$defs/DiagramEdge") },
           layout: layoutRequestSchema,
@@ -127,6 +150,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         if (args.projectId && !store.project(args.projectId as string)) {
           throw new OperationError("REFERENCE_INVALID", `Projeto '${args.projectId}' não existe.`, { argumentPath: "/projectId" });
         }
+        checkAnchors(args.anchorIds as string[] | undefined);
         const regionId = (args.placement as PlacementRequest | undefined)?.regionId;
         if (regionId && !store.region(regionId)) {
           throw new OperationError("REFERENCE_INVALID", `Região '${regionId}' não existe.`, { argumentPath: "/placement/regionId" });
@@ -149,11 +173,13 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           { nodes, edges, layout: { algorithm: "manual", nodes: {} } },
           { algorithm: requested.algorithm ?? "layered", direction: requested.direction ?? "LR" },
         );
+        const { projectId, anchorIds } = anchoring(args.projectId as string | undefined, args.anchorIds as string[] | undefined);
         const model: DiagramModel = {
           id,
           title: args.title as string,
           kind: args.kind as DiagramModel["kind"],
-          ...(args.projectId ? { projectId: args.projectId as string } : {}),
+          ...(projectId ? { projectId } : {}),
+          ...(anchorIds.length ? { anchorIds: anchorIds as NonNullable<DiagramModel["anchorIds"]> } : {}),
           nodes,
           edges,
           layout,
@@ -161,7 +187,10 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         };
         const size = contentSize(layout);
         const saved = store.transact(() => {
-          const { rect, regionId, grownRegion } = placeNew(store.read(), size, (args.placement ?? {}) as PlacementRequest);
+          const { rect, regionId, grownRegion } = placeNew(store.read(), size, {
+            ...((args.placement ?? {}) as PlacementRequest),
+            ...(anchorIds[0] ? { unitId: anchorIds[0] } : {}),
+          });
           if (grownRegion) store.putRegion(grownRegion);
           const zIndex = Math.max(0, ...store.read().canvas.objects.map((o) => o.zIndex ?? 0)) + 1;
           const object: CanvasObject = {
@@ -298,6 +327,30 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           return out;
         });
         return { output: { position }, changes: [{ id: saved.id, change: "updated", revision: saved.revision }], workspaceRevision: store.revision };
+      },
+    },
+
+    {
+      // Muda as unidades de contexto do diagrama. Ele não sai do lugar sozinho: mover é outro pedido.
+      operation: "diagram.anchor",
+      argumentsSchema: {
+        type: "object",
+        required: ["diagramId", "anchorIds"],
+        properties: { diagramId, anchorIds: anchorIdsSchema },
+        additionalProperties: false,
+      },
+      check(args) {
+        requireDiagram(args.diagramId as string);
+        checkAnchors(args.anchorIds as string[]);
+      },
+      handle(args) {
+        const diagram = requireDiagram(args.diagramId as string);
+        const anchorIds = args.anchorIds as NonNullable<DiagramModel["anchorIds"]>;
+        if (JSON.stringify(diagram.anchorIds ?? []) === JSON.stringify(anchorIds)) {
+          return { output: output(diagram), changes: [{ id: diagram.id, change: "unchanged", revision: diagram.revision }] };
+        }
+        const saved = store.transact(() => store.putDiagram({ ...diagram, anchorIds }));
+        return { output: output(saved), changes: [{ id: saved.id, change: "updated", revision: saved.revision }], workspaceRevision: store.revision };
       },
     },
 

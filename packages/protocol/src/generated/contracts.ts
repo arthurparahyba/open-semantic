@@ -261,6 +261,7 @@ export type ArtifactReference = ArtifactReference1;
  */
 export type EntityKind =
   | (
+      | "repository"
       | "application"
       | "module"
       | "service"
@@ -451,6 +452,12 @@ export interface DiagramModel {
   title: string;
   kind: "architecture" | "flow" | "sequence" | "dependency" | "freeform";
   projectId?: ProjectId;
+  /**
+   * Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).
+   *
+   * @minItems 1
+   */
+  anchorIds?: [SemanticEntityId, ...SemanticEntityId[]];
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   layout: DiagramLayout;

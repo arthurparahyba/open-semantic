@@ -73,6 +73,10 @@ O painel **Agente** agora é um chat. Na engrenagem (⚙), coloque uma chave da 
 - **O contexto mora no repositório:** diagramas e conhecimento (entidades, relações, evidências) sobre um repositório ficam em `<repositório>/.open-semantic/` (`diagrams/<id>.json` e `knowledge.json`), com arquivos citados pelo caminho relativo. Quem clonar o repositório e abri-lo no Open Semantic recebe esse contexto. Pastas abertas só para leitura guardam isso no workspace.
 - **No workspace** ficam as referências aos repositórios, a disposição do canvas e o histórico: `<workspace>/.open-semantic/workspace.json` e `history.jsonl`.
 
+### Diagramas ancorados ao assunto
+
+Tudo o que o agente desenha nasce ligado a uma unidade de contexto: o repositório, um módulo ou um assunto da conversa ("Checkout lento"). O canvas se organiza a partir disso: o que é do mesmo assunto fica junto, cada repositório aparece com um contorno tracejado e o nome, e os assuntos aparecem como áreas com título dentro dele. Ninguém posiciona nada à mão. Pergunte "o que temos sobre o checkout?" e o app enquadra tudo o que está ancorado ali. Detalhes em [docs/funcionalidades/09](docs/funcionalidades/09-ancoragem-e-projecao.md).
+
 A chave da API e as configurações do agente continuam na pasta de dados do Electron (`~/.config/Open Semantic` no Linux, `~/Library/Application Support/Open Semantic` no macOS, `%APPDATA%\Open Semantic` no Windows), junto com a lembrança de qual pasta é o workspace.
 
 ## Estrutura

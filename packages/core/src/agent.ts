@@ -197,6 +197,8 @@ export function describeStep(operation: string, args: Record<string, unknown>, s
       return `montar o diagrama “${a.title}”`;
     case "diagram.apply_patch":
       return `alterar o diagrama ${a.diagramId}`;
+    case "diagram.anchor":
+      return `ligar o diagrama ${a.diagramId} a outro assunto`;
     case "diagram.delete":
       return `excluir o diagrama ${a.diagramId}`;
     case "navigation.frame":
