@@ -41,7 +41,7 @@ beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "os-proj-"));
   await mkdir(join(projectDir, "frontend"));
   await writeFile(join(projectDir, "README.md"), "# minha app\n");
-  core = await createCore({ dataDir, debounceMs: 5, animationMs: 0, onActivity: (a) => activities.push(a) });
+  core = await createCore({ workspaceDir: dataDir, debounceMs: 5, animationMs: 0, onActivity: (a) => activities.push(a) });
   core.setViewport(VIEWPORT);
   await openProject();
 });
@@ -255,7 +255,7 @@ describe("D. Diagramas e navegação", () => {
   it("D4: cancelar um movimento em curso volta a idle e registra quem interrompeu", async () => {
     await core.close();
     const events: string[] = [];
-    core = await createCore({ dataDir, debounceMs: 5, animationMs: 10_000, onEvent: (e) => events.push(e.type) });
+    core = await createCore({ workspaceDir: dataDir, debounceMs: 5, animationMs: 10_000, onEvent: (e) => events.push(e.type) });
     core.setViewport(VIEWPORT);
     await core.agent.run(plan("arquitetura"));
     const nav = snap().navigation;
@@ -288,7 +288,7 @@ describe("Persistência do que o M2 cria", () => {
     await core.agent.run(plan("arquitetura"));
     const before = snap();
     await core.close();
-    core = await createCore({ dataDir, debounceMs: 5, animationMs: 0 });
+    core = await createCore({ workspaceDir: dataDir, debounceMs: 5, animationMs: 0 });
     const after = snap();
     expect(after.diagrams).toEqual(before.diagrams);
     expect(after.canvas).toEqual(before.canvas);

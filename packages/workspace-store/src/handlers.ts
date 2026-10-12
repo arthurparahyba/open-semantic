@@ -20,6 +20,23 @@ export interface WorkspaceHandlerDeps {
   store: WorkspaceStore;
   /** Confere no disco que o caminho absoluto existe e é um diretório. */
   isDirectory(absolutePath: string): Promise<boolean>;
+  /** Traz para o workspace o `.open-semantic/` de um repositório recém-adicionado (diagramas e conhecimento de quem já trabalhou nele). */
+  importRepo?(projectId: string): Promise<void>;
+  /** Pasta onde os clones ficam (`<workspace>/repos`). Sem ela, `workspace.clone_repository` não existe. */
+  reposDir?: string;
+  /** Clona `url` em `targetDir`. Lança com uma mensagem legível se falhar. */
+  cloneRepository?(url: string, targetDir: string): Promise<void>;
+  /** Diretório pessoal, para entender `~/` nos caminhos que o usuário dita. */
+  homeDir?: string;
+}
+
+/** Endereços que aceitamos clonar: https (GitHub, GitLab etc.) ou git@host:dono/repo. */
+export const CLONE_URL = /^(https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9._~\/-]+?|git@[A-Za-z0-9.-]+:[A-Za-z0-9._~\/-]+?)(\.git)?\/?$/;
+
+/** Nome de pasta a partir do endereço do repositório: https://github.com/dono/xpto.git → xpto. */
+export function repoNameFromUrl(url: string): string {
+  const last = url.replace(/\.git\/?$/, "").replace(/\/+$/, "").split(/[/:]/).pop() ?? "repo";
+  return last.replace(/[^A-Za-z0-9._-]/g, "-") || "repo";
 }
 
 export function suffixOf(id: string): string {
@@ -27,7 +44,40 @@ export function suffixOf(id: string): string {
 }
 
 /** Operações do Workspace Store. Ver docs/funcionalidades/01-workspace-e-canvas.md. */
-export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps): OperationHandler[] {
+export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cloneRepository, homeDir }: WorkspaceHandlerDeps): OperationHandler[] {
+  const findByRoot = (rootPath: string) =>
+    store.read().projects.find((p) => p.location.kind === "local" && p.location.rootPath.replace(/\/+$/, "") === rootPath.replace(/\/+$/, ""));
+  const expand = (path: string) => (homeDir && (path === "~" || path.startsWith("~/")) ? homeDir + path.slice(1) : path);
+
+  /** Coloca a pasta no workspace como projeto ativo e traz o que o repositório já sabe de si. */
+  const addProject = async (projectId: string, name: string, rootPath: string, capabilities: Project["roots"][number]["capabilities"] | undefined, actor: Actor, operationId: string, now: () => Date) => {
+    const suffix = suffixOf(projectId);
+    const rootId = `root_${suffix}`;
+    const rootArtifactId = `art_${suffix}_root`;
+    const project: Project = {
+      id: projectId,
+      name,
+      location: { kind: "local", rootPath },
+      roots: [{ id: rootId, path: "", capabilities: capabilities ?? ["read", "write"], commandPolicy: { mode: "confirm_all" } }],
+      rootRef: rootArtifactId,
+      revision: 1,
+    };
+    store.transact(() => {
+      store.addProject(project);
+      // A pasta que acabou de entrar vira o projeto em que o agente trabalha.
+      store.setActiveProject(projectId);
+      store.upsertArtifact({
+        id: rootArtifactId,
+        projectId,
+        kind: "directory",
+        locator: { rootId, path: "" },
+        validity: { status: "valid", checkedAt: now().toISOString() },
+        provenance: { source: "user_statement", actor, operationId, recordedAt: now().toISOString() },
+      });
+    });
+    await importRepo?.(projectId);
+    return { projectId, rootArtifactId, rootId };
+  };
   return [
     {
       operation: "workspace.get_snapshot",
@@ -36,7 +86,7 @@ export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps):
     },
 
     {
-      // Só o usuário escolhe pastas do disco; o agente nunca recebe nem envia caminhos absolutos.
+      // O usuário abre pastas pela interface; o agente pode pedir pela conversa, e a política exige a confirmação.
       operation: "workspace.add_project",
       argumentsSchema: {
         type: "object",
@@ -55,12 +105,19 @@ export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps):
         additionalProperties: false,
       },
       async check(args, { request }) {
-        if (request.authorization.actor.kind !== "user") {
-          throw new OperationError("UNAUTHORIZED", "Somente o usuário pode adicionar pastas ao workspace.");
+        // O usuário abre pastas pela interface; o agente pode pedir, e a política exige a confirmação do usuário.
+        if (request.authorization.actor.kind !== "user" && request.authorization.actor.kind !== "agent") {
+          throw new OperationError("UNAUTHORIZED", "Somente o usuário ou o agente (com confirmação) adicionam pastas ao workspace.");
         }
-        const existing = store.project(args.projectId as string);
+        const rootPath = expand(args.rootPath as string);
+        if (!rootPath.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(rootPath)) {
+          throw new OperationError("INVALID_ARGUMENTS", "Use o caminho completo da pasta (por exemplo /Users/voce/projetos/xpto ou ~/projetos/xpto).", {
+            argumentPath: "/rootPath",
+          });
+        }
+        const existing = store.project(args.projectId as string) ?? findByRoot(rootPath);
         if (existing) {
-          const sameRoot = existing.location.kind === "local" && existing.location.rootPath === args.rootPath;
+          const sameRoot = existing.location.kind === "local" && existing.location.rootPath === rootPath;
           if (!sameRoot) {
             throw new OperationError("PRECONDITION_FAILED", "Já existe um projeto com esse id em outra pasta.", {
               targetId: existing.id,
@@ -68,63 +125,94 @@ export function workspaceHandlers({ store, isDirectory }: WorkspaceHandlerDeps):
           }
           return;
         }
-        if (!(await isDirectory(args.rootPath as string))) {
-          throw new OperationError("REFERENCE_INVALID", "A pasta escolhida não existe ou não é um diretório.", {
+        if (!(await isDirectory(rootPath))) {
+          throw new OperationError("REFERENCE_INVALID", "A pasta não existe ou não é um diretório.", {
             argumentPath: "/rootPath",
           });
         }
       },
-      handle(args, { request, now }) {
-        const projectId = args.projectId as string;
-        const existing = store.project(projectId);
+      async handle(args, { request, now }) {
+        const rootPath = expand(args.rootPath as string);
+        // A mesma pasta não entra duas vezes: volta a ser o projeto ativo.
+        const existing = store.project(args.projectId as string) ?? findByRoot(rootPath);
         if (existing) {
-          if (store.read().workspace.activeProjectId !== projectId) store.transact(() => store.setActiveProject(projectId));
+          if (store.read().workspace.activeProjectId !== existing.id) store.transact(() => store.setActiveProject(existing.id));
           return {
-            output: { projectId, rootArtifactId: existing.rootRef, rootId: existing.roots[0]!.id },
-            changes: [{ id: projectId, change: "unchanged" }],
+            output: { projectId: existing.id, rootArtifactId: existing.rootRef, rootId: existing.roots[0]!.id },
+            changes: [{ id: existing.id, change: "unchanged" }],
           };
         }
-        const suffix = suffixOf(projectId);
-        const rootId = `root_${suffix}`;
-        const rootArtifactId = `art_${suffix}_root`;
-        const project: Project = {
-          id: projectId,
-          name: args.name as string,
-          location: { kind: "local", rootPath: args.rootPath as string },
-          roots: [
-            {
-              id: rootId,
-              path: "",
-              capabilities: (args.capabilities as Project["roots"][number]["capabilities"]) ?? ["read", "write"],
-              commandPolicy: { mode: "confirm_all" },
-            },
-          ],
-          rootRef: rootArtifactId,
-          revision: 1,
-        };
-        store.transact(() => {
-          store.addProject(project);
-          // A pasta que o usuário acabou de abrir vira o projeto em que o agente trabalha.
-          store.setActiveProject(projectId);
-          store.upsertArtifact({
-            id: rootArtifactId,
-            projectId,
-            kind: "directory",
-            locator: { rootId, path: "" },
-            validity: { status: "valid", checkedAt: now().toISOString() },
-            provenance: {
-              source: "user_statement",
-              actor: request.authorization.actor,
-              operationId: request.operationId,
-              recordedAt: now().toISOString(),
-            },
-          });
-        });
+        const projectId = args.projectId as string;
+        const out = await addProject(
+          projectId,
+          args.name as string,
+          rootPath,
+          args.capabilities as Project["roots"][number]["capabilities"] | undefined,
+          request.authorization.actor,
+          request.operationId,
+          now,
+        );
         return {
-          output: { projectId, rootArtifactId, rootId },
+          output: out,
           changes: [
             { id: projectId, change: "created", revision: 1 },
-            { id: rootArtifactId, change: "created" },
+            { id: out.rootArtifactId, change: "created" },
+          ],
+          workspaceRevision: store.revision,
+        };
+      },
+    },
+
+    {
+      // Clona um repositório para dentro do workspace (<workspace>/repos/<nome>) e o adiciona como projeto ativo.
+      operation: "workspace.clone_repository",
+      argumentsSchema: {
+        type: "object",
+        required: ["projectId", "url"],
+        properties: {
+          projectId: ref("common.schema.json#/$defs/ProjectId"),
+          url: { type: "string", minLength: 8, maxLength: 400 },
+          name: { type: "string", pattern: "^[A-Za-z0-9._-]{1,100}$" },
+        },
+        additionalProperties: false,
+      },
+      async check(args, { request }) {
+        if (request.authorization.actor.kind !== "user" && request.authorization.actor.kind !== "agent") {
+          throw new OperationError("UNAUTHORIZED", "Somente o usuário ou o agente (com confirmação) clonam repositórios.");
+        }
+        if (!reposDir || !cloneRepository) throw new OperationError("UNKNOWN_OPERATION", "Este workspace não clona repositórios.");
+        if (!CLONE_URL.test(args.url as string)) {
+          throw new OperationError("INVALID_ARGUMENTS", "Endereço de repositório inválido. Use https://… ou git@host:dono/repo.", { argumentPath: "/url" });
+        }
+        if (store.project(args.projectId as string)) {
+          throw new OperationError("PRECONDITION_FAILED", "Já existe um projeto com esse id.", { argumentPath: "/projectId" });
+        }
+      },
+      async handle(args, { request, now }) {
+        const name = (args.name as string | undefined) ?? repoNameFromUrl(args.url as string);
+        const target = `${reposDir}/${name}`;
+        // Já clonado antes (pelo mesmo workspace): reaproveita a pasta.
+        const existing = findByRoot(target);
+        if (existing) {
+          if (store.read().workspace.activeProjectId !== existing.id) store.transact(() => store.setActiveProject(existing.id));
+          return { output: { projectId: existing.id, rootArtifactId: existing.rootRef, rootId: existing.roots[0]!.id, path: target, cloned: false }, changes: [{ id: existing.id, change: "unchanged" }] };
+        }
+        let cloned = false;
+        if (!(await isDirectory(target))) {
+          try {
+            await cloneRepository!(args.url as string, target);
+          } catch (err) {
+            throw new OperationError("INTERNAL", `Não consegui clonar ${args.url as string}: ${(err as Error).message}`, { retryable: true });
+          }
+          cloned = true;
+        }
+        const projectId = args.projectId as string;
+        const out = await addProject(projectId, name, target, undefined, request.authorization.actor, request.operationId, now);
+        return {
+          output: { ...out, path: target, cloned },
+          changes: [
+            { id: projectId, change: "created", revision: 1 },
+            { id: out.rootArtifactId, change: "created" },
           ],
           workspaceRevision: store.revision,
         };

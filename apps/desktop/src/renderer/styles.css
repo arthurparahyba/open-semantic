@@ -50,7 +50,16 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   background: var(--surface); border-bottom: 1px solid var(--border);
 }
 .brand { font-size: 14px; }
-.workspace-name { color: var(--text-2); margin-right: 8px; }
+.workspace-name { color: var(--text-2); margin-right: 8px; background: transparent; border-color: transparent; }
+
+.welcome { display: grid; place-items: center; height: 100%; padding: 16px; }
+.welcome-card {
+  display: grid; gap: 10px; max-width: 480px; padding: 28px 32px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow);
+}
+.welcome-card h1 { font-size: 18px; margin: 0; }
+.welcome-card p { color: var(--text-2); line-height: 1.5; margin: 0 0 6px; }
+.welcome-error { color: var(--danger); }
 .spacer { flex: 1; }
 .zoom { min-width: 44px; text-align: center; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .persist { margin-left: 8px; color: var(--text-2); min-width: 92px; text-align: right; }

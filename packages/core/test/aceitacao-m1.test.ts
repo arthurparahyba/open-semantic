@@ -50,7 +50,7 @@ beforeEach(async () => {
   await writeFile(join(projectDir, "backend/src/server.js"), "console.log('oi')\n");
   await writeFile(join(projectDir, "README.md"), "# app\n");
   await writeFile(join(outsideDir, "segredo.txt"), "não pode\n");
-  core = await createCore({ dataDir, debounceMs: 5 });
+  core = await createCore({ workspaceDir: dataDir, debounceMs: 5 });
 });
 
 afterEach(async () => {
@@ -60,7 +60,7 @@ afterEach(async () => {
 
 async function reopen() {
   await core.close();
-  core = await createCore({ dataDir, debounceMs: 5 });
+  core = await createCore({ workspaceDir: dataDir, debounceMs: 5 });
   await core.revalidated;
 }
 
@@ -118,9 +118,9 @@ describe("A · workspace e persistência", () => {
   it("o histórico de operações é gravado em disco (E4)", async () => {
     await openProject();
     await core.close();
-    const lines = (await readFile(join(dataDir, "history/ws_default.jsonl"), "utf8")).trim().split("\n");
+    const lines = (await readFile(join(dataDir, ".open-semantic/history.jsonl"), "utf8")).trim().split("\n");
     expect(JSON.parse(lines[0]!)).toMatchObject({ operation: "workspace.add_project", status: "succeeded", actor: user });
-    core = await createCore({ dataDir, debounceMs: 5 });
+    core = await createCore({ workspaceDir: dataDir, debounceMs: 5 });
   });
 });
 
@@ -196,9 +196,10 @@ describe("C4 · revalidação ao reabrir", () => {
 });
 
 describe("E5 · limites do agente", () => {
-  it("o agente não adiciona pastas e precisa de confirmação para excluir mods", async () => {
+  it("o agente só adiciona pastas e exclui mods com confirmação", async () => {
     const add = await op("workspace.add_project", { projectId: "prj_x01", name: "x", rootPath: projectDir }, agent);
-    expect(add.error?.code).toBe("UNAUTHORIZED");
+    expect(add.status).toBe("confirmation_required");
+    expect(core.store.project("prj_x01")).toBeUndefined();
 
     const { rootArtifactId } = await openProject();
     await op("mod.create", { modId: "mod_explorer", type: "explorer", config: { rootRef: rootArtifactId } }, agent);

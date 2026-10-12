@@ -1,8 +1,11 @@
 // Composição dos módulos do M1 num único processo (o processo principal do Electron).
 // A V0.1 permite que as responsabilidades vivam no mesmo processo desde que as interfaces fiquem claras:
 // aqui elas só se falam pelo Dispatcher e por eventos.
+import { execFile } from "node:child_process";
 import { appendFile, mkdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { basename, dirname, join } from "node:path";
+import { promisify } from "node:util";
 
 import { diagramHandlers } from "@open-semantic/diagram-engine";
 import { modHandlers } from "@open-semantic/mod-runtime";
@@ -18,7 +21,8 @@ import {
   type DomainEvent,
 } from "@open-semantic/protocol";
 import {
-  FileWorkspacePersistence,
+  REPO_DIR,
+  WorkspaceFolderPersistence,
   WorkspaceStore,
   autosave,
   workspaceHandlers,
@@ -50,8 +54,15 @@ export { AGENT, SCRIPTS, ScriptError, scriptedPlan, type ScriptInfo } from "./sc
 export const DEFAULT_WORKSPACE_ID = "ws_default";
 
 export interface CoreOptions {
-  /** Pasta de dados do app (no Electron, app.getPath("userData")). */
-  dataDir: string;
+  /**
+   * Pasta do workspace, escolhida pelo usuário. O próprio workspace fica em `<pasta>/.open-semantic/`;
+   * repositórios clonados vão para `<pasta>/repos/`.
+   */
+  workspaceDir: string;
+  /** Clona um repositório (padrão: `git clone`). Os testes trocam por um clone local. */
+  cloneRepository?: (url: string, targetDir: string) => Promise<void>;
+  /** Pasta que `~` representa nos caminhos que o agente recebe do usuário. */
+  homeDir?: string;
   workspaceId?: string;
   workspaceName?: string;
   debounceMs?: number;
@@ -84,6 +95,24 @@ export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
           ? { decision: "confirm", risk: "low", summary: "Remover a moldura de uma região que tem objetos (os objetos ficam).", reversible: true }
           : { decision: "allow" };
       }
+      case "workspace.add_project": {
+        const { rootPath, name } = request.arguments as { rootPath?: string; name?: string };
+        return {
+          decision: "confirm",
+          risk: "medium",
+          summary: `Adicionar a pasta ${rootPath ?? ""} ao workspace como "${name ?? ""}". Diagramas e conhecimento sobre ela ficam em ${REPO_DIR}/ dentro da pasta.`,
+          reversible: true,
+        };
+      }
+      case "workspace.clone_repository": {
+        const { url } = request.arguments as { url?: string };
+        return {
+          decision: "confirm",
+          risk: "medium",
+          summary: `Baixar ${url ?? "o repositório"} para a pasta repos/ do workspace e trabalhar nele. Diagramas e conhecimento sobre ele ficam em ${REPO_DIR}/ dentro do repositório.`,
+          reversible: true,
+        };
+      }
       case "project.write_file":
         return { decision: "confirm", risk: "high", summary: "Gravar alterações em um arquivo do projeto.", reversible: false };
       default:
@@ -106,21 +135,30 @@ export class JsonlActionLog implements ActionLog {
   }
 }
 
+/** `git clone` sem perguntar credenciais no terminal (o app não tem terminal para responder). */
+export async function gitClone(url: string, targetDir: string) {
+  await mkdir(dirname(targetDir), { recursive: true });
+  await promisify(execFile)("git", ["clone", "--", url, targetDir], {
+    timeout: 10 * 60_000,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+  });
+}
+
 export async function createCore(options: CoreOptions) {
   const workspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID;
-  const workspacesDir = join(options.dataDir, "workspaces");
-  const historyDir = join(options.dataDir, "history");
-  await mkdir(historyDir, { recursive: true });
+  const workspaceDir = options.workspaceDir;
+  const metaDir = join(workspaceDir, REPO_DIR);
+  await mkdir(metaDir, { recursive: true });
 
-  const persistence = new FileWorkspacePersistence(workspacesDir);
-  const loaded = await persistence.load(workspaceId);
+  const persistence = new WorkspaceFolderPersistence(workspaceDir);
+  const loaded = await persistence.load();
   const store = loaded
     ? new WorkspaceStore(loaded)
-    : WorkspaceStore.create({ id: workspaceId, name: options.workspaceName ?? "Meu workspace" });
+    : WorkspaceStore.create({ id: workspaceId, name: options.workspaceName ?? basename(workspaceDir) });
   if (!loaded) await persistence.save(store.snapshot());
 
   const runtime = new ProjectRuntime(store);
-  const log = new JsonlActionLog(join(historyDir, `${workspaceId}.jsonl`));
+  const log = new JsonlActionLog(join(metaDir, "history.jsonl"));
   const dispatcher = new Dispatcher({
     actionLog: log,
     policy: defaultPolicy(store),
@@ -132,7 +170,14 @@ export async function createCore(options: CoreOptions) {
   let viewport: Viewport = { width: 1400, height: 860 };
   const isDirectory = async (path: string) => (await stat(path).catch(() => undefined))?.isDirectory() ?? false;
   for (const handler of [
-    ...workspaceHandlers({ store, isDirectory }),
+    ...workspaceHandlers({
+      store,
+      isDirectory,
+      importRepo: (projectId) => persistence.importProject(store, projectId),
+      reposDir: join(workspaceDir, "repos"),
+      cloneRepository: options.cloneRepository ?? gitClone,
+      homeDir: options.homeDir ?? homedir(),
+    }),
     ...projectHandlers(runtime),
     ...modHandlers({ store }),
     ...semanticHandlers({ store }),
@@ -164,6 +209,9 @@ export async function createCore(options: CoreOptions) {
   const revalidated = Promise.all(store.read().artifacts.map((a) => runtime.stat(a.id).catch(() => undefined)));
 
   return {
+    workspaceDir,
+    /** Arquivos `.open-semantic/` que não puderam ser lidos ao abrir (para avisar o usuário). */
+    problems: persistence.problems,
     store,
     runtime,
     dispatcher,

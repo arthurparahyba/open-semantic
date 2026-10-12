@@ -40,7 +40,7 @@ pnpm validate:contracts
 
 ### O que dá para fazer no M1
 
-1. Clique em **Abrir pasta…** e escolha a pasta de um projeto. O Explorer aparece no canvas.
+1. Clique em **Abrir pasta…** e escolha a pasta de um projeto (ou peça ao agente, veja abaixo). O Explorer aparece no canvas.
 2. Clique num arquivo: ele abre num Editor ao lado. `Ctrl/⌘+S` salva no disco. Se o arquivo mudou fora do app, o Editor mostra o conflito em vez de sobrescrever.
 3. Arraste o fundo para mover, use `Ctrl/⌘ + roda` para zoom, arraste o título de um mod para movê-lo e o canto inferior direito para redimensioná-lo.
 4. Feche o app e abra de novo: mods, posições, pastas expandidas e câmera continuam onde estavam.
@@ -66,7 +66,14 @@ O painel **Agente** agora é um chat. Na engrenagem (⚙), coloque uma chave da 
 - **Projetos:** o workspace guarda todas as pastas que você já abriu, como etiquetas no topo da janela. A destacada é a pasta aberta por último; é nela que o agente trabalha. Clique numa etiqueta para trocar e no × para tirar o projeto do workspace (os arquivos no disco não mudam).
 - O agente lê o projeto (listar pasta, ler arquivo) e muda as coisas só por lotes, com o mesmo cartão de confirmação dos roteiros. Os roteiros de teste continuam no rodapé do painel.
 
-O estado do workspace fica em `workspaces/ws_default.json` e o histórico de ações em `history/ws_default.jsonl`, dentro da pasta de dados do Electron (`~/.config/Open Semantic` no Linux, `~/Library/Application Support/Open Semantic` no macOS, `%APPDATA%\Open Semantic` no Windows).
+### Workspace como pasta
+
+- **Primeira abertura:** o app pergunta onde fica o workspace. O padrão é `~/Open Semantic`; dá para escolher outra pasta, e clicar no nome do workspace no topo troca de pasta depois.
+- **Repositórios pela conversa:** cole no chat o caminho de uma pasta (`/Users/voce/projetos/app` ou `~/projetos/app`) ou o link de um repositório (`https://github.com/dono/repo`). O agente pede confirmação e então traz a pasta, ou clona o repositório para `repos/` dentro do workspace. O botão **Abrir pasta…** continua lá para quem prefere o mouse. O Explorer só abre quando você pede.
+- **O contexto mora no repositório:** diagramas e conhecimento (entidades, relações, evidências) sobre um repositório ficam em `<repositório>/.open-semantic/` (`diagrams/<id>.json` e `knowledge.json`), com arquivos citados pelo caminho relativo. Quem clonar o repositório e abri-lo no Open Semantic recebe esse contexto. Pastas abertas só para leitura guardam isso no workspace.
+- **No workspace** ficam as referências aos repositórios, a disposição do canvas e o histórico: `<workspace>/.open-semantic/workspace.json` e `history.jsonl`.
+
+A chave da API e as configurações do agente continuam na pasta de dados do Electron (`~/.config/Open Semantic` no Linux, `~/Library/Application Support/Open Semantic` no macOS, `%APPDATA%\Open Semantic` no Windows), junto com a lembrança de qual pasta é o workspace.
 
 ## Estrutura
 

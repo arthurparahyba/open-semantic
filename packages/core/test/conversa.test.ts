@@ -80,7 +80,7 @@ beforeEach(async () => {
   projectDir = await mkdtemp(join(tmpdir(), "os-proj-"));
   await mkdir(join(projectDir, "frontend"));
   await writeFile(join(projectDir, "README.md"), "# minha app\n");
-  core = await createCore({ dataDir, debounceMs: 5, animationMs: 0 });
+  core = await createCore({ workspaceDir: dataDir, debounceMs: 5, animationMs: 0 });
   const added = await core.dispatcher.dispatch({
     operationId: "act_conv_open",
     operation: "workspace.add_project",

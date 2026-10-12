@@ -11,6 +11,9 @@ function subscribe<T>(channel: string, listener: (value: T) => void) {
 }
 
 const api: OpenSemanticApi = {
+  workspaceInfo: () => ipcRenderer.invoke(CHANNELS.workspaceInfo),
+  defaultWorkspacePath: () => ipcRenderer.invoke(CHANNELS.workspaceDefault),
+  chooseWorkspace: (where) => ipcRenderer.invoke(CHANNELS.workspaceChoose, where),
   dispatch: (request) => ipcRenderer.invoke(CHANNELS.dispatch, request),
   snapshot: () => ipcRenderer.invoke(CHANNELS.snapshot),
   pickFolder: () => ipcRenderer.invoke(CHANNELS.pickFolder),

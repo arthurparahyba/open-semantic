@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import type { PersistState } from "../shared/api.js";
+import type { PersistState, WorkspaceInfo } from "../shared/api.js";
 import { AgentPanel } from "./AgentPanel.js";
 import { Canvas, type CanvasHandle, type ObjectRenderProps } from "./Canvas.js";
 import { OperationFailed, api, newId, run, runOk } from "./client.js";
@@ -16,7 +16,7 @@ interface Toast {
   message: string;
 }
 
-export function App() {
+export function App({ workspace }: { workspace: WorkspaceInfo }) {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
   const [persist, setPersist] = useState<PersistState | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -87,6 +87,11 @@ export function App() {
     } catch (err) {
       fail(err);
     }
+  };
+
+  const switchWorkspace = async () => {
+    const outcome = await api().chooseWorkspace("pick");
+    if (outcome && !outcome.ok) notify(outcome.message);
   };
 
   const activateProject = (projectId: string) => runOk("workspace.set_active_project", { projectId }).catch(fail);
@@ -179,8 +184,16 @@ export function App() {
     <div className="app">
       <header className="toolbar">
         <strong className="brand">Open Semantic</strong>
-        <span className="workspace-name">{snapshot.workspace.name}</span>
-        <button type="button" className="primary" onClick={() => void openFolder()}>
+        <button
+          type="button"
+          className="workspace-name"
+          onClick={() => void switchWorkspace()}
+          title={`Workspace em ${workspace.path}. Clique para abrir outra pasta como workspace.`}
+          data-testid="workspace-name"
+        >
+          {snapshot.workspace.name}
+        </button>
+        <button type="button" onClick={() => void openFolder()} title="Também dá para pedir ao agente: cole o caminho da pasta ou o link do repositório">
           Abrir pasta…
         </button>
         {snapshot.projects.length > 0 && (
@@ -233,10 +246,13 @@ export function App() {
         <Canvas snapshot={snapshot} handle={canvas} renderObject={renderObject} onZoomChange={setZoom} />
         {empty && (
           <div className="empty">
-            <h1>Comece abrindo uma pasta</h1>
-            <p>O Explorer aparece no canvas. Clique num arquivo para abri-lo no Editor ao lado. Tudo continua no lugar quando você reabrir o app.</p>
-            <button type="button" className="primary" onClick={() => void openFolder()}>
-              Abrir pasta…
+            <h1>Comece pela conversa</h1>
+            <p>
+              Diga ao agente com o que quer trabalhar: o caminho de uma pasta no seu computador ou o link de um repositório do GitHub. Ele traz o
+              repositório para o workspace e organiza o canvas. Tudo continua no lugar quando você reabrir o app.
+            </p>
+            <button type="button" onClick={() => void openFolder()}>
+              Ou abra uma pasta…
             </button>
           </div>
         )}
