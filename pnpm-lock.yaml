@@ -81,6 +81,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@open-semantic/diagram-engine':
+        specifier: workspace:*
+        version: link:../diagram-engine
       '@open-semantic/mod-runtime':
         specifier: workspace:*
         version: link:../mod-runtime
@@ -93,9 +96,24 @@ importers:
       '@open-semantic/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@open-semantic/semantic':
+        specifier: workspace:*
+        version: link:../semantic
       '@open-semantic/workspace-store':
         specifier: workspace:*
         version: link:../workspace-store
+
+  packages/diagram-engine:
+    dependencies:
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../workspace-store
+      elkjs:
+        specifier: ^0.12.0
+        version: 0.12.0
 
   packages/mod-runtime:
     dependencies:
@@ -115,6 +133,9 @@ importers:
       '@open-semantic/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../workspace-store
 
   packages/project-runtime:
     dependencies:
@@ -133,6 +154,15 @@ importers:
       ajv-formats:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
+
+  packages/semantic:
+    dependencies:
+      '@open-semantic/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@open-semantic/workspace-store':
+        specifier: workspace:*
+        version: link:../workspace-store
 
   packages/workspace-store:
     dependencies:
@@ -717,6 +747,9 @@ packages:
     resolution: {integrity: sha512-aUq9/zLAAFYc+a9gy6cd0C3Y/N/RmovLCD8TV8LhIzNhuND6HEgsu96jJz9cbAxvckSPv+Trf2PKEjktoZgFkw==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
+
+  elkjs@0.12.0:
+    resolution: {integrity: sha512-YZcKynxVxYoKIOEpywEPwCFdg+BTbxQRNf3pbwdDCvc8O3kQD8bmIwSxKU1eOTVc4Xo+VG9Te+575mlfvOrhEQ==}
 
   env-paths@3.0.0:
     resolution: {integrity: sha512-dtJUTepzMW3Lm/NPxRf3wP4642UWhjL2sQxc+ym2YMj1m/H2zDNQOlezafzkHwn6sMstjHTwG6iQQsctDW/b1A==}
@@ -1505,6 +1538,8 @@ snapshots:
       '@types/node': 24.19.2
     transitivePeerDependencies:
       - supports-color
+
+  elkjs@0.12.0: {}
 
   env-paths@3.0.0: {}
 

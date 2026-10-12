@@ -1,4 +1,4 @@
-import type { Rect, Size } from "@open-semantic/protocol";
+import type { Rect, Region, Size, WorkspaceSnapshot } from "@open-semantic/protocol";
 
 export const GAP = 40;
 
@@ -39,4 +39,80 @@ export function findFreeSpot(occupied: Rect[], size: Size, anchors: Rect[] = [])
   const maxRight = Math.max(...occupied.map((o) => o.position.x + o.size.width));
   const minTop = Math.min(...occupied.map((o) => o.position.y));
   return at(maxRight + GAP, minTop);
+}
+
+export interface PlacementRequest {
+  position?: Rect["position"];
+  anchorIds?: string[];
+  regionId?: string;
+  strategy?: "free_space_near";
+}
+
+/** Margem interna da região: espaço para o título em cima e respiro nas laterais. */
+export const REGION_PADDING = { top: 56, side: 32 } as const;
+
+/**
+ * Onde colocar um objeto novo. Dentro de uma região, o objeto vai para o primeiro espaço livre dela,
+ * e a região cresce se for preciso (o chamador grava `grownRegion`). Fora, vale findFreeSpot.
+ */
+export function placeNew(
+  doc: Pick<WorkspaceSnapshot, "canvas">,
+  size: Size,
+  placement: PlacementRequest = {},
+): { rect: Rect; regionId?: string; grownRegion?: Region } {
+  const occupied = [...doc.canvas.objects.map(rectOf), ...doc.canvas.regions.map((r) => r.bounds)];
+  const lookup = (id: string): Rect | undefined =>
+    doc.canvas.objects.find((o) => o.id === id) ?? doc.canvas.regions.find((r) => r.id === id)?.bounds;
+  if (placement.position) return { rect: { position: placement.position, size } };
+
+  const region = placement.regionId ? doc.canvas.regions.find((r) => r.id === placement.regionId) : undefined;
+  if (region) {
+    const inside = doc.canvas.objects.filter((o) => o.regionId === region.id).map(rectOf);
+    const origin = {
+      x: region.bounds.position.x + REGION_PADDING.side,
+      y: region.bounds.position.y + REGION_PADDING.top,
+    };
+    const first: Rect = { position: origin, size };
+    const rect = inside.length === 0 ? first : findFreeSpot(doc.canvas.objects.map(rectOf), size, inside.slice(-1));
+    const bounds = boundsOfRects([region.bounds, pad(rect)]);
+    const grew =
+      bounds.size.width !== region.bounds.size.width ||
+      bounds.size.height !== region.bounds.size.height ||
+      bounds.position.x !== region.bounds.position.x ||
+      bounds.position.y !== region.bounds.position.y;
+    return { rect, regionId: region.id, ...(grew ? { grownRegion: { ...region, bounds } } : {}) };
+  }
+
+  const anchors = (placement.anchorIds ?? []).map(lookup).filter((r): r is Rect => r !== undefined);
+  return { rect: findFreeSpot(occupied, size, anchors) };
+}
+
+const rectOf = (o: { position: Rect["position"]; size: Size }): Rect => ({ position: o.position, size: o.size });
+
+function pad(rect: Rect): Rect {
+  return {
+    position: { x: rect.position.x - REGION_PADDING.side, y: rect.position.y - REGION_PADDING.top },
+    size: { width: rect.size.width + 2 * REGION_PADDING.side, height: rect.size.height + REGION_PADDING.top + REGION_PADDING.side },
+  };
+}
+
+export function boundsOfRects(rects: Rect[]): Rect {
+  const minX = Math.min(...rects.map((r) => r.position.x));
+  const minY = Math.min(...rects.map((r) => r.position.y));
+  const maxX = Math.max(...rects.map((r) => r.position.x + r.size.width));
+  const maxY = Math.max(...rects.map((r) => r.position.y + r.size.height));
+  return { position: { x: minX, y: minY }, size: { width: maxX - minX, height: maxY - minY } };
+}
+
+/** Região que contém o centro do retângulo, se houver. */
+export function regionAt(regions: Region[], rect: Rect): Region | undefined {
+  const cx = rect.position.x + rect.size.width / 2;
+  const cy = rect.position.y + rect.size.height / 2;
+  return regions.find(
+    (r) =>
+      cx >= r.bounds.position.x &&
+      cx <= r.bounds.position.x + r.bounds.size.width &&
+      cy >= r.bounds.position.y &&
+      cy <= r.bounds.position.y + r.bounds.size.height,
+  );
 }

@@ -38,6 +38,34 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
       },
     },
     {
+      // Escrita leve: o agente pode criar diretórios sem confirmação (tabela de autorização em 06).
+      operation: "project.create_dir",
+      argumentsSchema: {
+        type: "object",
+        required: ["projectId", "rootId", "path"],
+        properties: {
+          projectId: ref("common.schema.json#/$defs/ProjectId"),
+          rootId: ref("common.schema.json#/$defs/RootId"),
+          path: ref("common.schema.json#/$defs/ProjectRelativePath"),
+        },
+        additionalProperties: false,
+      },
+      async handle(args, { request }) {
+        const { artifact, created } = await runtime.createDir(
+          args.projectId as string,
+          args.rootId as string,
+          args.path as string,
+          request.authorization.actor,
+          request.operationId,
+        );
+        const path = "rootId" in artifact.locator ? artifact.locator.path : "";
+        return {
+          output: { artifacts: [{ id: artifact.id, path, kind: "directory" }] },
+          changes: [{ id: artifact.id, change: created ? "created" : "unchanged" }],
+        };
+      },
+    },
+    {
       operation: "project.stat",
       argumentsSchema: { ...artifactArg, additionalProperties: false },
       async handle(args) {
