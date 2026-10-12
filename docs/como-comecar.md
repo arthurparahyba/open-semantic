@@ -56,7 +56,8 @@ Cada pacote corresponde a uma página em `funcionalidades/`. Pacotes de lógica 
 flowchart LR
     M0[M0 Fundação] --> M1[M1 Workspace persistente]
     M1 --> M2[M2 Protocolo e agente]
-    M2 --> M3[M3 Open Semantic]
+    M2 --> M25[M2.5 Contexto semântico]
+    M25 --> M3[M3 Open Semantic]
     M3 --> M4[M4 Execução e refinamento]
 ```
 
@@ -118,13 +119,24 @@ Decisões tomadas na parte 1:
 - `confirmation: "per_step"` é aceito e, por enquanto, se comporta como `upfront`: um único cartão antes de qualquer efeito.
 - Operação nova `diagram.move_node` para o arraste de um nó pelo usuário (muda só o layout e fixa o nó).
 
+### M2.5 · Motor de contexto semântico
+
+Pedido do Arthur (12/10). Spec em [08](funcionalidades/08-gestao-de-contexto.md).
+
+1. Pacote `packages/semantic-context`, sem importar nenhum outro pacote do app, com as entradas `feed`, `analyze` e `buildContext` e as saídas `AttentionPort` e `ContentPort`.
+2. Índice BM25 em memória alimentado por eventos; `analyze` com assunto principal (inclusive em textos longos), suposição visível e pergunta rápida só quando a dúvida muda o foco.
+3. Adaptadores de atenção e de conteúdo; operações novas `view.emphasize`, `view.clear_emphasis` e `conversation.clarify`.
+4. `buildContext` no laço do agente no lugar de `summarizeWorkspace` e `compactHistory`: orçamento de 40 mil tokens (teto de 80 mil checado antes de cada chamada), histórico curto e cache em camadas.
+
+**Pronto quando:** passam os critérios 1 a 5, 7 e 8 do [08](funcionalidades/08-gestao-de-contexto.md#critérios-de-aceitação).
+
 ### M3 · Open Semantic integrado (incremento 3)
 
 1. `SemanticStore` em memória, persistida no snapshot; regras de conhecimento no runtime. ([05](funcionalidades/05-open-semantic.md))
 2. `upsert_observation` / `upsert_inference` / `resolve` / `query` / `related` / `trace` / `invalidate`.
 3. Vínculos nó ↔ entidade ↔ artefato; renderização por qualidade (tracejado para inferido).
 4. `navigation.frame` por `semanticEntityIds`; `diagram.open_linked`.
-5. Contexto do agente passa a incluir consultas semânticas.
+5. Contexto do agente passa a incluir consultas semânticas: perfil de cada projeto e relações entre repositórios no Motor de contexto semântico, ferramentas semânticas para a IA, decisões da conversa gravadas como entidades ([08](funcionalidades/08-gestao-de-contexto.md), critério 6).
 
 **Pronto quando:** passam C1 a C4 e D2.
 
