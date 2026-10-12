@@ -36,8 +36,20 @@ export interface UiOperationRequest {
   targetId?: string;
 }
 
+/** Pasta do workspace aberta agora. */
+export interface WorkspaceInfo {
+  path: string;
+  name: string;
+}
+
 /** API exposta pelo preload em window.openSemantic. É o único canal entre interface e núcleo. */
 export interface OpenSemanticApi {
+  /** Workspace aberto, ou null se o usuário ainda não escolheu a pasta (primeira abertura). */
+  workspaceInfo(): Promise<WorkspaceInfo | null>;
+  /** Pasta sugerida para o primeiro workspace (~/Open Semantic). */
+  defaultWorkspacePath(): Promise<string>;
+  /** Abre (ou cria) o workspace: na pasta sugerida ou escolhida num diálogo. A janela recarrega em seguida. */
+  chooseWorkspace(where: "default" | "pick"): Promise<Outcome | null>;
   dispatch(request: UiOperationRequest): Promise<OperationResult>;
   snapshot(): Promise<WorkspaceSnapshot>;
   pickFolder(): Promise<{ path: string; name: string } | null>;
@@ -68,6 +80,9 @@ export interface OpenSemanticApi {
 }
 
 export const CHANNELS = {
+  workspaceInfo: "os:workspace-info",
+  workspaceDefault: "os:workspace-default",
+  workspaceChoose: "os:workspace-choose",
   dispatch: "os:dispatch",
   snapshot: "os:snapshot",
   pickFolder: "os:pick-folder",

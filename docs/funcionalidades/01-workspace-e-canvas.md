@@ -33,6 +33,20 @@ O workspace é também o **Workspace Store** da arquitetura lógica: ele guarda 
 | Region | `workspace.schema.json#/$defs/Region` | Sim | `semanticEntityIds` permite “vá para o backend” |
 | Snapshot completo | `workspace.schema.json` | Sim | Formato de exportação e de entrega ao agente |
 
+### Onde cada coisa é gravada (decidido em 12/10)
+
+O workspace é uma pasta escolhida pelo usuário na primeira abertura (padrão `~/Open Semantic`).
+
+| O quê | Onde | Por quê |
+|---|---|---|
+| Referências aos projetos, canvas (posições, regiões), mods, câmera, configurações | `<workspace>/.open-semantic/workspace.json` | É a mesa de trabalho de cada pessoa |
+| Histórico de ações | `<workspace>/.open-semantic/history.jsonl` | Idem |
+| Repositórios clonados pela conversa | `<workspace>/repos/<nome>/` | O workspace guarda o que ele mesmo baixou |
+| Diagramas de um repositório | `<repositório>/.open-semantic/diagrams/<id>.json` | Vai junto com o código: quem clona recebe o contexto |
+| Entidades, relações e evidências de um repositório | `<repositório>/.open-semantic/knowledge.json` | Idem; arquivos citados pelo caminho relativo, não pelo id de artefato |
+
+Regras da separação (`packages/workspace-store/src/repoStore.ts`): é do repositório P o diagrama de P, a entidade de P, a relação entre duas entidades de P e a evidência sobre um arquivo de P (ou sem arquivo e citada só por itens de P). O que liga projetos diferentes fica no workspace. Só vai para o repositório o que é de uma pasta local com permissão de escrita; pastas só de leitura guardam tudo no workspace. Ao abrir, o que está no repositório prevalece para os mesmos ids; um diagrama que não tem lugar no canvas ganha um em espaço livre. Tirar o projeto do workspace não apaga nada do repositório; excluir um diagrama apaga o arquivo dele.
+
 Decisão de modelo: **o `CanvasObject` usa o mesmo id do objeto que posiciona** (como no exemplo da V0.1). Isso garante uma posição por objeto e simplifica referências. Se no futuro um mesmo mod precisar aparecer duas vezes, introduz-se um id de “vista”; por enquanto não.
 
 Regra de concorrência: toda mudança persiste com `revision + 1` no objeto alterado e no workspace. Operações podem levar a pré-condição `revision_equals`; se outra mudança chegou antes, a resposta é `REVISION_CONFLICT` em vez de sobrescrever.
@@ -43,6 +57,8 @@ Regra de concorrência: toda mudança persiste com `revision + 1` no objeto alte
 |---|---|---|---|---|
 | `workspace.create` | `workspaceId`, `name`, `projectIds` | snapshot inicial | Sim (por id) | Não |
 | `workspace.open` | `workspaceId` | snapshot | Sim | Não |
+| `workspace.add_project` | `projectId`, `name`, `rootPath` (absoluto ou `~/…`) | `projectId`, `rootId`, `rootArtifactId` | Sim (mesma pasta volta a ser a ativa) | Agente: sim |
+| `workspace.clone_repository` | `projectId`, `url`, `name?` | idem + `path`, `cloned` | Sim (pasta já clonada é reaproveitada) | Agente: sim |
 | `workspace.get_snapshot` | `include` (lista de seções), `regionId?` | snapshot filtrado | Sim (leitura) | Não |
 | `canvas.place` | `objectId`, `position`, `size?` | retângulo final | Sim (mesmo destino) | Não |
 | `canvas.arrange` | `objectIds`, `strategy` (`grid`, `row`, `column`), `regionId?` | retângulos finais | Sim | Não |

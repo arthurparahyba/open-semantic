@@ -33,7 +33,7 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
   if (process.getuid?.() === 0 || process.env.CI) args.unshift("--no-sandbox");
   const app = await electron.launch({
     args,
-    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_TEST_FOLDER: projectDir },
+    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir },
   });
   const page = await app.firstWindow();
   return { app, page };

@@ -216,7 +216,7 @@ export function AgentPanel({ hasProject, onError }: Props) {
               void sendChat();
             }
           }}
-          placeholder={keyMissing ? "Configure a chave para conversar" : hasProject ? "Peça algo ao agente…" : "Abra uma pasta e peça algo ao agente…"}
+          placeholder={keyMissing ? "Configure a chave para conversar" : hasProject ? "Peça algo ao agente…" : "Cole o caminho de uma pasta ou o link de um repositório…"}
           disabled={keyMissing}
           rows={2}
           data-testid="chat-input"

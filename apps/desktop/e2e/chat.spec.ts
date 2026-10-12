@@ -34,7 +34,7 @@ test("conversa: o agente lê o projeto, cria pelo executor, pede confirmação e
   if (process.getuid?.() === 0 || process.env.CI) args.unshift("--no-sandbox");
   const app = await electron.launch({
     args,
-    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
+    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
   });
   const page = await app.firstWindow();
   const shot = async (name: string) => {

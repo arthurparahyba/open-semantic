@@ -46,6 +46,7 @@ Diferença importante: **`rejected`** = falhou na validação, nada mudou. **`fa
 | Classe de operação | Usuário | Agente |
 |---|---|---|
 | Leitura (snapshot, query, list_dir, read_file) | Livre | Livre, dentro das raízes |
+| Trazer uma pasta local ou clonar um repositório para o workspace | Livre | Confirmação; o cartão diz que diagramas e conhecimento ficarão em `.open-semantic/` dentro dele |
 | Visual (criar mod, diagrama, região, navegar, organizar) | Livre | Livre (navegação automática confirmada na V0.1) |
 | Excluir mod, diagrama ou região com objetos | Livre | Confirmação, salvo `agentMayDeleteMods` |
 | Escrever arquivo / criar diretório | Livre | Criar diretório: livre. Escrever conteúdo: confirmação (pode ser em lote, `upfront`) |
@@ -161,6 +162,12 @@ Da V0.1: E1 a E5, D1, D3. Mais:
 - Provedores em `packages/llm` (interface `LlmProvider`, adaptador `AnthropicProvider`, preços por modelo). O laço está em `packages/core/src/conversation.ts` e o prompt de sistema em `packages/core/src/prompt.ts`.
 - Tetos por pedido (`DEFAULT_LIMITS`): 12 chamadas ao modelo, 6 lotes, 60 passos, 600 mil tokens, 8 mil tokens por resposta, além do teto de custo configurável.
 - O resultado de `run_batch` devolvido ao modelo traz o status real de cada passo e a narração mostrada ao usuário.
+
+## Estado da implementação (workspace como pasta)
+
+- O agente traz repositórios pela conversa com `workspace.add_project` (caminho local) e `workspace.clone_repository` (link Git, clonado com `git clone` para `<workspace>/repos/`, sem pedir credenciais no terminal). Os dois pedem confirmação.
+- O resumo `<workspace>` entregue ao modelo inclui a pasta de cada projeto (`folder`), para ele reconhecer uma pasta que já está no workspace.
+- O prompt orienta a abrir Explorer ou Editor só quando o usuário pede para ver arquivos. `.open-semantic/` não aparece nas listagens.
 
 ## Questões abertas
 

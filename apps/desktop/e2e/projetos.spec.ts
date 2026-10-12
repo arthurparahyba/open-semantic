@@ -29,7 +29,7 @@ test.afterAll(async () => {
 test("a pasta aberta por último é a ativa; tirar um projeto não apaga arquivos", async () => {
   const args = [appRoot];
   if (process.getuid?.() === 0 || process.env.CI) args.unshift("--no-sandbox");
-  const app = await electron.launch({ args, env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_TEST_FOLDER: tests } });
+  const app = await electron.launch({ args, env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: tests } });
   const page = await app.firstWindow();
   const snapshot = () => page.evaluate(() => window.openSemantic.snapshot());
 

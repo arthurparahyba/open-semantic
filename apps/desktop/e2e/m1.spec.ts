@@ -33,7 +33,7 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
   if (process.getuid?.() === 0 || process.env.CI) args.unshift("--no-sandbox");
   const app = await electron.launch({
     args,
-    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_TEST_FOLDER: projectDir },
+    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir },
   });
   const page = await app.firstWindow();
   return { app, page };
@@ -46,7 +46,7 @@ const shot = async (page: Page, name: string) => {
 
 test("abre pasta, edita arquivo e reencontra tudo ao reabrir", async () => {
   let { app, page } = await launch();
-  await expect(page.getByRole("heading", { name: "Comece abrindo uma pasta" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Comece pela conversa" })).toBeVisible();
   await shot(page, "1-vazio.png");
 
   // Abrir pasta → Explorer com a estrutura real.

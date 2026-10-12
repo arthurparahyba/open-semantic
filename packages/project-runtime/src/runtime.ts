@@ -161,7 +161,7 @@ export class ProjectRuntime {
     return validity;
   }
 
-  async listDir(artifactId: string, exclude: string[] = [".git", "node_modules"], actor?: Actor): Promise<DirEntry[]> {
+  async listDir(artifactId: string, exclude: string[] = [".git", "node_modules", ".open-semantic"], actor?: Actor): Promise<DirEntry[]> {
     const { artifact, project, rootId, path } = this.locate(artifactId, "read");
     if (artifact.kind !== "directory") {
       throw new OperationError("INVALID_ARGUMENTS", "O artefato não é um diretório.", { targetId: artifactId });

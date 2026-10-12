@@ -118,6 +118,12 @@ export class WorkspaceStore {
     this.dirty = true;
   }
 
+  /** Mudança em bloco no documento, para quem traz conteúdo de fora (ex.: `.open-semantic/` de um repositório). */
+  mutate(fn: (doc: WorkspaceSnapshot) => void) {
+    this.touch();
+    fn(this.doc);
+  }
+
   // ---------- projetos ----------
   project(id: string): Project | undefined {
     return this.doc.projects.find((p) => p.id === id);

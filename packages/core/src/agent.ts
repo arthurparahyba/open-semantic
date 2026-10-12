@@ -170,6 +170,10 @@ export function describeStep(operation: string, args: Record<string, unknown>, s
   const modTitle = (id: string) => snapshot?.mods.find((m) => m.id === id)?.title ?? id;
   const typeName: Record<string, string> = { explorer: "um Explorer", editor: "um Editor" };
   switch (operation) {
+    case "workspace.add_project":
+      return `trazer a pasta ${a.rootPath} para o workspace`;
+    case "workspace.clone_repository":
+      return `baixar o repositório ${a.url}`;
     case "project.create_dir":
       return `criar a pasta ${a.path}/`;
     case "semantic.upsert_observation":

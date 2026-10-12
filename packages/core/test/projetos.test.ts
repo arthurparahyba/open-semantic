@@ -28,7 +28,7 @@ beforeEach(async () => {
   tests = await mkdtemp(join(tmpdir(), "tests-"));
   await mkdir(join(petclinic, "src"));
   await writeFile(join(petclinic, "pom.xml"), "<project/>\n");
-  core = await createCore({ dataDir, debounceMs: 5, animationMs: 0 });
+  core = await createCore({ workspaceDir: dataDir, debounceMs: 5, animationMs: 0 });
   expect((await op("workspace.add_project", { projectId: "prj_petclinic", name: "spring-petclinic", rootPath: petclinic })).status).toBe("succeeded");
   expect((await op("workspace.add_project", { projectId: "prj_tests", name: "tests", rootPath: tests })).status).toBe("succeeded");
 });

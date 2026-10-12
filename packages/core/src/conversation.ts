@@ -505,6 +505,8 @@ function compact(value: unknown): unknown {
 
 /** Operações que o agente de IA pode usar nos lotes (as demais são da interface). */
 export const AGENT_OPERATIONS = [
+  "workspace.add_project",
+  "workspace.clone_repository",
   "project.create_dir",
   "project.write_file",
   "semantic.upsert_observation",
@@ -537,7 +539,13 @@ export function summarizeWorkspace(snapshot: WorkspaceSnapshot) {
   const active = activeProject(snapshot);
   return {
     ...(active ? { activeProjectId: active.id } : {}),
-    projects: snapshot.projects.map((p) => ({ id: p.id, name: p.name, roots: p.roots.map((r) => ({ id: r.id, path: r.path })), rootArtifactId: p.rootRef })),
+    projects: snapshot.projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      ...(p.location.kind === "local" ? { folder: p.location.rootPath } : {}),
+      roots: p.roots.map((r) => ({ id: r.id, path: r.path })),
+      rootArtifactId: p.rootRef,
+    })),
     regions: snapshot.canvas.regions.map((r) => ({
       id: r.id,
       title: r.title,
