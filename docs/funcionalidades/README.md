@@ -15,6 +15,7 @@ Documentos de origem: [visão do produto](../visao.md) e [Especificação V0.1](
 | 5 | [Open Semantic](05-open-semantic.md) | Open Semantic | entidades, relações, evidências |
 | 6 | [Conversa, agente e protocolo](06-conversa-agente-e-protocolo.md) | Interface conversacional, Agent Orchestrator | operações, lotes, histórico |
 | 7 | [Project Runtime](07-project-runtime.md) | Project Runtime | arquivos, diretórios, processos |
+| 8 | [Motor de contexto semântico](08-gestao-de-contexto.md) | Agent Orchestrator (contexto) | índice de relevância, contexto enviado à IA |
 
 ## Como as peças se ligam
 
