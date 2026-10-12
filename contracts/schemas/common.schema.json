@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/common.schema.json",
+  "title": "Open Semantic V0.2 — definições comuns",
+  "description": "Identificadores, geometria, atores, procedência, estados de conhecimento e erros compartilhados por todos os contratos.",
+  "$defs": {
+    "WorkspaceId": { "type": "string", "pattern": "^ws_[A-Za-z0-9_-]{3,64}$" },
+    "ProjectId": { "type": "string", "pattern": "^prj_[A-Za-z0-9_-]{3,64}$" },
+    "RootId": { "type": "string", "pattern": "^root_[A-Za-z0-9_-]{3,64}$" },
+    "ModId": { "type": "string", "pattern": "^mod_[A-Za-z0-9_-]{3,64}$" },
+    "DiagramId": { "type": "string", "pattern": "^dgm_[A-Za-z0-9_-]{3,64}$" },
+    "NodeId": { "type": "string", "pattern": "^nd_[A-Za-z0-9_-]{3,64}$" },
+    "EdgeId": { "type": "string", "pattern": "^edg_[A-Za-z0-9_-]{3,64}$" },
+    "SemanticEntityId": { "type": "string", "pattern": "^sem_[A-Za-z0-9_-]{3,64}$" },
+    "RelationId": { "type": "string", "pattern": "^rel_[A-Za-z0-9_-]{3,64}$" },
+    "EvidenceId": { "type": "string", "pattern": "^evd_[A-Za-z0-9_-]{3,64}$" },
+    "ArtifactId": { "type": "string", "pattern": "^art_[A-Za-z0-9_-]{3,64}$" },
+    "RegionId": { "type": "string", "pattern": "^rgn_[A-Za-z0-9_-]{3,64}$" },
+    "OperationId": { "type": "string", "pattern": "^act_[A-Za-z0-9_-]{3,64}$" },
+    "BatchId": { "type": "string", "pattern": "^bat_[A-Za-z0-9_-]{3,64}$" },
+    "EventId": { "type": "string", "pattern": "^evt_[A-Za-z0-9_-]{3,64}$" },
+    "NavigationId": { "type": "string", "pattern": "^nav_[A-Za-z0-9_-]{3,64}$" },
+    "TurnId": { "type": "string", "pattern": "^turn_[A-Za-z0-9_-]{3,64}$" },
+    "GrantId": { "type": "string", "pattern": "^grt_[A-Za-z0-9_-]{3,64}$" },
+    "StepId": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+
+    "CanvasObjectId": {
+      "description": "Um objeto do canvas tem o mesmo id do mod ou diagrama que ele posiciona.",
+      "anyOf": [ { "$ref": "#/$defs/ModId" }, { "$ref": "#/$defs/DiagramId" } ]
+    },
+    "VisualTargetId": {
+      "description": "Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar.",
+      "anyOf": [
+        { "$ref": "#/$defs/ModId" },
+        { "$ref": "#/$defs/DiagramId" },
+        { "$ref": "#/$defs/NodeId" },
+        { "$ref": "#/$defs/EdgeId" },
+        { "$ref": "#/$defs/RegionId" }
+      ]
+    },
+    "AnyId": {
+      "type": "string",
+      "pattern": "^(ws|prj|root|mod|dgm|nd|edg|sem|rel|evd|art|rgn|act|bat|evt|nav|turn|grt)_[A-Za-z0-9_-]{3,64}$"
+    },
+
+    "Timestamp": { "type": "string", "format": "date-time" },
+    "Revision": {
+      "description": "Contador monotônico por objeto, usado para concorrência otimista e pré-condições.",
+      "type": "integer", "minimum": 0
+    },
+
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" } },
+      "additionalProperties": false
+    },
+    "Size": {
+      "type": "object",
+      "required": ["width", "height"],
+      "properties": {
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "Rect": {
+      "type": "object",
+      "required": ["position", "size"],
+      "properties": {
+        "position": { "$ref": "#/$defs/Point" },
+        "size": { "$ref": "#/$defs/Size" }
+      },
+      "additionalProperties": false
+    },
+
+    "ProjectRelativePath": {
+      "description": "Caminho relativo à raiz autorizada, com '/' como separador. Nunca absoluto, nunca com segmentos '..'. String vazia significa a própria raiz.",
+      "type": "string",
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))[^\\\\\\u0000]*$"
+    },
+
+    "Actor": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["user", "agent", "system"] },
+        "id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+
+    "Capability": {
+      "description": "Capacidades de acesso ao projeto real. São independentes entre si (V0.1 §6).",
+      "enum": ["read", "write", "delete", "execute"]
+    },
+
+    "KnowledgeStatus": {
+      "description": "Qualidade do conhecimento de uma entidade ou relação semântica. Ver maquina-de-estados.md §6.",
+      "enum": ["verified", "inferred", "pending", "stale", "invalid", "rejected"]
+    },
+
+    "Provenance": {
+      "description": "De onde veio uma informação. 'agent_inference' exige confidence; 'verified' só é alcançável com fontes que não sejam inferência.",
+      "type": "object",
+      "required": ["source", "actor", "recordedAt"],
+      "properties": {
+        "source": { "enum": ["inspection", "execution", "user_statement", "agent_inference", "diagram_edit", "import"] },
+        "actor": { "$ref": "#/$defs/Actor" },
+        "operationId": { "$ref": "#/$defs/OperationId" },
+        "turnId": { "$ref": "#/$defs/TurnId" },
+        "evidenceIds": { "type": "array", "items": { "$ref": "#/$defs/EvidenceId" }, "uniqueItems": true },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rationale": { "type": "string", "maxLength": 2000 },
+        "recordedAt": { "$ref": "#/$defs/Timestamp" }
+      },
+      "additionalProperties": false,
+      "if": { "properties": { "source": { "const": "agent_inference" } } },
+      "then": { "required": ["confidence"] }
+    },
+
+    "ErrorCode": {
+      "enum": [
+        "INVALID_ARGUMENTS",
+        "UNKNOWN_OPERATION",
+        "TARGET_NOT_FOUND",
+        "PRECONDITION_FAILED",
+        "REVISION_CONFLICT",
+        "CAPABILITY_NOT_SUPPORTED",
+        "UNAUTHORIZED",
+        "CONFIRMATION_DECLINED",
+        "CONFIRMATION_EXPIRED",
+        "PATH_OUTSIDE_ROOT",
+        "REFERENCE_INVALID",
+        "EXTERNAL_CHANGE_CONFLICT",
+        "INVALID_STATE_TRANSITION",
+        "DEPENDENCY_FAILED",
+        "IDEMPOTENCY_MISMATCH",
+        "CANCELLED",
+        "TIMEOUT",
+        "INTERNAL"
+      ]
+    },
+    "Error": {
+      "description": "Explicação estruturada de uma rejeição ou falha (V0.1 critério E1).",
+      "type": "object",
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": { "$ref": "#/$defs/ErrorCode" },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" },
+        "argumentPath": { "description": "JSON Pointer para o argumento inválido, quando houver.", "type": "string" },
+        "targetId": { "type": "string" },
+        "details": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

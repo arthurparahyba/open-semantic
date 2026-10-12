@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/mod.schema.json",
+  "title": "Open Semantic V0.2 — tipos de mod, instâncias e estado de runtime",
+  "description": "Separa identidade, configuração, estado de interface (persistidos) do estado operacional e transitório (não persistidos), conforme V0.1 §2.4.",
+  "$defs": {
+    "ModType": {
+      "anyOf": [
+        { "enum": ["explorer", "editor", "terminal", "table"] },
+        { "type": "string", "pattern": "^x-[a-z][a-z0-9_-]*$" }
+      ]
+    },
+
+    "CapabilityDescriptor": {
+      "description": "Uma ação que o tipo de mod expõe via mod.invoke.",
+      "type": "object",
+      "required": ["name", "requires", "idempotent", "confirmation"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z]+\\.[a-z_]+$" },
+        "description": { "type": "string" },
+        "requires": {
+          "description": "Capacidades de projeto exigidas na raiz alvo.",
+          "type": "array", "items": { "$ref": "common.schema.json#/$defs/Capability" }, "uniqueItems": true
+        },
+        "idempotent": { "type": "boolean" },
+        "confirmation": { "enum": ["never", "policy", "always"] },
+        "inputSchema": { "type": "object", "description": "JSON Schema do input." },
+        "outputSchema": { "type": "object", "description": "JSON Schema do output." }
+      },
+      "additionalProperties": false
+    },
+
+    "ModTypeDescriptor": {
+      "description": "Resposta de mod.list_types: o que cada tipo declara sobre si (critério B5).",
+      "type": "object",
+      "required": ["type", "version", "title", "capabilities", "configSchema"],
+      "properties": {
+        "type": { "$ref": "#/$defs/ModType" },
+        "version": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "defaultSize": { "$ref": "common.schema.json#/$defs/Size" },
+        "capabilities": { "type": "array", "items": { "$ref": "#/$defs/CapabilityDescriptor" } },
+        "configSchema": { "type": "object" },
+        "uiStateSchema": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+
+    "ExplorerConfig": {
+      "type": "object",
+      "required": ["rootRef"],
+      "properties": {
+        "rootRef": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+        "showHidden": { "type": "boolean", "default": false },
+        "exclude": { "type": "array", "items": { "type": "string" }, "default": [".git", "node_modules"] }
+      },
+      "additionalProperties": false
+    },
+    "ExplorerUiState": {
+      "type": "object",
+      "properties": {
+        "currentDirRef": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+        "expanded": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ArtifactId" } },
+        "selected": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ArtifactId" } }
+      },
+      "additionalProperties": false
+    },
+    "EditorConfig": {
+      "type": "object",
+      "required": ["fileRef"],
+      "properties": {
+        "fileRef": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+        "readOnly": { "type": "boolean", "default": false },
+        "encoding": { "type": "string", "default": "utf-8" }
+      },
+      "additionalProperties": false
+    },
+    "TerminalConfig": {
+      "type": "object",
+      "required": ["cwdRef"],
+      "properties": {
+        "cwdRef": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+        "keepHistory": { "type": "integer", "minimum": 0, "default": 200 }
+      },
+      "additionalProperties": false
+    },
+    "TableConfig": {
+      "type": "object",
+      "required": ["source"],
+      "properties": {
+        "source": {
+          "oneOf": [
+            {
+              "type": "object", "required": ["kind", "rows"],
+              "properties": { "kind": { "const": "inline" }, "rows": { "type": "array", "items": { "type": "object" } } },
+              "additionalProperties": false
+            },
+            {
+              "type": "object", "required": ["kind", "fileRef", "format"],
+              "properties": {
+                "kind": { "const": "file" },
+                "fileRef": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+                "format": { "enum": ["csv", "json"] }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object", "required": ["kind", "operationId"],
+              "properties": {
+                "kind": { "const": "operation_result" },
+                "operationId": { "$ref": "common.schema.json#/$defs/OperationId" },
+                "pointer": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object", "required": ["key"],
+            "properties": { "key": { "type": "string" }, "label": { "type": "string" }, "type": { "enum": ["string", "number", "boolean", "date"] } },
+            "additionalProperties": false
+          }
+        },
+        "editable": { "type": "boolean", "default": false }
+      },
+      "additionalProperties": false
+    },
+
+    "ModInstance": {
+      "type": "object",
+      "required": ["id", "type", "typeVersion", "config", "lifecycle", "revision", "createdBy", "createdAt"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/ModId" },
+        "type": { "$ref": "#/$defs/ModType" },
+        "typeVersion": { "type": "integer", "minimum": 1 },
+        "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
+        "title": { "type": "string" },
+        "config": { "type": "object" },
+        "uiState": { "type": "object" },
+        "semanticEntityIds": {
+          "description": "Entidades que este mod representa (por exemplo, o módulo 'backend').",
+          "type": "array", "items": { "$ref": "common.schema.json#/$defs/SemanticEntityId" }, "uniqueItems": true
+        },
+        "lifecycle": {
+          "description": "Somente estados persistidos. 'deleted' não aparece: instâncias excluídas saem do snapshot e ficam no ActionRecord.",
+          "enum": ["active", "closed"]
+        },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" },
+        "createdBy": { "$ref": "common.schema.json#/$defs/Actor" },
+        "createdAt": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "updatedAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "explorer" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/ExplorerConfig" }, "uiState": { "$ref": "#/$defs/ExplorerUiState" } } } },
+        { "if": { "properties": { "type": { "const": "editor" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/EditorConfig" } } } },
+        { "if": { "properties": { "type": { "const": "terminal" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/TerminalConfig" } } } },
+        { "if": { "properties": { "type": { "const": "table" } } }, "then": { "properties": { "config": { "$ref": "#/$defs/TableConfig" } } } }
+      ]
+    },
+
+    "ModRuntimeState": {
+      "description": "Estado operacional, NUNCA persistido no workspace. Recalculado ao abrir.",
+      "type": "object",
+      "required": ["modId", "status"],
+      "properties": {
+        "modId": { "$ref": "common.schema.json#/$defs/ModId" },
+        "status": { "enum": ["unloaded", "loading", "ready", "degraded", "error", "suspended"] },
+        "error": { "$ref": "common.schema.json#/$defs/Error" },
+        "dirty": { "type": "boolean", "description": "Editor/Tabela com alterações não salvas." },
+        "conflict": { "type": "boolean", "description": "Editor detectou mudança externa." },
+        "process": {
+          "type": "object",
+          "properties": {
+            "artifactId": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+            "status": { "enum": ["running", "exited", "killed"] },
+            "exitCode": { "type": "integer" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

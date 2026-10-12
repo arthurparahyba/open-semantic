@@ -1,0 +1,26 @@
+{
+  "request": {
+    "operationId": "act_ref_100",
+    "operation": "mod.create",
+    "arguments": {
+      "modId": "mod_etc_explorer",
+      "type": "explorer",
+      "config": { "rootRef": "art_etc_passwd" },
+      "placement": { "strategy": "free_space_near", "anchorIds": [] }
+    },
+    "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+  },
+  "result": {
+    "operationId": "act_ref_100",
+    "status": "rejected",
+    "error": {
+      "code": "REFERENCE_INVALID",
+      "message": "rootRef 'art_etc_passwd' não existe no workspace. Referências a artefatos só são criadas pelo Project Runtime a partir de caminhos dentro de raízes autorizadas.",
+      "retryable": false,
+      "argumentPath": "/config/rootRef",
+      "targetId": "art_etc_passwd"
+    },
+    "changes": [],
+    "completedAt": "2026-10-12T20:45:00Z"
+  }
+}

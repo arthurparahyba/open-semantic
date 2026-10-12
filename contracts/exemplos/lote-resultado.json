@@ -1,0 +1,63 @@
+{
+  "batchId": "bat_ref_backend",
+  "status": "completed",
+  "steps": {
+    "mk_backend": {
+      "operationId": "act_ref_001",
+      "status": "succeeded",
+      "output": { "artifacts": [ { "id": "art_backend_dir", "path": "backend", "kind": "directory" } ] },
+      "changes": [ { "id": "art_backend_dir", "change": "created" } ],
+      "workspaceRevision": 8,
+      "completedAt": "2026-10-12T20:41:01Z"
+    },
+    "sem_backend": {
+      "operationId": "act_ref_002",
+      "status": "succeeded",
+      "output": { "entityId": "sem_backend", "status": "verified" },
+      "changes": [ { "id": "sem_backend", "change": "created", "revision": 1 }, { "id": "evd_backend_dir", "change": "created" } ],
+      "workspaceRevision": 9,
+      "completedAt": "2026-10-12T20:41:02Z"
+    },
+    "infer_arch": {
+      "operationId": "act_ref_003",
+      "status": "succeeded",
+      "output": { "entityIds": ["sem_frontend"], "relationIds": ["rel_front_back"], "status": "inferred" },
+      "changes": [ { "id": "sem_frontend", "change": "created", "revision": 1 }, { "id": "rel_front_back", "change": "created", "revision": 1 } ],
+      "workspaceRevision": 10,
+      "completedAt": "2026-10-12T20:41:03Z"
+    },
+    "region": {
+      "operationId": "act_ref_004",
+      "status": "succeeded",
+      "output": { "regionId": "rgn_backend", "bounds": { "position": { "x": 800, "y": 200 }, "size": { "width": 600, "height": 720 } } },
+      "changes": [ { "id": "rgn_backend", "change": "created", "revision": 1 } ],
+      "workspaceRevision": 11,
+      "completedAt": "2026-10-12T20:41:04Z"
+    },
+    "explorer": {
+      "operationId": "act_ref_005",
+      "status": "succeeded",
+      "output": { "modId": "mod_backend_explorer", "position": { "x": 900, "y": 300 }, "size": { "width": 360, "height": 520 } },
+      "changes": [ { "id": "mod_backend_explorer", "change": "created", "revision": 1 } ],
+      "workspaceRevision": 12,
+      "completedAt": "2026-10-12T20:41:05Z"
+    },
+    "diagram": {
+      "operationId": "act_ref_006",
+      "status": "succeeded",
+      "output": { "diagramId": "dgm_arch", "nodeIds": ["nd_frontend", "nd_backend"], "edgeIds": ["edg_front_back"] },
+      "changes": [ { "id": "dgm_arch", "change": "created", "revision": 1 } ],
+      "workspaceRevision": 13,
+      "completedAt": "2026-10-12T20:41:06Z"
+    },
+    "frame": {
+      "operationId": "act_ref_007",
+      "status": "succeeded",
+      "output": { "navigationId": "nav_0001", "camera": { "center": { "x": 760, "y": 560 }, "zoom": 0.9 }, "framedIds": ["dgm_arch", "mod_backend_explorer"] },
+      "changes": [ { "id": "ws_minhaapp", "change": "updated" } ],
+      "workspaceRevision": 14,
+      "completedAt": "2026-10-12T20:41:07Z"
+    }
+  },
+  "completedAt": "2026-10-12T20:41:07Z"
+}

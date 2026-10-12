@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "0.2",
+  "workspace": {
+    "id": "ws_minhaapp",
+    "name": "MinhaAplicacao",
+    "revision": 14,
+    "projectIds": ["prj_minhaapp"],
+    "settings": { "autoNavigate": true, "userHoldMs": 4000, "agentMayDeleteMods": false },
+    "createdAt": "2026-10-12T20:40:00Z",
+    "updatedAt": "2026-10-12T20:41:07Z"
+  },
+  "projects": [
+    {
+      "id": "prj_minhaapp",
+      "name": "MinhaAplicacao",
+      "location": { "kind": "local", "rootPath": "/home/arthur/dev/minhaapp" },
+      "roots": [
+        { "id": "root_main", "path": "", "capabilities": ["read", "write", "execute"], "commandPolicy": { "mode": "allowlist_then_confirm", "allowlist": ["npm test", "npm run build", "git status"] } }
+      ],
+      "rootRef": "art_project_root",
+      "revision": 1
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "art_project_root",
+      "projectId": "prj_minhaapp",
+      "kind": "directory",
+      "locator": { "rootId": "root_main", "path": "" },
+      "validity": { "status": "valid", "checkedAt": "2026-10-12T20:41:00Z" },
+      "provenance": { "source": "inspection", "actor": { "kind": "system", "id": "project_runtime" }, "recordedAt": "2026-10-12T20:40:00Z" }
+    },
+    {
+      "id": "art_backend_dir",
+      "projectId": "prj_minhaapp",
+      "kind": "directory",
+      "locator": { "rootId": "root_main", "path": "backend" },
+      "validity": { "status": "valid", "checkedAt": "2026-10-12T20:41:01Z" },
+      "provenance": { "source": "execution", "actor": { "kind": "agent", "id": "orchestrator" }, "operationId": "act_ref_001", "recordedAt": "2026-10-12T20:41:01Z" }
+    }
+  ],
+  "semantic": {
+    "entities": [
+      {
+        "id": "sem_backend",
+        "kind": "module",
+        "name": "Backend",
+        "projectId": "prj_minhaapp",
+        "artifactIds": ["art_backend_dir"],
+        "status": "verified",
+        "provenance": { "source": "execution", "actor": { "kind": "agent", "id": "orchestrator" }, "operationId": "act_ref_002", "evidenceIds": ["evd_backend_dir"], "recordedAt": "2026-10-12T20:41:02Z" },
+        "revision": 1
+      },
+      {
+        "id": "sem_frontend",
+        "kind": "module",
+        "name": "Frontend",
+        "projectId": "prj_minhaapp",
+        "artifactIds": [],
+        "status": "inferred",
+        "provenance": { "source": "agent_inference", "actor": { "kind": "agent", "id": "orchestrator" }, "operationId": "act_ref_003", "turnId": "turn_0001", "confidence": 0.7, "rationale": "O usuário descreveu uma aplicação com frontend e backend; ainda não existe código que confirme a comunicação.", "recordedAt": "2026-10-12T20:41:03Z" },
+        "revision": 1
+      }
+    ],
+    "relations": [
+      {
+        "id": "rel_front_back",
+        "type": "communicates_with",
+        "sourceId": "sem_frontend",
+        "targetId": "sem_backend",
+        "attributes": { "protocol": "HTTP" },
+        "status": "inferred",
+        "provenance": { "source": "agent_inference", "actor": { "kind": "agent", "id": "orchestrator" }, "operationId": "act_ref_003", "confidence": 0.7, "recordedAt": "2026-10-12T20:41:03Z" },
+        "revision": 1
+      }
+    ],
+    "evidence": [
+      {
+        "id": "evd_backend_dir",
+        "kind": "directory_listing",
+        "artifactId": "art_backend_dir",
+        "operationId": "act_ref_002",
+        "summary": "Diretório backend/ criado pela operação act_ref_001 e confirmado pelo Project Runtime.",
+        "status": "current",
+        "observedAt": "2026-10-12T20:41:02Z"
+      }
+    ]
+  },
+  "mods": [
+    {
+      "id": "mod_backend_explorer",
+      "type": "explorer",
+      "typeVersion": 1,
+      "projectId": "prj_minhaapp",
+      "title": "Backend",
+      "config": { "rootRef": "art_backend_dir", "showHidden": false, "exclude": [".git", "node_modules"] },
+      "uiState": { "currentDirRef": "art_backend_dir", "expanded": [], "selected": [] },
+      "semanticEntityIds": ["sem_backend"],
+      "lifecycle": "active",
+      "revision": 1,
+      "createdBy": { "kind": "agent", "id": "orchestrator" },
+      "createdAt": "2026-10-12T20:41:05Z"
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "dgm_arch",
+      "title": "Arquitetura",
+      "kind": "architecture",
+      "projectId": "prj_minhaapp",
+      "nodes": [
+        { "id": "nd_frontend", "label": "Frontend", "kind": "module", "semanticEntityId": "sem_frontend" },
+        { "id": "nd_backend", "label": "Backend", "kind": "module", "semanticEntityId": "sem_backend" }
+      ],
+      "edges": [
+        { "id": "edg_front_back", "sourceNodeId": "nd_frontend", "targetNodeId": "nd_backend", "label": "HTTP", "semanticRelationId": "rel_front_back" }
+      ],
+      "layout": {
+        "algorithm": "layered",
+        "direction": "LR",
+        "nodes": {
+          "nd_frontend": { "position": { "x": 24, "y": 60 }, "size": { "width": 160, "height": 64 } },
+          "nd_backend": { "position": { "x": 296, "y": 60 }, "size": { "width": 160, "height": 64 } }
+        },
+        "pinned": []
+      },
+      "revision": 1
+    }
+  ],
+  "canvas": {
+    "regions": [
+      {
+        "id": "rgn_backend",
+        "title": "Backend",
+        "bounds": { "position": { "x": 800, "y": 200 }, "size": { "width": 600, "height": 720 } },
+        "semanticEntityIds": ["sem_backend"],
+        "revision": 1
+      }
+    ],
+    "objects": [
+      { "id": "mod_backend_explorer", "objectKind": "mod", "position": { "x": 900, "y": 300 }, "size": { "width": 360, "height": 520 }, "zIndex": 1, "regionId": "rgn_backend", "placedBy": "agent", "revision": 1 },
+      { "id": "dgm_arch", "objectKind": "diagram", "position": { "x": 260, "y": 300 }, "size": { "width": 480, "height": 184 }, "zIndex": 1, "placedBy": "agent", "revision": 1 }
+    ]
+  },
+  "navigation": {
+    "camera": { "center": { "x": 760, "y": 560 }, "zoom": 0.9 },
+    "focus": { "targetIds": ["dgm_arch", "mod_backend_explorer"], "highlightIds": ["dgm_arch", "mod_backend_explorer"] },
+    "lastOverview": { "center": { "x": 760, "y": 560 }, "zoom": 0.6 },
+    "history": [
+      { "camera": { "center": { "x": 0, "y": 0 }, "zoom": 1 }, "origin": "user", "at": "2026-10-12T20:40:00Z" }
+    ],
+    "motion": { "status": "idle" },
+    "control": { "mode": "shared" }
+  }
+}

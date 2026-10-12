@@ -1,0 +1,126 @@
+{
+  "batchId": "bat_ref_backend",
+  "turnId": "turn_0001",
+  "intent": "Crie o backend, abra o Explorer e mostre a arquitetura",
+  "policy": { "onStepFailure": "skip_dependents", "validateFirst": true, "confirmation": "upfront" },
+  "steps": [
+    {
+      "stepId": "mk_backend",
+      "request": {
+        "operationId": "act_ref_001",
+        "operation": "project.create_dir",
+        "arguments": { "projectId": "prj_minhaapp", "rootId": "root_main", "path": "backend" },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" }, "onBehalfOf": { "kind": "user", "id": "arthur" } }
+      }
+    },
+    {
+      "stepId": "sem_backend",
+      "dependsOn": ["mk_backend"],
+      "request": {
+        "operationId": "act_ref_002",
+        "operation": "semantic.upsert_observation",
+        "arguments": {
+          "entity": {
+            "id": "sem_backend",
+            "kind": "module",
+            "name": "Backend",
+            "projectId": "prj_minhaapp",
+            "artifactIds": [ { "$bind": { "step": "mk_backend", "pointer": "/output/artifacts/0/id" } } ]
+          },
+          "evidence": {
+            "id": "evd_backend_dir",
+            "kind": "directory_listing",
+            "artifactId": { "$bind": { "step": "mk_backend", "pointer": "/output/artifacts/0/id" } },
+            "summary": "Diretório backend/ criado pela operação act_ref_001 e confirmado pelo Project Runtime."
+          }
+        },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+      }
+    },
+    {
+      "stepId": "infer_arch",
+      "request": {
+        "operationId": "act_ref_003",
+        "operation": "semantic.upsert_inference",
+        "arguments": {
+          "entities": [
+            { "id": "sem_frontend", "kind": "module", "name": "Frontend", "projectId": "prj_minhaapp" }
+          ],
+          "relations": [
+            { "id": "rel_front_back", "type": "communicates_with", "sourceId": "sem_frontend", "targetId": "sem_backend", "attributes": { "protocol": "HTTP" } }
+          ],
+          "confidence": 0.7,
+          "rationale": "O usuário descreveu uma aplicação com frontend e backend; ainda não existe código que confirme a comunicação."
+        },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+      },
+      "dependsOn": ["sem_backend"]
+    },
+    {
+      "stepId": "region",
+      "dependsOn": ["sem_backend"],
+      "request": {
+        "operationId": "act_ref_004",
+        "operation": "region.create",
+        "arguments": { "regionId": "rgn_backend", "title": "Backend", "semanticEntityIds": ["sem_backend"], "placement": { "strategy": "free_space_near", "anchorIds": [] } },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+      }
+    },
+    {
+      "stepId": "explorer",
+      "dependsOn": ["mk_backend", "region"],
+      "request": {
+        "operationId": "act_ref_005",
+        "operation": "mod.create",
+        "arguments": {
+          "modId": "mod_backend_explorer",
+          "type": "explorer",
+          "title": "Backend",
+          "config": { "rootRef": { "$bind": { "step": "mk_backend", "pointer": "/output/artifacts/0/id" } } },
+          "semanticEntityIds": ["sem_backend"],
+          "placement": { "regionId": "rgn_backend" }
+        },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+      }
+    },
+    {
+      "stepId": "diagram",
+      "dependsOn": ["infer_arch", "region"],
+      "request": {
+        "operationId": "act_ref_006",
+        "operation": "diagram.create",
+        "arguments": {
+          "diagramId": "dgm_arch",
+          "title": "Arquitetura",
+          "kind": "architecture",
+          "projectId": "prj_minhaapp",
+          "nodes": [
+            { "id": "nd_frontend", "label": "Frontend", "kind": "module", "semanticEntityId": "sem_frontend" },
+            { "id": "nd_backend", "label": "Backend", "kind": "module", "semanticEntityId": "sem_backend" }
+          ],
+          "edges": [
+            { "id": "edg_front_back", "sourceNodeId": "nd_frontend", "targetNodeId": "nd_backend", "label": "HTTP", "semanticRelationId": "rel_front_back" }
+          ],
+          "layout": { "algorithm": "layered", "direction": "LR" },
+          "placement": { "strategy": "free_space_near", "anchorIds": ["rgn_backend"] }
+        },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+      }
+    },
+    {
+      "stepId": "frame",
+      "dependsOn": ["explorer", "diagram"],
+      "request": {
+        "operationId": "act_ref_007",
+        "operation": "navigation.frame",
+        "arguments": {
+          "targets": { "visualIds": ["dgm_arch", "mod_backend_explorer"] },
+          "intent": "compare",
+          "highlight": true,
+          "reason": "Mostrando a arquitetura ao lado do Explorer do backend"
+        },
+        "authorization": { "actor": { "kind": "agent", "id": "orchestrator" } }
+      }
+    }
+  ]
+}
