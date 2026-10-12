@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/project.schema.json",
+  "title": "Open Semantic V0.2 — projeto, raízes autorizadas e referências a artefatos",
+  "description": "Decisão provisória D1: no MVP o projeto é um diretório local; 'location' é uma união discriminada para que um projeto remoto entre depois sem mudar ArtifactReference.",
+  "$defs": {
+    "ProjectLocation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "rootPath"],
+          "properties": {
+            "kind": { "const": "local" },
+            "rootPath": {
+              "description": "Caminho absoluto no dispositivo. Visível apenas para o Project Runtime; nunca é enviado ao agente.",
+              "type": "string", "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "endpoint"],
+          "properties": {
+            "kind": { "const": "remote" },
+            "endpoint": { "type": "string", "description": "Reservado. Não implementado no MVP." },
+            "rootPath": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "AuthorizedRoot": {
+      "description": "Uma subárvore do projeto em que o runtime aceita operações, com as capacidades concedidas.",
+      "type": "object",
+      "required": ["id", "path", "capabilities"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/RootId" },
+        "path": { "$ref": "common.schema.json#/$defs/ProjectRelativePath" },
+        "capabilities": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/Capability" },
+          "uniqueItems": true,
+          "minItems": 1
+        },
+        "commandPolicy": {
+          "description": "Só relevante com 'execute'. Ver interfaces.md §6.4.",
+          "type": "object",
+          "properties": {
+            "mode": { "enum": ["confirm_all", "allowlist_then_confirm", "deny_all"], "default": "confirm_all" },
+            "allowlist": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "Project": {
+      "type": "object",
+      "required": ["id", "name", "location", "roots", "rootRef", "revision"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/ProjectId" },
+        "name": { "type": "string", "minLength": 1 },
+        "location": { "$ref": "#/$defs/ProjectLocation" },
+        "roots": { "type": "array", "items": { "$ref": "#/$defs/AuthorizedRoot" }, "minItems": 1 },
+        "rootRef": {
+          "description": "ArtifactReference do diretório raiz do projeto.",
+          "$ref": "common.schema.json#/$defs/ArtifactId"
+        },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    },
+
+    "Fingerprint": {
+      "description": "Impressão usada para detectar mudança externa. contentHash é obrigatório para arquivos abertos em Editor.",
+      "type": "object",
+      "properties": {
+        "mtime": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "size": { "type": "integer", "minimum": 0 },
+        "contentHash": { "type": "string", "pattern": "^(sha256):[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+
+    "ArtifactValidity": {
+      "type": "object",
+      "required": ["status", "checkedAt"],
+      "properties": {
+        "status": { "enum": ["unknown", "valid", "changed", "missing", "inaccessible", "outside_root"] },
+        "checkedAt": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "fingerprint": { "$ref": "#/$defs/Fingerprint" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+
+    "ArtifactReference": {
+      "description": "Identidade estável de um recurso real. O caminho pode mudar (rename) sem trocar o id.",
+      "type": "object",
+      "required": ["id", "projectId", "kind", "locator", "validity", "provenance"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/ArtifactId" },
+        "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
+        "kind": { "enum": ["directory", "file", "process"] },
+        "locator": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["rootId", "path"],
+              "properties": {
+                "rootId": { "$ref": "common.schema.json#/$defs/RootId" },
+                "path": { "$ref": "common.schema.json#/$defs/ProjectRelativePath" }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["processKey"],
+              "properties": {
+                "processKey": { "type": "string", "description": "Identificador do processo atribuído pelo Project Runtime." },
+                "commandLine": { "type": "string" },
+                "cwdArtifactId": { "$ref": "common.schema.json#/$defs/ArtifactId" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "validity": { "$ref": "#/$defs/ArtifactValidity" },
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "process" } } },
+          "then": { "properties": { "locator": { "required": ["processKey"] } } },
+          "else": { "properties": { "locator": { "required": ["rootId", "path"] } } }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/diagram.schema.json",
+  "title": "Open Semantic V0.2 — modelo de diagrama",
+  "description": "Modelo (nós e arestas) e layout são propriedades separadas: mudar 'layout' nunca altera 'nodes', 'edges' ou o Open Semantic (V0.1 §3.3).",
+  "$defs": {
+    "DiagramNode": {
+      "type": "object",
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/NodeId" },
+        "label": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "description": "Forma lógica: service, module, data_store, actor, note, group…" },
+        "semanticEntityId": { "$ref": "common.schema.json#/$defs/SemanticEntityId" },
+        "parentNodeId": { "$ref": "common.schema.json#/$defs/NodeId" },
+        "attributes": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "DiagramEdge": {
+      "type": "object",
+      "required": ["id", "sourceNodeId", "targetNodeId"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/EdgeId" },
+        "sourceNodeId": { "$ref": "common.schema.json#/$defs/NodeId" },
+        "targetNodeId": { "$ref": "common.schema.json#/$defs/NodeId" },
+        "label": { "type": "string" },
+        "kind": { "type": "string" },
+        "semanticRelationId": { "$ref": "common.schema.json#/$defs/RelationId" },
+        "attributes": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "DiagramLayout": {
+      "type": "object",
+      "required": ["algorithm", "nodes"],
+      "properties": {
+        "algorithm": { "enum": ["manual", "layered", "force", "grid"] },
+        "direction": { "enum": ["LR", "RL", "TB", "BT"] },
+        "nodes": {
+          "description": "Retângulo de cada nó, relativo ao canto superior esquerdo do diagrama.",
+          "type": "object",
+          "propertyNames": { "$ref": "common.schema.json#/$defs/NodeId" },
+          "additionalProperties": { "$ref": "common.schema.json#/$defs/Rect" }
+        },
+        "pinned": {
+          "description": "Nós movidos pelo usuário; relayout automático não os desloca.",
+          "type": "array", "items": { "$ref": "common.schema.json#/$defs/NodeId" }, "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "DiagramModel": {
+      "type": "object",
+      "required": ["id", "title", "kind", "nodes", "edges", "layout", "revision"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/DiagramId" },
+        "title": { "type": "string" },
+        "kind": { "enum": ["architecture", "flow", "sequence", "dependency", "freeform"] },
+        "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/DiagramNode" } },
+        "edges": { "type": "array", "items": { "$ref": "#/$defs/DiagramEdge" } },
+        "layout": { "$ref": "#/$defs/DiagramLayout" },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    },
+    "DiagramPatch": {
+      "description": "Argumento de diagram.apply_patch. Ops aplicadas em ordem; ids novos são escolhidos pelo cliente para tornar a operação idempotente.",
+      "type": "object",
+      "required": ["ops"],
+      "properties": {
+        "ops": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "type": "object", "required": ["op", "node"], "properties": { "op": { "const": "add_node" }, "node": { "$ref": "#/$defs/DiagramNode" } }, "additionalProperties": false },
+              { "type": "object", "required": ["op", "nodeId", "set"], "properties": { "op": { "const": "update_node" }, "nodeId": { "$ref": "common.schema.json#/$defs/NodeId" }, "set": { "type": "object" } }, "additionalProperties": false },
+              { "type": "object", "required": ["op", "nodeId"], "properties": { "op": { "const": "remove_node" }, "nodeId": { "$ref": "common.schema.json#/$defs/NodeId" } }, "additionalProperties": false },
+              { "type": "object", "required": ["op", "edge"], "properties": { "op": { "const": "add_edge" }, "edge": { "$ref": "#/$defs/DiagramEdge" } }, "additionalProperties": false },
+              { "type": "object", "required": ["op", "edgeId", "set"], "properties": { "op": { "const": "update_edge" }, "edgeId": { "$ref": "common.schema.json#/$defs/EdgeId" }, "set": { "type": "object" } }, "additionalProperties": false },
+              { "type": "object", "required": ["op", "edgeId"], "properties": { "op": { "const": "remove_edge" }, "edgeId": { "$ref": "common.schema.json#/$defs/EdgeId" } }, "additionalProperties": false },
+              { "type": "object", "required": ["op", "nodeId", "semanticEntityId"], "properties": { "op": { "const": "bind_node" }, "nodeId": { "$ref": "common.schema.json#/$defs/NodeId" }, "semanticEntityId": { "$ref": "common.schema.json#/$defs/SemanticEntityId" } }, "additionalProperties": false }
+            ]
+          }
+        },
+        "relayout": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    }
+  }
+}

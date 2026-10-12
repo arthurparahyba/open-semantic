@@ -1,0 +1,19 @@
+{
+  "name": "open-semantic",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "gen:types": "node scripts/gen-types.mjs",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "validate:contracts": "python3 contracts/validar.py"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^16.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4",
+    "@types/node": "^26.6.5"
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/workspace.schema.json",
+  "title": "Open Semantic V0.2 — snapshot persistido do workspace",
+  "description": "Formato de exportação/importação do workspace inteiro. É também o que o agente recebe (filtrado) em workspace.get_snapshot. A integridade referencial é verificada por scripts/validar.py, não só pelo schema.",
+  "type": "object",
+  "required": ["schemaVersion", "workspace", "projects", "artifacts", "semantic", "mods", "diagrams", "canvas", "navigation"],
+  "properties": {
+    "schemaVersion": { "const": "0.2" },
+    "workspace": { "$ref": "#/$defs/Workspace" },
+    "projects": { "type": "array", "items": { "$ref": "project.schema.json#/$defs/Project" } },
+    "artifacts": { "type": "array", "items": { "$ref": "project.schema.json#/$defs/ArtifactReference" } },
+    "semantic": {
+      "type": "object",
+      "required": ["entities", "relations", "evidence"],
+      "properties": {
+        "entities": { "type": "array", "items": { "$ref": "semantic.schema.json#/$defs/SemanticEntity" } },
+        "relations": { "type": "array", "items": { "$ref": "semantic.schema.json#/$defs/SemanticRelation" } },
+        "evidence": { "type": "array", "items": { "$ref": "semantic.schema.json#/$defs/Evidence" } }
+      },
+      "additionalProperties": false
+    },
+    "mods": { "type": "array", "items": { "$ref": "mod.schema.json#/$defs/ModInstance" } },
+    "diagrams": { "type": "array", "items": { "$ref": "diagram.schema.json#/$defs/DiagramModel" } },
+    "canvas": { "$ref": "#/$defs/Canvas" },
+    "navigation": { "$ref": "navigation.schema.json#/$defs/NavigationState" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Workspace": {
+      "type": "object",
+      "required": ["id", "name", "revision", "projectIds", "settings", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/WorkspaceId" },
+        "name": { "type": "string", "minLength": 1 },
+        "revision": {
+          "description": "Incrementa a cada mudança persistida em qualquer objeto do workspace.",
+          "$ref": "common.schema.json#/$defs/Revision"
+        },
+        "projectIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ProjectId" }, "uniqueItems": true },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "autoNavigate": { "type": "boolean", "default": true },
+            "userHoldMs": { "type": "integer", "minimum": 0, "default": 4000 },
+            "agentMayDeleteMods": { "type": "boolean", "default": false }
+          },
+          "additionalProperties": false
+        },
+        "createdAt": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "updatedAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+    "CanvasObject": {
+      "type": "object",
+      "required": ["id", "objectKind", "position", "size"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/CanvasObjectId" },
+        "objectKind": { "enum": ["mod", "diagram"] },
+        "position": { "$ref": "common.schema.json#/$defs/Point" },
+        "size": { "$ref": "common.schema.json#/$defs/Size" },
+        "zIndex": { "type": "integer", "default": 0 },
+        "regionId": { "$ref": "common.schema.json#/$defs/RegionId" },
+        "collapsed": { "type": "boolean", "default": false },
+        "placedBy": { "enum": ["agent", "user"], "description": "Objetos colocados pelo usuário não são reposicionados automaticamente." },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    },
+    "Region": {
+      "description": "Área nomeada do canvas (ex.: 'Backend'). Pode estar ligada a entidades semânticas para o Navigator resolver 'vá para o backend'.",
+      "type": "object",
+      "required": ["id", "title", "bounds"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/RegionId" },
+        "title": { "type": "string", "minLength": 1 },
+        "bounds": { "$ref": "common.schema.json#/$defs/Rect" },
+        "semanticEntityIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/SemanticEntityId" }, "uniqueItems": true },
+        "color": { "type": "string" },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    },
+    "Canvas": {
+      "type": "object",
+      "required": ["objects", "regions"],
+      "properties": {
+        "objects": { "type": "array", "items": { "$ref": "#/$defs/CanvasObject" } },
+        "regions": { "type": "array", "items": { "$ref": "#/$defs/Region" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

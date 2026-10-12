@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/operation.schema.json",
+  "title": "Open Semantic V0.2 — protocolo de operações, lotes, histórico e eventos",
+  "description": "Contrato comum de operação (V0.1 §3.1) e decisão provisória D3: lotes com dependências explícitas.",
+  "$defs": {
+    "OperationName": {
+      "type": "string",
+      "pattern": "^(workspace|canvas|region|mod|diagram|semantic|navigation|project)\\.[a-z_]+$"
+    },
+
+    "Precondition": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "targetId", "revision"], "properties": { "kind": { "const": "revision_equals" }, "targetId": { "$ref": "common.schema.json#/$defs/AnyId" }, "revision": { "$ref": "common.schema.json#/$defs/Revision" } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "targetId"], "properties": { "kind": { "const": "exists" }, "targetId": { "$ref": "common.schema.json#/$defs/AnyId" } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "targetId"], "properties": { "kind": { "const": "not_exists" }, "targetId": { "$ref": "common.schema.json#/$defs/AnyId" } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "artifactId", "fingerprint"], "properties": { "kind": { "const": "artifact_unchanged" }, "artifactId": { "$ref": "common.schema.json#/$defs/ArtifactId" }, "fingerprint": { "$ref": "project.schema.json#/$defs/Fingerprint" } }, "additionalProperties": false },
+        { "type": "object", "required": ["kind", "modId", "lifecycle"], "properties": { "kind": { "const": "mod_lifecycle" }, "modId": { "$ref": "common.schema.json#/$defs/ModId" }, "lifecycle": { "enum": ["active", "closed"] } }, "additionalProperties": false }
+      ]
+    },
+
+    "Authorization": {
+      "type": "object",
+      "required": ["actor"],
+      "properties": {
+        "actor": { "$ref": "common.schema.json#/$defs/Actor" },
+        "onBehalfOf": { "$ref": "common.schema.json#/$defs/Actor" },
+        "grantIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/GrantId" } },
+        "confirmationToken": {
+          "description": "Devolvido pelo runtime num resultado 'confirmation_required' e reenviado depois que o usuário aprova.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "StepBinding": {
+      "description": "Dentro de um lote, qualquer valor de 'arguments' ou 'targetId' pode ser {\"$bind\": {...}} e é substituído pela saída de um passo anterior antes da validação.",
+      "type": "object",
+      "required": ["$bind"],
+      "properties": {
+        "$bind": {
+          "type": "object",
+          "required": ["step", "pointer"],
+          "properties": {
+            "step": { "$ref": "common.schema.json#/$defs/StepId" },
+            "pointer": { "type": "string", "pattern": "^/output(/.*)?$" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "OperationRequest": {
+      "type": "object",
+      "required": ["operationId", "operation", "arguments", "authorization"],
+      "properties": {
+        "operationId": {
+          "description": "Gerado pelo solicitante. Também é a chave de idempotência: reenviar o mesmo operationId com os mesmos argumentos devolve o resultado original com replayed=true.",
+          "$ref": "common.schema.json#/$defs/OperationId"
+        },
+        "operation": { "$ref": "#/$defs/OperationName" },
+        "targetId": {
+          "anyOf": [ { "$ref": "common.schema.json#/$defs/AnyId" }, { "$ref": "#/$defs/StepBinding" } ]
+        },
+        "arguments": { "type": "object" },
+        "preconditions": { "type": "array", "items": { "$ref": "#/$defs/Precondition" } },
+        "authorization": { "$ref": "#/$defs/Authorization" },
+        "dryRun": { "type": "boolean", "default": false },
+        "turnId": { "$ref": "common.schema.json#/$defs/TurnId" },
+        "batchId": { "$ref": "common.schema.json#/$defs/BatchId" },
+        "stepId": { "$ref": "common.schema.json#/$defs/StepId" }
+      },
+      "additionalProperties": false
+    },
+
+    "Change": {
+      "type": "object",
+      "required": ["id", "change"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/AnyId" },
+        "change": { "enum": ["created", "updated", "deleted", "unchanged"] },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    },
+
+    "ConfirmationRequest": {
+      "type": "object",
+      "required": ["token", "risk", "summary", "expiresAt"],
+      "properties": {
+        "token": { "type": "string" },
+        "risk": { "enum": ["low", "medium", "high", "irreversible"] },
+        "summary": { "type": "string", "description": "Frase exibida ao usuário: o que vai acontecer." },
+        "reversible": { "type": "boolean" },
+        "expiresAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "OperationResult": {
+      "type": "object",
+      "required": ["operationId", "status", "completedAt"],
+      "properties": {
+        "operationId": { "$ref": "common.schema.json#/$defs/OperationId" },
+        "status": {
+          "description": "rejected = não passou na validação (nada mudou). failed = começou a executar e falhou (ver changes para efeitos parciais). skipped = não executada porque uma dependência do lote falhou.",
+          "enum": ["succeeded", "rejected", "failed", "confirmation_required", "cancelled", "skipped"]
+        },
+        "output": { "type": "object" },
+        "changes": { "type": "array", "items": { "$ref": "#/$defs/Change" } },
+        "error": { "$ref": "common.schema.json#/$defs/Error" },
+        "confirmation": { "$ref": "#/$defs/ConfirmationRequest" },
+        "replayed": { "type": "boolean", "default": false },
+        "workspaceRevision": { "$ref": "common.schema.json#/$defs/Revision" },
+        "eventIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/EventId" } },
+        "completedAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "status": { "enum": ["rejected", "failed", "skipped", "cancelled"] } } }, "then": { "required": ["error"] } },
+        { "if": { "properties": { "status": { "const": "confirmation_required" } } }, "then": { "required": ["confirmation"] } },
+        { "if": { "properties": { "status": { "const": "succeeded" } } }, "then": { "required": ["changes"] } }
+      ]
+    },
+
+    "BatchStep": {
+      "type": "object",
+      "required": ["stepId", "request"],
+      "properties": {
+        "stepId": { "$ref": "common.schema.json#/$defs/StepId" },
+        "dependsOn": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/StepId" }, "uniqueItems": true, "default": [] },
+        "request": { "$ref": "#/$defs/OperationRequest" }
+      },
+      "additionalProperties": false
+    },
+
+    "BatchPlan": {
+      "description": "Um plano coerente para uma intenção do usuário. As dependências formam um DAG (verificado por scripts/validar.py).",
+      "type": "object",
+      "required": ["batchId", "intent", "steps", "policy"],
+      "properties": {
+        "batchId": { "$ref": "common.schema.json#/$defs/BatchId" },
+        "turnId": { "$ref": "common.schema.json#/$defs/TurnId" },
+        "intent": { "type": "string", "minLength": 1, "description": "Resumo da intenção, mostrado no histórico." },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/BatchStep" }, "minItems": 1, "maxItems": 50 },
+        "policy": {
+          "type": "object",
+          "properties": {
+            "onStepFailure": { "enum": ["skip_dependents", "abort_batch"], "default": "skip_dependents" },
+            "validateFirst": { "type": "boolean", "default": true, "description": "Valida todos os passos sem bindings pendentes antes de executar qualquer um." },
+            "confirmation": { "enum": ["per_step", "upfront"], "default": "upfront" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "BatchResult": {
+      "type": "object",
+      "required": ["batchId", "status", "steps"],
+      "properties": {
+        "batchId": { "$ref": "common.schema.json#/$defs/BatchId" },
+        "status": { "enum": ["validating", "awaiting_confirmation", "running", "completed", "partially_completed", "failed", "rejected", "cancelled"] },
+        "steps": {
+          "type": "object",
+          "propertyNames": { "$ref": "common.schema.json#/$defs/StepId" },
+          "additionalProperties": { "$ref": "#/$defs/OperationResult" }
+        },
+        "pendingConfirmations": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/StepId" } },
+        "completedAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "ActionRecord": {
+      "description": "Histórico persistente (V0.1 critério E4). Um registro por operação executada ou rejeitada.",
+      "type": "object",
+      "required": ["id", "operation", "actor", "status", "requestedAt"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/OperationId" },
+        "operation": { "$ref": "#/$defs/OperationName" },
+        "targetId": { "$ref": "common.schema.json#/$defs/AnyId" },
+        "actor": { "$ref": "common.schema.json#/$defs/Actor" },
+        "batchId": { "$ref": "common.schema.json#/$defs/BatchId" },
+        "stepId": { "$ref": "common.schema.json#/$defs/StepId" },
+        "turnId": { "$ref": "common.schema.json#/$defs/TurnId" },
+        "argumentsRedacted": { "type": "object", "description": "Argumentos sem conteúdo de arquivo ou segredos." },
+        "status": { "$ref": "#/$defs/OperationResult/properties/status" },
+        "changes": { "type": "array", "items": { "$ref": "#/$defs/Change" } },
+        "error": { "$ref": "common.schema.json#/$defs/Error" },
+        "undo": {
+          "type": "object",
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["none", "inverse_operation", "snapshot"] },
+            "inverse": { "$ref": "#/$defs/OperationRequest" },
+            "snapshotRef": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "requestedAt": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "completedAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+
+    "DomainEvent": {
+      "description": "Eventos publicados pelos módulos. A interface e o agente reagem a eventos; nunca leem estado interno uns dos outros.",
+      "type": "object",
+      "required": ["eventId", "type", "source", "at"],
+      "properties": {
+        "eventId": { "$ref": "common.schema.json#/$defs/EventId" },
+        "type": {
+          "enum": [
+            "workspace.opened", "workspace.revision_changed",
+            "canvas.object_moved", "region.changed",
+            "mod.created", "mod.configured", "mod.lifecycle_changed", "mod.deleted", "mod.runtime_state_changed",
+            "diagram.created", "diagram.changed", "diagram.deleted",
+            "semantic.entity_upserted", "semantic.relation_upserted", "semantic.status_changed",
+            "artifact.created", "artifact.changed", "artifact.missing", "artifact.validity_changed",
+            "editor.conflict_detected",
+            "process.output", "process.exited",
+            "navigation.started", "navigation.completed", "navigation.cancelled", "navigation.user_interacted",
+            "operation.completed", "batch.status_changed"
+          ]
+        },
+        "source": { "enum": ["workspace_store", "mod_runtime", "diagram_engine", "semantic", "navigator", "project_runtime", "orchestrator", "ui"] },
+        "subjectId": { "$ref": "common.schema.json#/$defs/AnyId" },
+        "operationId": { "$ref": "common.schema.json#/$defs/OperationId" },
+        "workspaceRevision": { "$ref": "common.schema.json#/$defs/Revision" },
+        "payload": { "type": "object" },
+        "at": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

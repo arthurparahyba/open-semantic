@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/navigation.schema.json",
+  "title": "Open Semantic V0.2 — câmera, regiões e estado de navegação",
+  "$defs": {
+    "Camera": {
+      "type": "object",
+      "required": ["center", "zoom"],
+      "properties": {
+        "center": { "$ref": "common.schema.json#/$defs/Point" },
+        "zoom": { "type": "number", "minimum": 0.05, "maximum": 8 }
+      },
+      "additionalProperties": false
+    },
+    "Focus": {
+      "type": "object",
+      "properties": {
+        "regionId": { "$ref": "common.schema.json#/$defs/RegionId" },
+        "targetIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/VisualTargetId" }, "uniqueItems": true },
+        "highlightIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/VisualTargetId" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "HistoryEntry": {
+      "type": "object",
+      "required": ["camera", "origin", "at"],
+      "properties": {
+        "camera": { "$ref": "#/$defs/Camera" },
+        "focus": { "$ref": "#/$defs/Focus" },
+        "origin": { "enum": ["agent", "user"] },
+        "at": { "$ref": "common.schema.json#/$defs/Timestamp" }
+      },
+      "additionalProperties": false
+    },
+    "NavigationState": {
+      "description": "Estado recuperável (V0.1 §2.1). 'motion' é transitório e volta a 'idle' ao reabrir.",
+      "type": "object",
+      "required": ["camera", "focus", "history", "motion", "control"],
+      "properties": {
+        "camera": { "$ref": "#/$defs/Camera" },
+        "focus": { "$ref": "#/$defs/Focus" },
+        "lastOverview": { "$ref": "#/$defs/Camera" },
+        "history": { "type": "array", "items": { "$ref": "#/$defs/HistoryEntry" }, "maxItems": 20 },
+        "motion": {
+          "type": "object",
+          "required": ["status"],
+          "properties": {
+            "status": { "enum": ["idle", "animating", "cancelled"] },
+            "navigationId": { "$ref": "common.schema.json#/$defs/NavigationId" },
+            "origin": { "enum": ["agent", "user"] },
+            "target": { "$ref": "#/$defs/Camera" },
+            "startedAt": { "$ref": "common.schema.json#/$defs/Timestamp" }
+          },
+          "additionalProperties": false
+        },
+        "control": {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "description": "'shared': agente pode navegar. 'user_hold': usuário mexeu na câmera há pouco; pedidos do agente esperam ou viram sugestão. 'user_locked': usuário desligou navegação automática.",
+              "enum": ["shared", "user_hold", "user_locked"]
+            },
+            "holdUntil": { "$ref": "common.schema.json#/$defs/Timestamp" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "FrameRequest": {
+      "description": "Argumento de navigation.frame. O agente diz O QUE enquadrar; o Navigator calcula a geometria (V0.1 §5.2).",
+      "type": "object",
+      "required": ["targets"],
+      "properties": {
+        "targets": {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "visualIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/VisualTargetId" }, "minItems": 1 },
+            "semanticEntityIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/SemanticEntityId" }, "minItems": 1 },
+            "regionId": { "$ref": "common.schema.json#/$defs/RegionId" }
+          },
+          "additionalProperties": false
+        },
+        "intent": { "enum": ["overview", "focus", "detail", "compare"], "default": "focus" },
+        "highlight": { "type": "boolean", "default": true },
+        "padding": { "type": "number", "minimum": 0, "default": 48 },
+        "animate": { "type": "boolean", "default": true },
+        "reason": { "type": "string", "maxLength": 200, "description": "Texto curto exibido ao usuário durante o movimento." }
+      },
+      "additionalProperties": false
+    }
+  }
+}
