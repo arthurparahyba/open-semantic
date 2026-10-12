@@ -48,7 +48,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await core.close();
-  await Promise.all([dataDir, projectDir].map((d) => rm(d, { recursive: true, force: true })));
+  await Promise.all([dataDir, projectDir].map((d) => rm(d, { recursive: true, force: true, maxRetries: 3 })));
 });
 
 describe("Fluxo de referência: “crie o backend, abra o Explorer e mostre a arquitetura”", () => {
