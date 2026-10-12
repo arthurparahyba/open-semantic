@@ -19,9 +19,9 @@ Critério: uma linguagem só de ponta a ponta, para que os tipos gerados dos sch
 | Linguagem | TypeScript | Mesmos tipos na interface e no runtime; gera tipos dos JSON Schemas | — |
 | Casca do app | Electron (Tauri como alternativa mais leve) | Acesso ao disco e a processos locais | Web app + servidor local Node |
 | Interface | React | Ecossistema das libs abaixo | Svelte, Solid |
-| Canvas infinito | tldraw (formas customizadas para mods e diagramas) | Canvas infinito com câmera, seleção e formas customizadas prontos | React Flow (ótimo para diagramas, mais limitado como canvas geral) |
+| Canvas infinito | Canvas próprio em React (câmera, arrastar, redimensionar, enquadrar) | Sem dependência de licença comercial; a câmera e o enquadramento já são lógica nossa (`packages/navigator`). Decidido no M1 | tldraw (exige licença para uso comercial), React Flow (mais limitado como canvas geral) |
 | Layout de diagramas | elkjs | Layout em camadas de qualidade, roda no navegador | dagre |
-| Editor de texto | Monaco ou CodeMirror 6 | Editor de código completo | — |
+| Editor de texto | CodeMirror 6 | Leve, extensível, licença MIT. Decidido no M1 | Monaco (mais pesado) |
 | Terminal | xterm.js + node-pty | Padrão de mercado | — |
 | Observar arquivos | chokidar | Multiplataforma | fs.watch nativo |
 | Validação | Ajv (JSON Schema 2020-12) | Valida com os mesmos schemas de `contracts/` | — |

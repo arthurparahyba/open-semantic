@@ -29,3 +29,26 @@ jobs:
           git diff --exit-code -- packages/protocol/src/generated
       - run: pnpm typecheck
       - run: pnpm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Aplicativo real (Electron + Playwright)
+        env:
+          OPEN_SEMANTIC_SCREENSHOT_DIR: ${{ runner.temp }}/screenshots
+        run: xvfb-run -a pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-screenshots
+          path: |
+            ${{ runner.temp }}/screenshots
+            apps/desktop/test-results
+          if-no-files-found: ignore
