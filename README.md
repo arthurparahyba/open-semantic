@@ -63,6 +63,7 @@ O painel **Agente** agora é um chat. Na engrenagem (⚙), coloque uma chave da 
 - **Custo visível:** o cabeçalho mostra o custo da conversa e do último pedido.
 - **Tetos por pedido:** custo (padrão US$ 0,10, ajustável), 12 chamadas ao modelo, 6 lotes, 60 passos e 600 mil tokens. Ao bater num teto, o agente para e avisa.
 - **Contexto:** quando o prompt de uma chamada passa de 80 mil tokens, os pedidos anteriores são compactados (fica o que foi pedido, respondido e feito). “Nova conversa” zera tudo.
+- **Projetos:** o workspace guarda todas as pastas que você já abriu, como etiquetas no topo da janela. A destacada é a pasta aberta por último; é nela que o agente trabalha. Clique numa etiqueta para trocar e no × para tirar o projeto do workspace (os arquivos no disco não mudam).
 - O agente lê o projeto (listar pasta, ler arquivo) e muda as coisas só por lotes, com o mesmo cartão de confirmação dos roteiros. Os roteiros de teste continuam no rodapé do painel.
 
 O estado do workspace fica em `workspaces/ws_default.json` e o histórico de ações em `history/ws_default.jsonl`, dentro da pasta de dados do Electron (`~/.config/Open Semantic` no Linux, `~/Library/Application Support/Open Semantic` no macOS, `%APPDATA%\Open Semantic` no Windows).

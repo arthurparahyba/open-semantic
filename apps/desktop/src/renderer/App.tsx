@@ -63,8 +63,11 @@ export function App() {
       if (!picked || !snapshot) return;
       const existing = snapshot.projects.find((p) => p.location.kind === "local" && p.location.rootPath === picked.path);
       let rootArtifactId: string;
-      if (existing) rootArtifactId = existing.rootRef;
-      else {
+      if (existing) {
+        rootArtifactId = existing.rootRef;
+        // Reabrir uma pasta que já estava no workspace a torna o projeto em que o agente trabalha.
+        await runOk("workspace.set_active_project", { projectId: existing.id });
+      } else {
         const out = await runOk<{ rootArtifactId: string }>("workspace.add_project", {
           projectId: newId("prj"),
           name: picked.name,
@@ -84,6 +87,17 @@ export function App() {
     } catch (err) {
       fail(err);
     }
+  };
+
+  const activateProject = (projectId: string) => runOk("workspace.set_active_project", { projectId }).catch(fail);
+
+  const removeProject = async (projectId: string) => {
+    const project = snapshot?.projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const ok = window.confirm(
+      `Tirar “${project.name}” do workspace?\n\nSaem os Explorers, Editores, diagramas e o conhecimento ligados a ele. Os arquivos no disco não são tocados; dá para abrir a pasta de novo depois.`,
+    );
+    if (ok) await runOk("workspace.remove_project", { projectId }).catch(fail);
   };
 
   const openFile = async (explorerId: string, fileRef: string) => {
@@ -169,6 +183,28 @@ export function App() {
         <button type="button" className="primary" onClick={() => void openFolder()}>
           Abrir pasta…
         </button>
+        {snapshot.projects.length > 0 && (
+          <span className="projects" data-testid="projects">
+            {snapshot.projects.map((p) => {
+              const active = p.id === (snapshot.workspace.activeProjectId ?? snapshot.projects[snapshot.projects.length - 1]!.id);
+              return (
+                <span key={p.id} className={`project-chip${active ? " is-active" : ""}`} data-project-id={p.id} data-active={active}>
+                  <button
+                    type="button"
+                    className="project-name"
+                    onClick={() => void activateProject(p.id)}
+                    title={active ? "Projeto em que o agente trabalha" : "Fazer o agente trabalhar neste projeto"}
+                  >
+                    {p.name}
+                  </button>
+                  <button type="button" className="project-remove" onClick={() => void removeProject(p.id)} aria-label={`Tirar ${p.name} do workspace`} title="Tirar do workspace">
+                    ×
+                  </button>
+                </span>
+              );
+            })}
+          </span>
+        )}
         <span className="spacer" />
         <button type="button" onClick={() => canvas.current?.zoomBy(1 / 1.2)} aria-label="Diminuir zoom">
           −

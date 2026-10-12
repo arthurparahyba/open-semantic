@@ -324,7 +324,7 @@ export class Conversation {
 
   private locate(input: Record<string, unknown>) {
     const snapshot = this.options.snapshot();
-    const project = input.projectId ? snapshot.projects.find((p) => p.id === input.projectId) : snapshot.projects[0];
+    const project = input.projectId ? snapshot.projects.find((p) => p.id === input.projectId) : activeProject(snapshot);
     if (!project) throw new Error(input.projectId ? `Projeto ${String(input.projectId)} não existe.` : "Nenhuma pasta de projeto aberta.");
     const path = String(input.path ?? "")
       .trim()
@@ -524,11 +524,19 @@ export const AGENT_OPERATIONS = [
   "navigation.overview",
 ];
 
+/** Projeto em que o agente trabalha quando o pedido não diz outro: o último que o usuário abriu. */
+export function activeProject(snapshot: WorkspaceSnapshot) {
+  const id = snapshot.workspace.activeProjectId;
+  return (id ? snapshot.projects.find((p) => p.id === id) : undefined) ?? snapshot.projects[snapshot.projects.length - 1];
+}
+
 /** Resumo enxuto do workspace para o modelo (sem conteúdo de arquivos). */
 export function summarizeWorkspace(snapshot: WorkspaceSnapshot) {
   const regionOf = new Map(snapshot.canvas.objects.map((o) => [o.id, o.regionId]));
   const limit = <T>(list: T[], n: number) => list.slice(0, n);
+  const active = activeProject(snapshot);
   return {
+    ...(active ? { activeProjectId: active.id } : {}),
     projects: snapshot.projects.map((p) => ({ id: p.id, name: p.name, roots: p.roots.map((r) => ({ id: r.id, path: r.path })), rootArtifactId: p.rootRef })),
     regions: snapshot.canvas.regions.map((r) => ({
       id: r.id,

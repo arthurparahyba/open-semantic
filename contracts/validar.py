@@ -79,6 +79,8 @@ def check_snapshot(name, ws):
 
     for pid in ws["workspace"]["projectIds"]:
         need(pid, "project", "workspace.projectIds")
+    if "activeProjectId" in ws["workspace"]:
+        assert ws["workspace"]["activeProjectId"] in ws["workspace"]["projectIds"], "activeProjectId fora de workspace.projectIds"
     for p in ws["projects"]:
         need(p["rootRef"], "artifact", f"project {p['id']}.rootRef")
     root_ids = {r["id"] for p in ws["projects"] for r in p["roots"]}

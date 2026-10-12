@@ -37,6 +37,10 @@
           "description": "Incrementa a cada mudança persistida em qualquer objeto do workspace.",
           "$ref": "common.schema.json#/$defs/Revision"
         },
+        "activeProjectId": {
+          "description": "Projeto em que o agente trabalha quando o pedido não diz outro. É o último aberto pelo usuário.",
+          "$ref": "common.schema.json#/$defs/ProjectId"
+        },
         "projectIds": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/ProjectId" }, "uniqueItems": true },
         "settings": {
           "type": "object",

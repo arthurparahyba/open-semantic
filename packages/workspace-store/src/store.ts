@@ -129,6 +129,66 @@ export class WorkspaceStore {
     if (!this.doc.workspace.projectIds.includes(project.id)) this.doc.workspace.projectIds.push(project.id);
   }
 
+  /** Projeto em que o agente trabalha quando o pedido não diz outro. */
+  activeProject(): Project | undefined {
+    const id = this.doc.workspace.activeProjectId;
+    return (id && this.project(id)) || this.doc.projects[this.doc.projects.length - 1];
+  }
+
+  setActiveProject(id: string) {
+    this.touch();
+    this.doc.workspace.activeProjectId = id;
+  }
+
+  /**
+   * Tira um projeto do workspace (os arquivos no disco não mudam). Sai junto tudo que só existe por causa dele:
+   * referências a arquivos, mods que mostram esses arquivos, diagramas e conhecimento do projeto.
+   * O que sobra perde só os vínculos com o que saiu.
+   */
+  removeProject(id: string): { artifacts: number; mods: number; diagrams: number; entities: number } {
+    this.touch();
+    const doc = this.doc;
+    const artifacts = new Set(doc.artifacts.filter((a) => a.projectId === id).map((a) => a.id));
+    const modGone = (m: ModInstance) =>
+      m.projectId === id || ["rootRef", "fileRef", "cwdRef", "artifactId"].some((k) => typeof m.config[k] === "string" && artifacts.has(m.config[k] as string));
+    const mods = new Set(doc.mods.filter(modGone).map((m) => m.id));
+    const diagrams = new Set(doc.diagrams.filter((d) => d.projectId === id).map((d) => d.id));
+    const entities = new Set(doc.semantic.entities.filter((e) => e.projectId === id).map((e) => e.id));
+    const relations = new Set(doc.semantic.relations.filter((r) => entities.has(r.sourceId) || entities.has(r.targetId)).map((r) => r.id));
+    const evidence = new Set(doc.semantic.evidence.filter((ev) => ev.artifactId !== undefined && artifacts.has(ev.artifactId)).map((ev) => ev.id));
+    const dropEvidence = <T extends { provenance: { evidenceIds?: string[] } }>(x: T): T => {
+      if (x.provenance.evidenceIds) x.provenance.evidenceIds = x.provenance.evidenceIds.filter((e) => !evidence.has(e));
+      return x;
+    };
+
+    doc.projects = doc.projects.filter((p) => p.id !== id);
+    doc.workspace.projectIds = doc.workspace.projectIds.filter((p) => p !== id);
+    if (doc.workspace.activeProjectId === id) {
+      const last = doc.workspace.projectIds[doc.workspace.projectIds.length - 1];
+      if (last) doc.workspace.activeProjectId = last;
+      else delete doc.workspace.activeProjectId;
+    }
+    doc.artifacts = doc.artifacts.filter((a) => !artifacts.has(a.id));
+    doc.mods = doc.mods.filter((m) => !mods.has(m.id));
+    for (const m of doc.mods) if (m.semanticEntityIds) m.semanticEntityIds = m.semanticEntityIds.filter((e) => !entities.has(e));
+    doc.diagrams = doc.diagrams.filter((d) => !diagrams.has(d.id));
+    for (const d of doc.diagrams) {
+      for (const n of d.nodes) if (n.semanticEntityId && entities.has(n.semanticEntityId)) delete n.semanticEntityId;
+      for (const e of d.edges) if (e.semanticRelationId && relations.has(e.semanticRelationId)) delete e.semanticRelationId;
+    }
+    doc.semantic.entities = doc.semantic.entities.filter((e) => !entities.has(e.id)).map(dropEvidence);
+    for (const e of doc.semantic.entities) if (e.artifactIds) e.artifactIds = e.artifactIds.filter((a) => !artifacts.has(a));
+    doc.semantic.relations = doc.semantic.relations.filter((r) => !relations.has(r.id)).map(dropEvidence);
+    doc.semantic.evidence = doc.semantic.evidence.filter((ev) => !evidence.has(ev.id));
+    doc.canvas.objects = doc.canvas.objects.filter((o) => !mods.has(o.id) && !diagrams.has(o.id));
+    for (const r of doc.canvas.regions) if (r.semanticEntityIds) r.semanticEntityIds = r.semanticEntityIds.filter((e) => !entities.has(e));
+    const gone = (x: string) => mods.has(x) || diagrams.has(x) || entities.has(x) || relations.has(x) || artifacts.has(x);
+    const focus = doc.navigation.focus as { targetIds?: string[]; highlightIds?: string[] };
+    if (focus.targetIds) focus.targetIds = focus.targetIds.filter((t) => !gone(t));
+    if (focus.highlightIds) focus.highlightIds = focus.highlightIds.filter((t) => !gone(t));
+    return { artifacts: artifacts.size, mods: mods.size, diagrams: diagrams.size, entities: entities.size };
+  }
+
   // ---------- artefatos ----------
   artifact(id: string): ArtifactReference | undefined {
     return this.doc.artifacts.find((a) => a.id === id);
