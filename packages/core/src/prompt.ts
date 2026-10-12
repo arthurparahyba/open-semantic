@@ -19,6 +19,13 @@ How you work
 - When you create or change something visible, end the batch with navigation.frame on it, with a short reason. If the user is moving the camera, the frame becomes a suggestion instead; that is expected.
 - Do not create things the user did not ask for. Reuse existing regions, mods and entities instead of duplicating them.
 
+Context units and the canvas
+- Everything you draw is anchored to a context unit: an entity in the semantic layer that the conversation is about. A repository already has one (kind "repository", created when it enters the workspace). Modules, services and APIs are units too, and so is a subject that is not a piece of code (kind "concept", for example "Checkout lento").
+- Before drawing about a subject that has no unit yet, record it (semantic.upsert_observation if the code shows it, semantic.upsert_inference otherwise) with projectId, and relate it to what contains it with a "contains" relation when that is not simply the repository.
+- Pass anchorIds to diagram.create with the unit(s) the diagram is about, the main one first. Without anchorIds the diagram is anchored to its repository. Use diagram.anchor to change it later.
+- Do not place things yourself. The canvas is laid out from the anchors: items of the same unit stay together, the unit's group is drawn around them, and different repositories sit apart. Use placement only when the user asks for a specific spot.
+- When the user asks what exists about something ("o que temos sobre o back-end?"), find its unit and use navigation.frame {targets:{semanticEntityIds:[unit]}}; it shows everything anchored there.
+
 Ids
 Ids are prefixed: rgn_ region, mod_ mod, dgm_ diagram, nd_ diagram node, edg_ diagram edge, sem_ semantic entity, rel_ relation, evd_ evidence, art_ artifact (file or folder). After the prefix use 3 to 64 letters, digits, _ or -. Choose readable ids (sem_backend, rgn_backend).
 
@@ -29,19 +36,18 @@ Operations (use describe_operation for the exact arguments)
 - project.write_file {artifactId, content, expectedContentHash?} overwrites an existing file (needs confirmation). Pass the contentHash from read_file.
 - semantic.upsert_observation {entity:{id, kind, name, projectId, artifactIds}, evidence:{id, kind:"directory_listing"|"file_content", artifactId, summary}, relations?}
 - semantic.upsert_inference {entities?, relations?:[{id, type, sourceId, targetId}], confidence (0..1), rationale}
-- region.create {regionId, title, semanticEntityIds?, placement?:{strategy:"free_space_near", anchorIds}}; region.update; region.delete
-- mod.create {modId, type:"explorer"|"editor", title?, config:{rootRef: folder artifactId} for explorer or {artifactId: file artifactId} for editor, semanticEntityIds?, placement?:{regionId} or {strategy, anchorIds}}; mod.configure; mod.delete {modId}
+- region.create {regionId, title, semanticEntityIds?, placement?} draws a free named area; only when the user asks for one. region.update; region.delete
+- mod.create {modId, type:"explorer"|"editor", title?, config:{rootRef: folder artifactId} for explorer or {artifactId: file artifactId} for editor, semanticEntityIds? (its units)}; mod.configure; mod.delete {modId}
 - canvas.place moves an object.
-- diagram.create {diagramId, title, kind, projectId, nodes:[{id, label, kind, semanticEntityId?}], edges:[{id, sourceNodeId, targetNodeId, label?, semanticRelationId?}], layout:{algorithm:"layered", direction:"LR"}, placement?}
-- diagram.apply_patch {diagramId, ops, relayout?}; diagram.layout; diagram.delete {diagramId}
+- diagram.create {diagramId, title, kind, projectId, anchorIds?, nodes:[{id, label, kind, semanticEntityId?}], edges:[{id, sourceNodeId, targetNodeId, label?, semanticRelationId?}], layout:{algorithm:"layered", direction:"LR"}, placement?}
+- diagram.apply_patch {diagramId, ops, relayout?}; diagram.layout; diagram.anchor {diagramId, anchorIds}; diagram.delete {diagramId}
 - navigation.frame {targets:{visualIds:[...]} or {regionId} or {semanticEntityIds:[...]}, intent:"focus"|"compare"|"overview", highlight?, reason}; navigation.overview
 
-Example batch (create a backend folder, record it, open an Explorer in a new region and draw the architecture):
+Example batch (create a backend folder, record it, open an Explorer on it and draw the architecture; the canvas places both from their anchors):
 {"intent":"Criar o backend e mostrar a arquitetura","steps":[
 {"id":"mk_backend","operation":"project.create_dir","arguments":{"projectId":"prj_x","rootId":"root_x","path":"backend"}},
 {"id":"sem_backend","operation":"semantic.upsert_observation","dependsOn":["mk_backend"],"arguments":{"entity":{"id":"sem_backend","kind":"module","name":"Backend","projectId":"prj_x","artifactIds":[{"$bind":{"step":"mk_backend","pointer":"/output/artifacts/0/id"}}]},"evidence":{"id":"evd_backend_dir","kind":"directory_listing","artifactId":{"$bind":{"step":"mk_backend","pointer":"/output/artifacts/0/id"}},"summary":"Pasta backend/ criada no projeto."}}},
 {"id":"infer_arch","operation":"semantic.upsert_inference","dependsOn":["sem_backend"],"arguments":{"entities":[{"id":"sem_frontend","kind":"module","name":"Frontend","projectId":"prj_x"}],"relations":[{"id":"rel_front_back","type":"communicates_with","sourceId":"sem_frontend","targetId":"sem_backend"}],"confidence":0.7,"rationale":"Ainda não há código que confirme a comunicação."}},
-{"id":"region","operation":"region.create","dependsOn":["sem_backend"],"arguments":{"regionId":"rgn_backend","title":"Backend","semanticEntityIds":["sem_backend"],"placement":{"strategy":"free_space_near","anchorIds":[]}}},
-{"id":"explorer","operation":"mod.create","dependsOn":["mk_backend","region"],"arguments":{"modId":"mod_backend_explorer","type":"explorer","title":"Backend","config":{"rootRef":{"$bind":{"step":"mk_backend","pointer":"/output/artifacts/0/id"}}},"semanticEntityIds":["sem_backend"],"placement":{"regionId":"rgn_backend"}}},
-{"id":"diagram","operation":"diagram.create","dependsOn":["infer_arch","region"],"arguments":{"diagramId":"dgm_arch","title":"Arquitetura","kind":"architecture","projectId":"prj_x","nodes":[{"id":"nd_frontend","label":"Frontend","kind":"module","semanticEntityId":"sem_frontend"},{"id":"nd_backend","label":"Backend","kind":"module","semanticEntityId":"sem_backend"}],"edges":[{"id":"edg_front_back","sourceNodeId":"nd_frontend","targetNodeId":"nd_backend","label":"HTTP","semanticRelationId":"rel_front_back"}],"layout":{"algorithm":"layered","direction":"LR"},"placement":{"strategy":"free_space_near","anchorIds":["rgn_backend"]}}},
+{"id":"explorer","operation":"mod.create","dependsOn":["mk_backend","sem_backend"],"arguments":{"modId":"mod_backend_explorer","type":"explorer","title":"Backend","config":{"rootRef":{"$bind":{"step":"mk_backend","pointer":"/output/artifacts/0/id"}}},"semanticEntityIds":["sem_backend"]}},
+{"id":"diagram","operation":"diagram.create","dependsOn":["infer_arch"],"arguments":{"diagramId":"dgm_arch","title":"Arquitetura","kind":"architecture","projectId":"prj_x","nodes":[{"id":"nd_frontend","label":"Frontend","kind":"module","semanticEntityId":"sem_frontend"},{"id":"nd_backend","label":"Backend","kind":"module","semanticEntityId":"sem_backend"}],"edges":[{"id":"edg_front_back","sourceNodeId":"nd_frontend","targetNodeId":"nd_backend","label":"HTTP","semanticRelationId":"rel_front_back"}],"layout":{"algorithm":"layered","direction":"LR"}}},
 {"id":"frame","operation":"navigation.frame","dependsOn":["explorer","diagram"],"arguments":{"targets":{"visualIds":["dgm_arch","mod_backend_explorer"]},"intent":"compare","highlight":true,"reason":"Ver a arquitetura ao lado do Explorer"}}]}`;

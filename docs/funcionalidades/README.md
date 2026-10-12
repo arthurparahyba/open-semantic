@@ -16,6 +16,7 @@ Documentos de origem: [visão do produto](../visao.md) e [Especificação V0.1](
 | 6 | [Conversa, agente e protocolo](06-conversa-agente-e-protocolo.md) | Interface conversacional, Agent Orchestrator | operações, lotes, histórico |
 | 7 | [Project Runtime](07-project-runtime.md) | Project Runtime | arquivos, diretórios, processos |
 | 8 | [Motor de contexto semântico](08-gestao-de-contexto.md) | Agent Orchestrator (contexto) | índice de relevância, contexto enviado à IA |
+| 9 | [Ancoragem e projeção do canvas](09-ancoragem-e-projecao.md) | Open Semantic + Workspace Store | a que unidade de contexto cada diagrama pertence; o layout sai daí |
 
 ## Como as peças se ligam
 

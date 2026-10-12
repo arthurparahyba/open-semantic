@@ -7,7 +7,7 @@ import {
   type ModTypeDescriptor,
   type OperationHandler,
 } from "@open-semantic/protocol";
-import { placeNew, placedBy, requireEntities, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
+import { placeNew, placedBy, repositoryUnit, requireEntities, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
 
 const ref = (path: string) => ({ $ref: SCHEMA_BASE_URI + path });
 
@@ -192,7 +192,13 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
         const config = args.config as Record<string, unknown>;
         const artifact = validateConfig(type, config);
         const size = descriptor.defaultSize ?? { width: 360, height: 480 };
-        const { rect, regionId, grownRegion } = placeNew(store.read(), size, (args.placement ?? {}) as PlacementRequest);
+        // O mod fica junto da unidade de contexto dele: a primeira entidade pedida ou o repositório do arquivo (doc 09).
+        const unitId =
+          (args.semanticEntityIds as string[] | undefined)?.[0] ?? (artifact ? repositoryUnit(store.read(), artifact.projectId)?.id : undefined);
+        const { rect, regionId, grownRegion } = placeNew(store.read(), size, {
+          ...((args.placement ?? {}) as PlacementRequest),
+          ...(unitId ? { unitId } : {}),
+        });
         const name = artifact && "rootId" in artifact.locator ? artifact.locator.path.split("/").pop() : undefined;
 
         const mod: ModInstance = {

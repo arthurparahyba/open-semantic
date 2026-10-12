@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 import { computeFrame, pan, zoomAt, type FrameOptions, type Viewport } from "@open-semantic/navigator";
+import { contextGroups } from "@open-semantic/workspace-store/anchoring";
 import type { Camera, CanvasObject, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
 import { api, run } from "./client.js";
@@ -150,7 +151,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
         userTakesOver();
         const pool = ids.length ? objects.filter((o) => ids.includes(o.id)) : objects;
         const rects = pool.map((o) => ({ position: o.position, size: o.collapsed ? { width: o.size.width, height: 40 } : o.size }));
-        if (!ids.length) rects.push(...snapshot.canvas.regions.map((r) => r.bounds));
+        if (!ids.length) rects.push(...snapshot.canvas.regions.map((r) => r.bounds), ...contextGroups(snapshot).map((g) => g.bounds));
         const target = computeFrame(rects, viewport, { intent, padding: 64 });
         if (target) animateTo(target, { persist: true });
       },
@@ -160,7 +161,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
       },
       viewportCenter: () => cameraRef.current.center,
     }),
-    [objects, viewport, animateTo, setCamera, snapshot.canvas.regions],
+    [objects, viewport, animateTo, setCamera, snapshot],
   );
 
   useLayoutEffect(() => {
@@ -260,6 +261,11 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
   const ty = viewport.height / 2 - center.y * zoom;
   const grid = 24 * zoom;
   const lit = new Set(highlight);
+  // Grupos das unidades de contexto (doc 09): saem das âncoras, não são gravados. Uma unidade que já tem
+  // região própria não ganha um segundo desenho.
+  const withRegion = new Set(snapshot.canvas.regions.flatMap((r) => r.semanticEntityIds ?? []));
+  const groups = contextGroups(snapshot).filter((g) => !withRegion.has(g.unitId));
+  const activeRepo = snapshot.workspace.activeProjectId;
 
   return (
     <div
@@ -273,6 +279,21 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
       onPointerCancel={onPointerUp}
     >
       <div className="world" style={{ transform: `translate(${tx}px, ${ty}px) scale(${zoom})` }}>
+        {groups.map((g) => {
+          const repo = g.kind === "repository";
+          const active = repo && snapshot.semantic.entities.find((e) => e.id === g.unitId)?.projectId === activeRepo;
+          return (
+            <div
+              key={g.unitId}
+              className={`unit-group${repo ? " is-repository" : ""}${active ? " is-active" : ""}${lit.has(g.unitId) ? " is-highlighted" : ""}`}
+              data-testid="unit-group"
+              data-unit-id={g.unitId}
+              style={{ left: g.bounds.position.x, top: g.bounds.position.y, width: g.bounds.size.width, height: g.bounds.size.height }}
+            >
+              <span className="unit-title">{g.name}</span>
+            </div>
+          );
+        })}
         {snapshot.canvas.regions.map((region) => (
           <div
             key={region.id}

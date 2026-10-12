@@ -20,3 +20,16 @@ export {
   storesInRepo,
   type RepoContent,
 } from "./repoStore.js";
+export {
+  GROUP_PADDING,
+  REPOSITORY_PADDING,
+  ancestry,
+  anchorsOf,
+  contextGroups,
+  parentsOf,
+  placeAnchored,
+  repositoryUnit,
+  unitItems,
+  type AnchorDoc,
+  type ContextGroup,
+} from "./anchoring.js";

@@ -58,6 +58,7 @@
         "title": { "type": "string" },
         "kind": { "enum": ["architecture", "flow", "sequence", "dependency", "freeform"] },
         "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
+        "anchorIds": { "description": "Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).", "type": "array", "items": { "$ref": "common.schema.json#/$defs/SemanticEntityId" }, "uniqueItems": true, "minItems": 1 },
         "nodes": { "type": "array", "items": { "$ref": "#/$defs/DiagramNode" } },
         "edges": { "type": "array", "items": { "$ref": "#/$defs/DiagramEdge" } },
         "layout": { "$ref": "#/$defs/DiagramLayout" },

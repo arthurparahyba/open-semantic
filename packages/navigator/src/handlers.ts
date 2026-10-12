@@ -14,7 +14,7 @@ import {
   type OperationRequest,
   type Rect,
 } from "@open-semantic/protocol";
-import type { WorkspaceStore } from "@open-semantic/workspace-store";
+import { contextGroups, unitItems, type WorkspaceStore } from "@open-semantic/workspace-store";
 
 import { computeFrame, isVisible, type Viewport } from "./index.js";
 
@@ -98,8 +98,13 @@ export function resolveTargets(store: WorkspaceStore, targets: FrameRequest["tar
     } else out.unresolved.push(targets.regionId);
   }
 
+  // Uma unidade de contexto: tudo o que está ancorado nela ou dentro dela, e o grupo desenhado em volta (doc 09).
+  const groups = targets.semanticEntityIds?.length ? new Map(contextGroups(doc).map((g) => [g.unitId, g])) : new Map();
   for (const entityId of targets.semanticEntityIds ?? []) {
     const before = out.rects.length;
+    for (const id of unitItems(doc, entityId)) add(id, objectRect(id)!);
+    const group = groups.get(entityId);
+    if (group) add(entityId, group.bounds);
     for (const m of doc.mods) if (m.semanticEntityIds?.includes(entityId) && objectRect(m.id)) add(m.id, objectRect(m.id)!);
     for (const d of doc.diagrams) {
       for (const n of d.nodes) if (n.semanticEntityId === entityId && nodeRect(n.id)) add(n.id, nodeRect(n.id)!);

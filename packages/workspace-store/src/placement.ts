@@ -1,4 +1,6 @@
-import type { Rect, Region, Size, WorkspaceSnapshot } from "@open-semantic/protocol";
+import type { Rect, Region, Size } from "@open-semantic/protocol";
+
+import { placeAnchored, type AnchorDoc } from "./anchoring.js";
 
 export const GAP = 40;
 
@@ -46,6 +48,8 @@ export interface PlacementRequest {
   anchorIds?: string[];
   regionId?: string;
   strategy?: "free_space_near";
+  /** Unidade de contexto do item: sem região, posição ou âncoras visuais, o lugar sai dela (doc 09). */
+  unitId?: string;
 }
 
 /** Margem interna da região: espaço para o título em cima e respiro nas laterais. */
@@ -56,7 +60,7 @@ export const REGION_PADDING = { top: 56, side: 32 } as const;
  * e a região cresce se for preciso (o chamador grava `grownRegion`). Fora, vale findFreeSpot.
  */
 export function placeNew(
-  doc: Pick<WorkspaceSnapshot, "canvas">,
+  doc: AnchorDoc,
   size: Size,
   placement: PlacementRequest = {},
 ): { rect: Rect; regionId?: string; grownRegion?: Region } {
@@ -84,6 +88,7 @@ export function placeNew(
   }
 
   const anchors = (placement.anchorIds ?? []).map(lookup).filter((r): r is Rect => r !== undefined);
+  if (!anchors.length && placement.unitId) return { rect: placeAnchored(doc, size, placement.unitId) };
   return { rect: findFreeSpot(occupied, size, anchors) };
 }
 

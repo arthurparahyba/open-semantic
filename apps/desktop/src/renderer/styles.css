@@ -166,6 +166,24 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .workarea.with-panel { grid-template-columns: 1fr 380px; }
 .toggle { display: flex; align-items: center; gap: 6px; color: var(--text-2); user-select: none; margin-left: 8px; }
 
+/* Grupo de uma unidade de contexto (doc 09): só o desenho do agrupamento que sai das âncoras */
+.unit-group {
+  position: absolute; border-radius: 18px; pointer-events: none; transition: box-shadow 0.3s;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 35%, transparent);
+}
+.unit-group.is-repository {
+  border: 2px dashed color-mix(in srgb, var(--text-2) 55%, var(--border)); background: transparent; border-radius: 24px;
+}
+.unit-group.is-repository.is-active { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.unit-title {
+  position: absolute; left: 16px; top: 14px; font-weight: 700; font-size: 15px;
+  color: color-mix(in srgb, var(--accent) 75%, var(--text));
+}
+.unit-group.is-repository > .unit-title { left: 20px; top: 20px; font-size: 20px; color: var(--text-2); }
+.unit-group.is-repository.is-active > .unit-title { color: color-mix(in srgb, var(--accent) 85%, var(--text)); }
+.unit-group.is-highlighted { box-shadow: 0 0 0 3px var(--accent); }
+
 /* Regiões: área nomeada atrás dos objetos */
 .region {
   position: absolute; border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--border));

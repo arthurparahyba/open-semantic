@@ -239,6 +239,10 @@ Encaixe: `conversation.ts` deixa de chamar `summarizeWorkspace` e `compactHistor
 - **M3:** perfil de cada projeto (front, back, o que expõe e consome) e relações entre repositórios, o que melhora a resolução de papéis e a expansão no grafo. Ferramentas semânticas para a IA. Decisões gravadas como entidades. Critério 6.
 - **M4:** invalidação de cache ligada ao observador de arquivos e ajuste de pesos com os casos de teste coletados.
 
+## Ancoragem (doc 09)
+
+Desde o [09](09-ancoragem-e-projecao.md), todo diagrama tem `anchorIds`, as unidades de contexto de que ele fala. Para o motor isso é mais uma aresta do grafo de vizinhança (item → unidade): o assunto principal leva direto aos diagramas ancorados nele, e `AttentionPort.focus(unidade)` vira `navigation.frame` com `semanticEntityIds`, que já enquadra tudo o que está ancorado na unidade e dentro dela.
+
 ## Questões abertas
 
 - BPMN ainda não é um tipo em `diagram.schema.json` e precisa entrar para ser indexado.

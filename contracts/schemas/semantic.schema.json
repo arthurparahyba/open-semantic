@@ -7,7 +7,7 @@
     "EntityKind": {
       "description": "Vocabulário inicial. Valores fora da lista são aceitos com prefixo 'x-' para extensão.",
       "anyOf": [
-        { "enum": ["application", "module", "service", "component", "api", "endpoint", "data_store", "file", "directory", "process", "concept", "decision", "requirement"] },
+        { "enum": ["repository", "application", "module", "service", "component", "api", "endpoint", "data_store", "file", "directory", "process", "concept", "decision", "requirement"] },
         { "type": "string", "pattern": "^x-[a-z][a-z0-9_]*$" }
       ]
     },
