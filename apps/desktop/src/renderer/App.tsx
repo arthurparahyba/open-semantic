@@ -3,8 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkspaceSnapshot } from "@open-semantic/protocol";
 
 import type { PersistState } from "../shared/api.js";
-import { Canvas, type CanvasHandle, type ModRenderProps } from "./Canvas.js";
-import { OperationFailed, api, newId, runOk } from "./client.js";
+import { AgentPanel } from "./AgentPanel.js";
+import { Canvas, type CanvasHandle, type ObjectRenderProps } from "./Canvas.js";
+import { OperationFailed, api, newId, run, runOk } from "./client.js";
+import { DiagramView } from "./DiagramView.js";
 import { ModFrame } from "./ModFrame.js";
 import { Editor } from "./mods/Editor.js";
 import { Explorer } from "./mods/Explorer.js";
@@ -21,6 +23,7 @@ export function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [pendingFrame, setPendingFrame] = useState<{ ids: string[]; intent: "focus" | "compare" } | null>(null);
+  const [agentOpen, setAgentOpen] = useState(true);
   const canvas = useRef<CanvasHandle>(null);
   const toastSeq = useRef(0);
 
@@ -109,9 +112,25 @@ export function App() {
       return next;
     });
 
-  const renderMod = (props: ModRenderProps) => {
-    const { mod } = props;
-    const common = { ...props, onFocus: () => canvas.current?.frame([mod.id]), onError: notify };
+  const renderObject = (props: ObjectRenderProps) => {
+    const { object } = props;
+    const onFocus = () => canvas.current?.frame([object.id]);
+    if (object.objectKind === "diagram") {
+      const diagram = snapshot?.diagrams.find((d) => d.id === object.id);
+      if (!diagram || !snapshot) return null;
+      return <DiagramView {...props} diagram={diagram} snapshot={snapshot} onFocus={onFocus} onError={notify} />;
+    }
+    const mod = snapshot?.mods.find((m) => m.id === object.id);
+    if (!mod) return null;
+    const common = {
+      mod,
+      object,
+      highlighted: props.highlighted,
+      onHeaderPointerDown: props.onHeaderPointerDown,
+      onResizePointerDown: props.onResizePointerDown,
+      onFocus,
+      onError: notify,
+    };
     if (mod.type === "explorer") {
       return (
         <ModFrame {...common} icon="🗂">
@@ -135,7 +154,12 @@ export function App() {
   };
 
   if (!snapshot) return <div className="splash">Abrindo workspace…</div>;
-  const empty = snapshot.mods.length === 0;
+  const empty = snapshot.canvas.objects.length === 0 && snapshot.canvas.regions.length === 0;
+  const autoNavigate = snapshot.navigation.control.mode !== "user_locked";
+  const toggleAutoNavigate = async () => {
+    const result = await run("navigation.set_control", { mode: autoNavigate ? "user_locked" : "shared" });
+    if (result.status !== "succeeded") notify(result.error?.message ?? "Não foi possível mudar a navegação automática.");
+  };
 
   return (
     <div className="app">
@@ -158,11 +182,19 @@ export function App() {
         <button type="button" onClick={() => canvas.current?.frame([], "overview")} disabled={empty}>
           Ver tudo
         </button>
+        <label className="toggle" title="Quando ligada, o agente pode levar a câmera até o que ele mostra">
+          <input type="checkbox" checked={autoNavigate} onChange={() => void toggleAutoNavigate()} data-testid="auto-navigate" />
+          Navegação automática
+        </label>
+        <button type="button" onClick={() => setAgentOpen((v) => !v)} aria-pressed={agentOpen}>
+          Agente
+        </button>
         <PersistIndicator state={persist} />
       </header>
 
+      <div className={`workarea${agentOpen ? " with-panel" : ""}`}>
       <main className="stage">
-        <Canvas snapshot={snapshot} handle={canvas} renderMod={renderMod} onZoomChange={setZoom} />
+        <Canvas snapshot={snapshot} handle={canvas} renderObject={renderObject} onZoomChange={setZoom} />
         {empty && (
           <div className="empty">
             <h1>Comece abrindo uma pasta</h1>
@@ -172,8 +204,10 @@ export function App() {
             </button>
           </div>
         )}
-        <footer className="hint">Arraste o fundo para mover · Ctrl/⌘ + roda para zoom · duplo clique no título para enquadrar</footer>
+        <footer className="hint">Arraste o fundo para mover · Ctrl/⌘ + roda para zoom · duplo clique no título para enquadrar · Esc interrompe o movimento</footer>
       </main>
+      {agentOpen && <AgentPanel hasProject={snapshot.projects.length > 0} onError={notify} />}
+      </div>
 
       <div className="toasts" role="status">
         {toasts.map((t) => (

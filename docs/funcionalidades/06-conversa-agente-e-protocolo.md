@@ -150,6 +150,12 @@ Da V0.1: E1 a E5, D1, D3. Mais:
 3. “Agente roteirizado”: antes de ligar um modelo de IA, um script que envia o lote de referência. Prova o protocolo inteiro.
 4. Ligar o modelo de IA com a ferramenta `run_batch` e o contexto filtrado.
 
+## Estado da implementação (M2, parte 1)
+
+- `BatchExecutor` em `packages/protocol/src/batch.ts`; `AgentRunner` e a narração em `packages/core/src/agent.ts`.
+- Passos rodam em sequência, na ordem topológica estável. `per_step` se comporta como `upfront` por enquanto.
+- O token de confirmação é um só para o lote e nunca vai para a interface: ela aprova ou recusa pelo `batchId`.
+
 ## Questões abertas
 
 - Limite de passos por lote e de lotes por turno (proposto: 50 passos, 5 lotes).

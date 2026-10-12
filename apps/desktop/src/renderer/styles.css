@@ -151,3 +151,85 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   max-width: 380px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--danger);
   border-left-width: 4px; border-radius: 8px; box-shadow: var(--shadow);
 }
+
+/* ---------- M2: área de trabalho com painel do agente ---------- */
+.workarea { display: grid; grid-template-columns: 1fr; min-height: 0; }
+.workarea.with-panel { grid-template-columns: 1fr 340px; }
+.toggle { display: flex; align-items: center; gap: 6px; color: var(--text-2); user-select: none; margin-left: 8px; }
+
+/* Regiões: área nomeada atrás dos objetos */
+.region {
+  position: absolute; border: 1.5px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 16px; background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+  pointer-events: none; transition: box-shadow 0.3s;
+}
+.region-title {
+  position: absolute; left: 16px; top: 12px; font-weight: 700; font-size: 15px;
+  color: color-mix(in srgb, var(--accent) 80%, var(--text));
+}
+
+/* Destaque depois de um enquadramento */
+.mod.is-highlighted, .region.is-highlighted { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+
+/* Diagrama */
+.diagram { background: var(--surface); }
+.diagram-header { position: relative; z-index: 2; height: 36px; }
+.diagram-svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.diagram-node { pointer-events: all; cursor: grab; }
+.diagram-node rect { fill: var(--surface-2); stroke: var(--text-2); stroke-width: 1.5; }
+.diagram-node.q-verified rect { stroke: var(--accent); stroke-width: 2; }
+.diagram-node.q-inferred rect { stroke-dasharray: 6 4; }
+.diagram-node.q-stale rect, .diagram-node.q-broken rect, .diagram-node.q-invalid rect { stroke: var(--warn); stroke-dasharray: 2 3; }
+.diagram-node.is-highlighted rect { fill: var(--accent-soft); }
+.diagram-node-label { font-weight: 600; font-size: 13px; fill: var(--text); pointer-events: none; }
+.diagram-node-kind { font-size: 10.5px; fill: var(--text-2); pointer-events: none; }
+.diagram-edge line { stroke: var(--text-2); stroke-width: 1.6; }
+.diagram-edge.q-verified line { stroke: var(--accent); }
+.diagram-edge.q-inferred line { stroke-dasharray: 7 5; }
+.diagram-edge.q-stale line, .diagram-edge.q-broken line { stroke: var(--warn); stroke-dasharray: 2 3; }
+.diagram-edge.is-highlighted line { stroke-width: 2.6; }
+.diagram-edge-label { font-size: 11px; fill: var(--text-2); }
+.diagram-arrow { fill: var(--text-2); }
+.diagram-legend {
+  position: absolute; left: 10px; bottom: 6px; font-size: 11px; color: var(--text-2);
+  display: flex; align-items: center; gap: 6px; pointer-events: none;
+}
+.legend-solid, .legend-dashed { display: inline-block; width: 18px; border-top: 2px solid var(--text-2); }
+.legend-dashed { border-top-style: dashed; margin-left: 8px; }
+
+/* Painel do agente */
+.agent-panel {
+  display: flex; flex-direction: column; min-height: 0; background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+.agent-head { display: grid; gap: 2px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.agent-sub { color: var(--text-2); font-size: 11.5px; }
+.agent-scripts { display: grid; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.agent-scripts button { text-align: left; }
+.agent-note { color: var(--text-2); font-size: 12px; margin: 4px 0 0; }
+.agent-feed { list-style: none; margin: 0; padding: 8px 12px 16px; overflow: auto; display: grid; gap: 10px; align-content: start; }
+.agent-batch { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--surface-2); }
+.agent-batch-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.agent-intent { font-weight: 600; }
+.agent-status { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); white-space: nowrap; }
+.agent-status.s-completed { background: #e6f6ea; color: #1e6b33; }
+.agent-status.s-failed, .agent-status.s-rejected { background: #fdecec; color: var(--danger); }
+.agent-status.s-awaiting_confirmation, .agent-status.s-partially_completed { background: #fff4e5; color: #7a4b00; }
+@media (prefers-color-scheme: dark) {
+  .agent-status.s-completed { background: #173823; color: #8fe0a6; }
+  .agent-status.s-failed, .agent-status.s-rejected { background: #3b1d1d; }
+  .agent-status.s-awaiting_confirmation, .agent-status.s-partially_completed { background: #3a2e14; color: #f6d38a; }
+}
+.agent-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.agent-step { display: flex; gap: 6px; color: var(--text-2); }
+.agent-step.st-succeeded { color: var(--text); }
+.agent-step.st-failed, .agent-step.st-rejected { color: var(--danger); }
+.agent-step-icon { width: 14px; text-align: center; flex: none; }
+.agent-summary { white-space: pre-line; margin: 8px 0 0; line-height: 1.45; }
+.confirm-card {
+  margin-top: 8px; padding: 10px; border-radius: 8px; background: var(--surface);
+  border: 1px solid var(--warn); border-left-width: 4px;
+}
+.confirm-card ul { margin: 6px 0; padding-left: 18px; }
+.confirm-actions { display: flex; gap: 8px; margin-top: 8px; }
+.suggestion { margin-top: 8px; border-color: var(--accent); color: var(--accent); }

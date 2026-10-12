@@ -152,7 +152,12 @@ export function describeStep(operation: string, args: Record<string, unknown>, s
     case "semantic.upsert_observation":
       return `registrar ${a.entity?.name ?? "a entidade"} como conhecimento verificado`;
     case "semantic.upsert_inference": {
-      const names = [...(a.entities ?? []).map((e: { name: string }) => e.name), ...(a.relations ?? []).map((r: { type: string }) => r.type.replaceAll("_", " "))];
+      const declared = new Map<string, string>((a.entities ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
+      const nameOf = (id: string) => declared.get(id) ?? snapshot?.semantic.entities.find((e) => e.id === id)?.name ?? id;
+      const names = [
+        ...(a.entities ?? []).map((e: { name: string }) => e.name),
+        ...(a.relations ?? []).map((r: { sourceId: string; targetId: string }) => `${nameOf(r.sourceId)} → ${nameOf(r.targetId)}`),
+      ];
       return `registrar como suposição: ${names.join(", ") || "inferência"}`;
     }
     case "region.create":
