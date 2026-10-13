@@ -59,6 +59,43 @@ export function litObjects(doc: LayerDoc): Set<string> | undefined {
   return lit;
 }
 
+/** A camada ativa e as de baixo dela até a base: o que é delas aparece (as de baixo esmaecidas). */
+function chainOf(doc: LayerDoc): Set<string> {
+  const byId = new Map((doc.layers ?? []).map((l) => [l.id, l]));
+  const chain = new Set<string>();
+  for (let l = activeLayerOf(doc); l && !chain.has(l.id); l = l.parentId ? byId.get(l.parentId) : undefined) chain.add(l.id);
+  return chain;
+}
+
+/**
+ * Objetos do canvas que somem: os que pertencem só a camadas fora do caminho da ativa até a base
+ * (doc 11: o que nasce numa camada é só dela). O que não é de camada nenhuma é da base e sempre aparece.
+ */
+export function hiddenObjects(doc: LayerDoc): Set<string> {
+  const chain = chainOf(doc);
+  const owners = new Map<string, Set<string>>();
+  for (const layer of doc.layers ?? []) {
+    for (const m of layer.members) {
+      const object = objectOf(doc, m.id);
+      if (!object || m.id.startsWith("nd_")) continue; // um nó membro não leva o diagrama inteiro
+      const set = owners.get(object) ?? new Set<string>();
+      set.add(layer.id);
+      owners.set(object, set);
+    }
+  }
+  const canvas = doc.canvas;
+  if (canvas) {
+    for (const b of doc.blocks ?? []) {
+      const root = flowRoot({ canvas, diagrams: doc.diagrams, blocks: doc.blocks }, b.id);
+      const rootOwners = owners.get(root);
+      if (rootOwners && root !== b.id) owners.set(b.id, new Set([...(owners.get(b.id) ?? []), ...rootOwners]));
+    }
+  }
+  const hidden = new Set<string>();
+  for (const [object, set] of owners) if (![...set].some((id) => chain.has(id))) hidden.add(object);
+  return hidden;
+}
+
 /** Marcadores das filhas da camada ativa (ou das de primeiro nível, na base), por objeto do canvas da âncora. */
 export function childMarks(doc: LayerDoc): Map<string, LayerMark[]> {
   const active = activeLayerOf(doc);

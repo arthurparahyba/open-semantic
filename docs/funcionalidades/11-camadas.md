@@ -85,7 +85,7 @@ A camada ativa vira o filtro principal do contexto enxuto (doc 08, seção 4):
 Proposta em três níveis, do mais simples ao mais vistoso:
 
 1. **Painel de camadas** (obrigatório): lista lateral como a de um editor de imagem, com nome, quantidade de elementos, olho para mostrar/esconder e destaque da ativa. Funciona como o índice do livro.
-2. **Destaque no canvas** (obrigatório): ao ativar uma camada, seus membros ficam em cor plena e o resto esmaece. Com dois olhos ligados, as camadas sobrepõem cores, como folhas transparentes empilhadas.
+2. **Destaque no canvas** (obrigatório): ao ativar uma camada, seus membros ficam em cor plena, o que é das camadas de baixo (até a base) esmaece e **o que é de qualquer outra camada some**. O que nasce numa camada é só dela: voltando para a mãe ou para a base, esses diagramas e blocos não aparecem; ficam acessíveis pelo marcador na âncora e pelo painel. Com dois olhos ligados, as camadas sobrepõem cores, como folhas transparentes empilhadas.
 3. **Vista empilhada** (depois da primeira versão; decidido: a primeira versão usa só o zoom a partir da âncora, em 2D, que já mostra de onde a filha veio): modo 2.5D/3D em que o canvas inclina e cada camada flutua num plano acima da base, com os membros "subindo" para ela. Bonito para entender a ideia, mas não deve ser o modo de trabalho do dia a dia.
 
 Também há a opção de **vista isolada**: abre só a camada, com os membros reorganizados num layout próprio, como uma planta só da hidráulica. As posições na base não mudam.
@@ -109,6 +109,8 @@ Também há a opção de **vista isolada**: abre só a camada, com os membros re
 - Desfazer uma camada não apaga nenhum diagrama nem mensagem.
 
 ## Decisões
+
+- Exclusividade (pedido do Arthur): diagramas e blocos que pertencem a uma camada só aparecem nela e nas filhas dela. Na mãe, nas irmãs e na base eles somem do canvas e saem do contexto da LLM. Um elemento que está em mais de uma camada aparece em qualquer uma delas.
 
 - Gatilho de criação: overview primeiro, filha só no aprofundamento (substitui a regra "3 em 10 mensagens"). Sem configuração na primeira versão; o agente calibra pelo que o usuário desfaz e pelo que diz.
 - Hierarquia entra na primeira versão, com a filha ancorada; a mãe não herda o conteúdo das filhas.

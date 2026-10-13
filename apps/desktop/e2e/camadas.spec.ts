@@ -102,14 +102,16 @@ test("camadas: aprofundar abre uma camada ancorada; desfazer não apaga nada", a
   await page.waitForTimeout(700);
   await shot("cam-1-camada.png");
 
-  // Na base, tudo em cor plena e a âncora mostra o marcador da filha; clicar nele entra na camada.
+  // Na base, o que nasceu na camada some; a âncora mostra o marcador da filha; clicar nele entra na camada.
   await page.getByTestId("layer-base").click();
+  await expect(page.locator('[data-diagram-id="dgm_login"]')).toHaveCount(0);
   await expect(slot("dgm_infra")).not.toHaveClass(/is-dimmed/);
   await expect(slot("dgm_infra").getByTestId("layer-mark")).toContainText("Autenticação");
   await page.waitForTimeout(900);
   await shot("cam-2-base.png");
   await slot("dgm_infra").getByTestId("layer-mark").click();
   await expect.poll(async () => (await page.evaluate(() => window.openSemantic.snapshot())).navigation.activeLayerId).toBe("lyr_auth");
+  await expect(page.locator('[data-diagram-id="dgm_login"]')).toBeVisible();
 
   // Desfazer tira só o recorte.
   await page.getByRole("button", { name: "Desfazer a camada Autenticação" }).click();
