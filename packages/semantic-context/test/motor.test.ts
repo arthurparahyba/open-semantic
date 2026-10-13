@@ -33,6 +33,12 @@ describe("motor de contexto", () => {
     expect(answered.topics[0]!.unitIds).not.toContain("sem_banco_api_contas");
   });
 
+  it("pedido amplo não vira pergunta rápida", () => {
+    const broad = engine.analyze({ text: "Como o portal fala com o back-end?", broad: true });
+    expect(broad.question).toBeUndefined();
+    expect(broad.topics.length).toBeGreaterThan(0);
+  });
+
   it("atualiza o índice por item, sem reconstruir", () => {
     const local = new SemanticContextEngine();
     local.feed({ upsert: [{ id: "sem_a", kind: "unit", name: "Motor de busca", unitIds: ["sem_a"] }] });

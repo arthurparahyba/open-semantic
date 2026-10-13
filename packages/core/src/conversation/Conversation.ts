@@ -15,6 +15,7 @@ import { AgentTurn } from "./loop.js";
 import { TOOLS, ToolRegistry, type ToolContext } from "./tools/index.js";
 import { ConversationBusyError, type ConversationOptions, type ConversationView } from "./types.js";
 import { Understanding } from "./understand.js";
+import { ACCEPT_ALL_HINT, PLANNING_HINT, acceptsAll, asksForPlanning, planningLimits } from "./planning.js";
 import { asksForExplanation, changedDiagrams, diagramRevisions, kindHint } from "./visualFirst.js";
 
 /** Um pedido em andamento: o laço e as revisões dos diagramas de quando começou (para achar o que ele desenhou). */
@@ -35,6 +36,8 @@ export class Conversation {
   private readonly understanding: Understanding;
   private running: Promise<void> = Promise.resolve();
   private superseded = false;
+  /** O último pedido que foi para o motor de contexto (para "todos" responder à pergunta rápida dele). */
+  private asked: string | undefined;
   private readonly batches: ConversationBatches;
   private readonly limits: TurnLimits;
   private readonly newId: () => string;
@@ -101,7 +104,9 @@ export class Conversation {
   async send(text: string): Promise<void> {
     const message = text.trim();
     if (!message) return;
+    let previous: string | undefined;
     if (this.chat.status !== "idle" && this.understanding.waiting) {
+      previous = this.asked;
       // A pergunta rápida não trava nada: a mensagem nova descarta as opções e segue no lugar do pedido anterior.
       this.superseded = true;
       this.understanding.cancel();
@@ -118,13 +123,21 @@ export class Conversation {
     try {
       // Antes do modelo: do que a mensagem fala. O foco vai para lá, e só isso (com um mapa enxuto do resto)
       // vai junto do pedido, para o modelo não gastar uma chamada só para olhar nem ler o workspace inteiro.
-      const workspace = await this.understanding.understand(message);
+      // "todos" respondendo à pergunta rápida: o pedido anterior continua, cobrindo todas as opções.
+      const all = previous !== undefined && acceptsAll(message);
+      const request = all ? previous! : message;
+      const broad = all || asksForPlanning(request);
+      this.asked = request;
+      const workspace = await this.understanding.understand(request, { broad });
       if (!workspace) {
         if (!this.superseded) this.chat.notice("Pedido parado antes de ir para o modelo.", "info");
         return;
       }
-      const hint = asksForExplanation(message) ? kindHint(message) : undefined;
-      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${hint ? `\n\n${hint}` : ""}` });
+      const hints = [
+        all ? `${ACCEPT_ALL_HINT} Pedido anterior: "${previous}"` : undefined,
+        asksForPlanning(request) ? PLANNING_HINT : asksForExplanation(request) ? kindHint(request) : undefined,
+      ].filter(Boolean);
+      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${hints.map((h) => `\n\n${h}`).join("")}` });
       await turn.agent.run();
     } catch (err) {
       this.fail(err);
@@ -152,7 +165,9 @@ export class Conversation {
     const model = provider.models.find((m) => m.id === settings.model) ?? provider.models.find((m) => m.id === provider.defaultModel)!;
     const abort = new AbortController();
     this.abort = abort;
-    const budget = new TurnBudget(this.limits, settings.maxCostPerRequestUsd);
+    // Pedido amplo é um laço maior: plano, camada e um diagrama por seção.
+    const limits = asksForPlanning(message) ? planningLimits(this.limits) : this.limits;
+    const budget = new TurnBudget(limits, settings.maxCostPerRequestUsd);
     const agent = new AgentTurn({
       provider,
       model,
