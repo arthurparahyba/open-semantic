@@ -50,7 +50,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await core.close();
-  await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true })));
+  await Promise.all(dirs.splice(0).map((d) => rm(d, { recursive: true, force: true, maxRetries: 3 })));
 });
 
 describe("Workspace numa pasta", () => {
