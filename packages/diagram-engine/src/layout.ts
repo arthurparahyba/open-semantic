@@ -3,7 +3,22 @@ import type { ELK as ElkInstance, ELKConstructorArguments } from "elkjs/lib/elk-
 
 import type { DiagramLayout, DiagramModel, Rect, Size } from "@open-semantic/protocol";
 import { DIAGRAM_HEADER, DIAGRAM_PADDING } from "@open-semantic/workspace-store";
-import { FIRST_MESSAGE, LANE_GAP, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, layerOf, layerOrder } from "@open-semantic/workspace-store/diagramShapes";
+import {
+  FIRST_MESSAGE,
+  LANE_GAP,
+  LANE_GUTTER,
+  LANE_PAD,
+  MESSAGE_STEP,
+  NODE_HEIGHT,
+  WIRE_GAP,
+  WIRE_PAD,
+  WIRE_TITLE,
+  isRow,
+  layerOf,
+  layerOrder,
+  parentOf,
+  wireLeafSize,
+} from "@open-semantic/workspace-store/diagramShapes";
 
 export { CAPTION_LINE, DIAGRAM_HEADER, DIAGRAM_PADDING, captionLines, contentSize, diagramSize } from "@open-semantic/workspace-store";
 
@@ -35,12 +50,8 @@ export async function computeLayout(
   const pinned = new Set(options.respectPinned === false || structured ? [] : (model.layout.pinned ?? []));
   const previous = model.layout.nodes;
   const sizes = new Map(model.nodes.map((n) => [n.id, (!structured && previous[n.id]?.size) || nodeSize(n.label)]));
-  let placed: Record<string, Rect>;
-  if (options.algorithm === "lanes") placed = lanes(model, sizes);
-  else if (options.algorithm === "sequence") placed = sequence(model, sizes);
-  else if (options.algorithm === "manual") placed = manual(model, sizes);
-  else if (options.algorithm === "grid") placed = grid(model, sizes);
-  else placed = await elkLayout(model, sizes, options.algorithm, options.direction);
+  const own = FIXED_LAYOUTS[options.algorithm];
+  const placed = own ? own(model, sizes) : await elkLayout(model, sizes, options.algorithm, options.direction);
 
   for (const id of pinned) if (previous[id] && placed[id]) placed[id] = previous[id]!;
   const layout: DiagramLayout = { algorithm: options.algorithm, nodes: placed, pinned: [...pinned].filter((id) => placed[id]) };
@@ -48,7 +59,17 @@ export async function computeLayout(
   return layout;
 }
 
-const STRUCTURED = new Set<LayoutAlgorithm>(["lanes", "sequence", "tree"]);
+type Model = Pick<DiagramModel, "nodes" | "edges" | "layout">;
+/** Layouts calculados aqui; os demais vão para o ELK. */
+const FIXED_LAYOUTS: Partial<Record<LayoutAlgorithm, (model: Model, sizes: Map<string, Size>) => Record<string, Rect>>> = {
+  lanes,
+  sequence,
+  wireframe: (model) => wireframe(model),
+  manual,
+  grid,
+};
+
+const STRUCTURED = new Set<LayoutAlgorithm>(["lanes", "sequence", "tree", "wireframe"]);
 
 /** Camadas empilhadas de cima para baixo; os nós de cada camada lado a lado, dentro da faixa. */
 function lanes(model: Pick<DiagramModel, "nodes">, sizes: Map<string, Size>): Record<string, Rect> {
@@ -81,6 +102,82 @@ function sequence(model: Pick<DiagramModel, "nodes" | "edges">, sizes: Map<strin
     const size = sizes.get(node.id)!;
     placed[node.id] = { position: { x, y: DIAGRAM_HEADER + DIAGRAM_PADDING }, size: { width: size.width, height } };
     x += size.width + gap;
+  }
+  return placed;
+}
+
+const WIDE = new Set(["list", "table", "grid", "chart", "canvas", "editor"]);
+
+/**
+ * A tela: cada contêiner envolve os filhos, empilhados ou lado a lado (isRow). Contêineres filhos esticam
+ * até a largura (ou a altura, numa linha) do pai, como numa tela de verdade; botões e campos mantêm o tamanho.
+ */
+function wireframe(model: Pick<DiagramModel, "nodes">): Record<string, Rect> {
+  const ids = new Set(model.nodes.map((n) => n.id));
+  const byId = new Map(model.nodes.map((n) => [n.id, n]));
+  const children = new Map<string | undefined, string[]>();
+  for (const n of model.nodes) {
+    const parent = parentOf(n);
+    const key = parent && ids.has(parent) && parent !== n.id ? parent : undefined;
+    children.set(key, [...(children.get(key) ?? []), n.id]);
+  }
+  const measured = new Map<string, Size>();
+  const measure = (id: string, seen: Set<string>): Size => {
+    const node = byId.get(id)!;
+    const kids = seen.has(id) ? [] : (children.get(id) ?? []);
+    let size: Size;
+    if (!kids.length) size = wireLeafSize(node.kind, node.label);
+    else {
+      const inner = kids.map((k) => measure(k, new Set([...seen, id])));
+      const titleWidth = Math.round(node.label.length * 7.5) + 2 * WIRE_PAD;
+      size = isRow(node.kind)
+        ? {
+            width: Math.max(titleWidth, 2 * WIRE_PAD + inner.reduce((a, s) => a + s.width, 0) + WIRE_GAP * (kids.length - 1)),
+            height: WIRE_TITLE + 2 * WIRE_PAD + Math.max(...inner.map((s) => s.height)),
+          }
+        : {
+            width: Math.max(titleWidth, 2 * WIRE_PAD + Math.max(...inner.map((s) => s.width))),
+            height: WIRE_TITLE + 2 * WIRE_PAD + inner.reduce((a, s) => a + s.height, 0) + WIRE_GAP * (kids.length - 1),
+          };
+    }
+    measured.set(id, size);
+    return size;
+  };
+  const placed: Record<string, Rect> = {};
+  const stretches = (id: string) => (children.get(id) ?? []).length > 0;
+  // Tabelas, listas e editores ocupam a largura toda da coluna, como numa tela de verdade.
+  const wide = (id: string) => stretches(id) || WIDE.has(byId.get(id)!.kind);
+  const place = (id: string, x: number, y: number, size: Size) => {
+    placed[id] = { position: { x, y }, size };
+    const node = byId.get(id)!;
+    const kids = children.get(id) ?? [];
+    let cx = x + WIRE_PAD;
+    let cy = y + WIRE_TITLE + WIRE_PAD;
+    const innerW = size.width - 2 * WIRE_PAD;
+    const innerH = size.height - WIRE_TITLE - 2 * WIRE_PAD;
+    // A sobra vai para o último contêiner: a altura numa coluna (o conteúdo abaixo do topo), a largura numa linha
+    // (o conteúdo ao lado do menu).
+    const row = isRow(node.kind);
+    const lastBox = [...kids].reverse().find(stretches);
+    const used = kids.reduce((a, k) => a + (row ? measured.get(k)!.width : measured.get(k)!.height), 0) + WIRE_GAP * Math.max(0, kids.length - 1);
+    for (const k of kids) {
+      const m = measured.get(k)!;
+      if (row) {
+        const extra = k === lastBox ? Math.max(0, innerW - used) : 0;
+        place(k, cx, cy, { width: m.width + extra, height: stretches(k) ? innerH : m.height });
+        cx += m.width + extra + WIRE_GAP;
+      } else {
+        const extra = k === lastBox ? Math.max(0, innerH - used) : 0;
+        place(k, cx, cy, { width: wide(k) ? innerW : m.width, height: m.height + extra });
+        cy += m.height + extra + WIRE_GAP;
+      }
+    }
+  };
+  let y = DIAGRAM_HEADER + DIAGRAM_PADDING;
+  for (const root of children.get(undefined) ?? []) {
+    const size = measure(root, new Set());
+    place(root, DIAGRAM_PADDING, y, size);
+    y += size.height + 24;
   }
   return placed;
 }

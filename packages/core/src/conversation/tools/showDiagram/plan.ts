@@ -163,7 +163,7 @@ class DiagramPlanner {
           label: n.label,
           kind: n.kind?.trim() || "component",
           semanticEntityId: this.unitOf.get(n.id)!,
-          ...(n.layer ? { attributes: { layer: n.layer } } : {}),
+          ...this.attributesOf(n),
         })),
         edges,
         nodeIdOf: (ref) => this.nodeIdOf.get(ref),
@@ -179,6 +179,13 @@ class DiagramPlanner {
     steps.push(...section);
     steps.push(frameStep(this.input, sectionBlockIds(this.input), [...(draw ? ["draw"] : []), ...section.map((s) => s.id)]));
     return { intent: `${this.existing ? "Completar" : "Desenhar"} o diagrama ${this.input.title}`.slice(0, 200), steps, nodes: this.knowledge, notes: this.notes };
+  }
+
+  /** Faixa (layers) e contêiner (wireframe) do nó, com o id final do contêiner. */
+  private attributesOf(n: ShowDiagramNode): { attributes?: Record<string, unknown> } {
+    const parent = n.parent ? this.nodeIdOf.get(n.parent) : undefined;
+    const attributes = { ...(n.layer ? { layer: n.layer } : {}), ...(parent ? { parent } : {}) };
+    return Object.keys(attributes).length ? { attributes } : {};
   }
 
   /** Ligações podem apontar também para nós que o diagrama já tinha. */

@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import type { CanvasObject, DiagramModel, KnowledgeStatus, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import { FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
+import { FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, WIRE_TITLE, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
 
 import { run } from "./client.js";
 
@@ -86,7 +86,8 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
   };
 
   // Faixas e sequência têm posições fixas pela gramática; árvore e caixas e setas aceitam arraste.
-  const fixed = diagram.kind === "layers" || diagram.kind === "sequence";
+  const wire = diagram.kind === "wireframe";
+  const fixed = diagram.kind === "layers" || diagram.kind === "sequence" || wire;
   const sequence = diagram.kind === "sequence";
   const hasInferred =
     diagram.nodes.some((n) => nodeQuality(n.semanticEntityId) === "inferred") ||
@@ -115,7 +116,9 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           </marker>
         </defs>
         {diagram.kind === "layers" && <Lanes diagram={diagram} width={object.size.width} />}
-        {sequence
+        {wire
+          ? null
+          : sequence
           ? messageOrder(diagram.edges).map((edge, i) => {
               const a = rectOf(edge.sourceNodeId);
               const b = rectOf(edge.targetNodeId);
@@ -168,6 +171,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           if (!rect) return null;
           const quality = nodeQuality(node.semanticEntityId);
           const pinned = diagram.layout.pinned?.includes(node.id);
+          if (wire) return <WireNode key={node.id} node={node} rect={rect} quality={quality} highlighted={highlightIds.has(node.id)} container={diagram.nodes.some((n) => n.attributes?.parent === node.id)} />;
           return (
             <g
               key={node.id}
@@ -206,6 +210,69 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
       {object.placedBy === "agent" && <span className="mod-origin">criado pelo agente</span>}
       <div className="mod-resize" onPointerDown={onResizePointerDown} aria-hidden />
     </section>
+  );
+}
+
+/**
+ * Um elemento da tela no wireframe: contêiner com o nome no topo, ou o elemento desenhado pelo tipo
+ * (botão, campo, imagem, texto, lista). O tracejado do inferido vale aqui como nos outros tipos.
+ */
+function WireNode({ node, rect, quality, highlighted, container }: { node: DiagramModel["nodes"][number]; rect: Rect; quality: Quality; highlighted: boolean; container: boolean }) {
+  const { width: w, height: h } = rect.size;
+  const kind = node.kind;
+  const max = Math.max(4, Math.floor((w - 16) / 7));
+  return (
+    <g className={`diagram-node wire-node wire-${container ? "box" : kind} q-${quality}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} data-wire-kind={kind} transform={`translate(${rect.position.x}, ${rect.position.y})`}>
+      <title>{`${node.label} · ${kind} · ${QUALITY_LABEL[quality]}`}</title>
+      <rect width={w} height={h} rx={kind === "button" ? 8 : container ? 6 : 4} />
+      {container ? (
+        <text x={10} y={WIRE_TITLE - 4} className="wire-title">
+          {truncate(node.label, max)}
+        </text>
+      ) : (
+        <WireContent kind={kind} label={node.label} width={w} height={h} max={max} />
+      )}
+    </g>
+  );
+}
+
+const PICTURE = new Set(["image", "avatar", "icon"]);
+const ROWS = new Set(["list", "table", "grid"]);
+const CENTERED = new Set(["button", "tab"]);
+const PLACEHOLDER = new Set(["input", "search", "select"]);
+
+/** O miolo de um elemento da tela: imagem com X, lista com linhas, botão centrado, campo com o texto de exemplo. */
+function WireContent({ kind, label, width: w, height: h, max }: { kind: string; label: string; width: number; height: number; max: number }) {
+  if (PICTURE.has(kind)) {
+    return (
+      <>
+        <line x1={0} y1={0} x2={w} y2={h} className="wire-cross" />
+        <line x1={w} y1={0} x2={0} y2={h} className="wire-cross" />
+        {kind === "image" && (
+          <text x={w / 2} y={h - 8} textAnchor="middle" className="wire-label">
+            {truncate(label, max)}
+          </text>
+        )}
+      </>
+    );
+  }
+  if (ROWS.has(kind)) {
+    return (
+      <>
+        <text x={10} y={20} className="wire-label">
+          {truncate(label, max)}
+        </text>
+        {[1, 2, 3].map((i) => (
+          <line key={i} x1={10} x2={w - 10} y1={20 + i * 22} y2={20 + i * 22} className="wire-cross" />
+        ))}
+      </>
+    );
+  }
+  const centered = CENTERED.has(kind);
+  return (
+    <text x={centered ? w / 2 : 10} y={h / 2 + 4} textAnchor={centered ? "middle" : "start"} className={`wire-label${PLACEHOLDER.has(kind) ? " is-placeholder" : ""}`}>
+      {truncate(`${label}${kind === "select" ? " ▾" : ""}`, max)}
+    </text>
   );
 }
 

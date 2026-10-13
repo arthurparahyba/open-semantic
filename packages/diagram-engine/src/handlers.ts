@@ -37,7 +37,7 @@ const captionSchema = { type: "string", maxLength: 600 };
 const layoutRequestSchema = {
   type: "object",
   properties: {
-    algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree"] },
+    algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe"] },
     direction: { enum: ["LR", "RL", "TB", "BT"] },
   },
   additionalProperties: false,
@@ -142,7 +142,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           diagramId,
           title: { type: "string", minLength: 1 },
           caption: captionSchema,
-          kind: { enum: ["architecture", "flow", "sequence", "dependency", "layers", "tree", "freeform"] },
+          kind: { enum: ["architecture", "flow", "sequence", "dependency", "layers", "tree", "wireframe", "freeform"] },
           projectId: ref("common.schema.json#/$defs/ProjectId"),
           anchorIds: anchorIdsSchema,
           nodes: { type: "array", items: ref("diagram.schema.json#/$defs/DiagramNode") },
@@ -309,7 +309,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         required: ["diagramId", "algorithm"],
         properties: {
           diagramId,
-          algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree"] },
+          algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe"] },
           direction: { enum: ["LR", "RL", "TB", "BT"] },
           respectPinned: { type: "boolean", default: true },
         },
