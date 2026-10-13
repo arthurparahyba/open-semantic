@@ -29,7 +29,7 @@ export const showDiagram: ConversationTool = {
           properties: {
             path: { type: "string", description: "Folder or file of the project (relative to its root) where you saw this." },
             seen: { description: "Node: what you saw there, one short sentence. Link: true when seen in the code." },
-            kind: { type: "string", description: "service, module, component, api, endpoint, data_store, application, actor, external, queue, concept." },
+            kind: { type: "string", description: "service, module, component, api, endpoint, data_store, application, actor, external, queue, concept; in a wireframe, the element type (button, input, panel...)." },
             unit: { type: "string", description: "Existing context unit (sem_ id from <workspace>) this box represents." },
             type: { type: "string", description: "Link only: depends_on, calls, communicates_with, reads, writes, contains, exposes, implements." },
           },
@@ -89,13 +89,14 @@ async function resolveIn(ctx: ToolContext, { projectId, rootId }: ProjectPath, p
 
 /** O guia de escolha do tipo: pela forma da resposta, não pelo assunto (docs/funcionalidades/12-tipos-de-diagrama.md). */
 export const KIND_GUIDE =
-  "Choose by the shape of the answer, not by the subject. layers: how the system is organized in levels or tiers (camadas, níveis, front/back/dados, apresentação/domínio/infra); drawn as stacked bands, few arrows. sequence: how a feature, request or use case happens step by step between parts (como funciona X, como está implementado, o que acontece quando); drawn as participants with lifelines and ordered messages. tree: how things contain each other (pastas, módulos dentro de módulos, como o monorepo/repositório está dividido); drawn as a hierarchy. architecture: an overview of what the system is made of and who talks to whom. flow: a process with steps and branches. dependency: who depends on whom. When the user asks about layers, never use architecture; when they ask how a feature works, prefer sequence.";
+  "Choose by the shape of the answer, not by the subject. layers: how the system is organized in levels or tiers (camadas, níveis, front/back/dados, apresentação/domínio/infra); drawn as stacked bands, few arrows. sequence: how a feature, request or use case happens step by step between parts (como funciona X, como está implementado, o que acontece quando); drawn as participants with lifelines and ordered messages. tree: how things contain each other (pastas, módulos dentro de módulos, como o monorepo/repositório está dividido); drawn as a hierarchy. architecture: an overview of what the system is made of and who talks to whom. flow: a process with steps and branches. dependency: who depends on whom. wireframe: what a screen looks like (como é a tela, a interface, a página, o que o usuário vê ao abrir); drawn as boxes inside boxes like a mockup, built from the screen's templates and components. When the user asks about layers, never use architecture; when they ask how a feature works, prefer sequence; when they ask what a screen looks like, always use wireframe.";
 
 const SOURCE_GUIDE = [
   "The picture as short text, one item per line. A box is id[Label] (optionally id[Label]:kind); a link is a --> b : label. Use simple ids (letters, digits, _).",
   "layers: 'layer Name' starts a band (top to bottom); the boxes after it belong to it; links only where a call crosses bands. Example:\nlayer Interface\n  ui[Renderer React]\nlayer Núcleo\n  core[Core]\nui --> core : IPC",
   "sequence: 'participant id[Label]' in column order, then one message per line in time order: a ->> b : call, b -->> a : reply. Example:\nparticipant user[Usuário]\nparticipant ui[Editor]\nparticipant fs[Disco]\nuser ->> ui : salva\nui ->> fs : grava arquivo\nfs -->> ui : ok",
   "tree: one box per line; indentation says what contains what. Example:\nrepo[open-semantic]\n  apps[apps]\n    desktop[desktop]\n  packages[packages]",
+  "wireframe: one screen element per line as id[Label]:type; indentation puts an element inside the one above it; no arrows. Containers: screen, header, sidebar, main, panel, card, form, modal, footer stack their children top to bottom; row, toolbar, nav, tabs put them side by side. Elements: button, link, tab, input, search, select, checkbox, text, title, image, icon, list, table, chart, editor. Read the templates/components of the screen first and give each element the file where you saw it as evidence (unseen ones stay dashed). Example:\nscr[Tela inicial]:screen\n  top[Topo]:header\n    logo[Logo]:image\n    busca[Buscar]:search\n    entrar[Entrar]:button\n  corpo[Corpo]:row\n    menu[Menu]:sidebar\n      l1[Pedidos]:link\n    lista[Pedidos recentes]:main\n      tab[Tabela de pedidos]:table",
   "architecture, flow, dependency: boxes and links (a --> b : label).",
 ].join("\n\n");
 

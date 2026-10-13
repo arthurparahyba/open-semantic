@@ -308,6 +308,61 @@ describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
     expect(diagram.layout.nodes[root]!.position.y).toBeLessThan(diagram.layout.nodes[diagram.edges[0]!.targetNodeId]!.position.y);
   });
 
+  it("como é a tela de X: wireframe montado pelo código da tela, um elemento dentro do outro", async () => {
+    await writeFile(join(projectDir, "frontend", "index.html"), "<header><img alt=logo><input placeholder=Buscar><button>Entrar</button></header><main><nav></nav><table></table></main>");
+    const { provider, diagram } = await draw("como é a tela inicial da aplicação quando o usuário acessa?", {
+      diagramId: "dgm_minhaapp_tela_inicial",
+      title: "Tela inicial",
+      kind: "wireframe",
+      why: "o pedido é sobre como a tela se parece",
+      caption: "No topo ficam o logo, a busca e o botão Entrar; embaixo, o menu à esquerda e a tabela de pedidos.",
+      source:
+        "scr[Tela inicial]:screen\n  top[Topo]:header\n    logo[Logo]:image\n    busca[Buscar pedidos]:search\n    entrar[Entrar]:button\n  corpo[Corpo]:row\n    menu[Menu]:sidebar\n      l1[Pedidos]:link\n      l2[Clientes]:link\n    lista[Pedidos recentes]:main\n      tab[Tabela de pedidos]:table",
+      evidence: {
+        scr: { path: "frontend/index.html", seen: "Página com header e main." },
+        top: { path: "frontend/index.html", seen: "<header> com logo, busca e botão Entrar." },
+        entrar: { path: "frontend/index.html", seen: "<button>Entrar</button>." },
+        tab: { path: "frontend/index.html", seen: "<table> dentro do main." },
+      },
+    });
+    expect(JSON.stringify(provider.requests[0]!.messages.at(-1))).toContain("Forma sugerida para o diagrama: wireframe");
+    expect(diagram.kind).toBe("wireframe");
+    expect(diagram.layout.algorithm).toBe("wireframe");
+    // Sem setas: quem contém quem vem do recuo.
+    expect(diagram.edges).toEqual([]);
+    const byLabel = (label: string) => diagram.nodes.find((n) => n.label === label)!;
+    const rect = (label: string) => diagram.layout.nodes[byLabel(label).id]!;
+    expect(byLabel("Entrar").attributes?.parent).toBe(byLabel("Topo").id);
+    expect(byLabel("Topo").attributes?.parent).toBe(byLabel("Tela inicial").id);
+    const inside = (child: string, parent: string) => {
+      const [c, p] = [rect(child), rect(parent)];
+      expect(c.position.x).toBeGreaterThanOrEqual(p.position.x);
+      expect(c.position.y).toBeGreaterThanOrEqual(p.position.y);
+      expect(c.position.x + c.size.width).toBeLessThanOrEqual(p.position.x + p.size.width);
+      expect(c.position.y + c.size.height).toBeLessThanOrEqual(p.position.y + p.size.height);
+    };
+    for (const [c, p] of [["Topo", "Tela inicial"], ["Entrar", "Topo"], ["Menu", "Corpo"], ["Pedidos", "Menu"], ["Tabela de pedidos", "Pedidos recentes"]]) inside(c!, p!);
+    // O topo fica em cima do corpo; no topo os elementos vêm lado a lado, como numa barra.
+    expect(rect("Topo").position.y + rect("Topo").size.height).toBeLessThanOrEqual(rect("Corpo").position.y);
+    expect(rect("Logo").position.y).toBe(rect("Entrar").position.y);
+    expect(rect("Logo").position.x).toBeLessThan(rect("Buscar pedidos").position.x);
+    expect(rect("Menu").position.x).toBeLessThan(rect("Pedidos recentes").position.x);
+    // Lido no código: traço sólido; o resto (o menu) é suposição, tracejado.
+    const status = (label: string) => core.store.snapshot().semantic.entities.find((e) => e.id === byLabel(label).semanticEntityId)!.status;
+    expect(status("Entrar")).toBe("verified");
+    expect(status("Menu")).toBe("inferred");
+  });
+
+  it("wireframe com seta volta como erro: a tela se monta pelo recuo", async () => {
+    const provider = new FakeProvider([
+      () => ({ toolCalls: [call("show_diagram", { diagramId: "dgm_x_tela", title: "X", kind: "wireframe", why: "-", caption: "-", source: "a[A]:screen\n  b[B]:button\na --> b" })] }),
+      () => ({ text: "Ok." }),
+    ]);
+    await conversation(provider).send("como é a tela de login?");
+    const tool = [...provider.requests[1]!.messages].reverse().find((m): m is Extract<ChatMessage, { role: "tool" }> => m.role === "tool")!;
+    expect(tool.results[0]!.content).toContain("wireframe não tem setas");
+  });
+
   it("texto inválido volta como erro para o modelo corrigir", async () => {
     const provider = new FakeProvider([
       () => ({ toolCalls: [call("show_diagram", { diagramId: "dgm_x_seq", title: "X", kind: "sequence", why: "-", caption: "-", source: "participant a[A]" })] }),
@@ -359,6 +414,11 @@ describe("Escolha do tipo de diagrama", () => {
     ["me explique passo a passo o login", "sequence"],
     ["como o monorepo está dividido?", "tree"],
     ["explique a estrutura de pastas", "tree"],
+    ["como é a tela de cadastro de pets?", "wireframe"],
+    ["quando o usuário acessa, como é a tela inicial?", "wireframe"],
+    ["desenhe o wireframe da página de login", "wireframe"],
+    ["o que o usuário vê ao abrir o app?", "wireframe"],
+    ["o que acontece quando o usuário clica em salvar na tela?", "sequence"],
     ["mostre a arquitetura", undefined],
     ["quem depende de quem?", undefined],
   ])("'%s' → %s", (text, kind) => expect(suggestDiagramKind(text)).toBe(kind));
@@ -379,6 +439,7 @@ describe("Pedido de explicação", () => {
     "quero entender o back-end",
     "o que faz este projeto?",
     "Explain this repo",
+    "como é a tela de cadastro?",
   ])("'%s' pede diagrama", (text) => expect(asksForExplanation(text)).toBe(true));
 
   it.each(["qual a versão do Java?", "renomeie o arquivo README", "crie uma pasta api", "mostre o arquivo pom.xml", "apague o diagrama antigo", "obrigado"])("'%s' não pede", (text) =>

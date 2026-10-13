@@ -1,6 +1,6 @@
 # 12. Tipos de diagrama e escolha da forma de apresentar
 
-Status: primeira entrega implementada (camadas, sequência e estrutura, formato híbrido, escolha automática).
+Status: primeira entrega implementada (camadas, sequência e estrutura, formato híbrido, escolha automática); wireframe de telas na segunda.
 
 ## Decisões (aprovadas pelo Arthur em 13/10/2026)
 
@@ -22,6 +22,17 @@ Status: primeira entrega implementada (camadas, sequência e estrutura, formato 
 - Desenho no canvas: faixas com o nome da camada à esquerda; participantes com linha de vida e mensagens numeradas, retorno tracejado; árvore com ligações em cotovelo e sem setas.
 - Escolha: guia no prompt e na descrição de `kind` (pela forma da resposta), mais uma dica do app junto do pedido (`[app] Forma sugerida para o diagrama: layers (...)`) quando a pergunta fala de camadas, de implementação passo a passo ou de como o código está dividido.
 - Testes: um caso por tipo na escolha (`visual.test.ts`), um desenho por tipo pelo formato híbrido e um e2e com camadas e sequência.
+
+## Wireframe de telas (segunda entrega)
+
+Pedido do Arthur: "como é a tela quando o usuário acessa?" precisa virar o desenho da tela, não caixas e setas.
+
+- Tipo `wireframe`. O agente lê os templates e componentes da tela e escreve um elemento por linha, `id[Rótulo]:tipo`; o recuo põe o elemento dentro do de cima. Não tem setas (seta volta como erro).
+- Contêineres: `screen`, `header`, `sidebar`, `main`, `panel`, `card`, `form`, `modal`, `footer` empilham os filhos; `row`, `toolbar`, `nav`, `tabs` põem lado a lado. Elementos: `button`, `link`, `tab`, `input`, `search`, `select`, `checkbox`, `text`, `title`, `image`, `icon`, `list`, `table`, `chart`, `editor`.
+- O contêiner fica em `attributes.parent` do nó. Layout `wireframe` em `diagram-engine`: cada contêiner envolve os filhos; o último contêiner ganha a sobra (a altura numa coluna, a largura numa linha); tabelas, listas e editores ocupam a largura da coluna.
+- Desenho: contêiner com o nome no topo; botão preenchido; campo com o texto em itálico; imagem com X; lista e tabela com linhas. O que tem `path` em `evidence` (o arquivo da tela) fica sólido; o resto, tracejado.
+- Escolha: "como é a tela de X", "tela inicial", "wireframe", "o que o usuário vê" levam à dica `wireframe`. "O que acontece quando clico em salvar na tela" continua `sequence`.
+- Testes: `visual.test.ts` ("como é a tela inicial..." gera o wireframe aninhado; seta vira erro; casos de escolha) e `e2e/wireframe.spec.ts` (tela desenhada no canvas, com print).
 
 ---
 

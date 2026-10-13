@@ -528,9 +528,9 @@ export interface DiagramEdge {
  */
 export interface DiagramLayout {
   /**
-   * lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção.
+   * lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção; wireframe: caixas dentro de caixas por attributes.parent, como uma tela.
    */
-  algorithm: "manual" | "layered" | "force" | "grid" | "lanes" | "sequence" | "tree";
+  algorithm: "manual" | "layered" | "force" | "grid" | "lanes" | "sequence" | "tree" | "wireframe";
   direction?: "LR" | "RL" | "TB" | "BT";
   /**
    * Retângulo de cada nó, relativo ao canto superior esquerdo do diagrama.
@@ -555,9 +555,9 @@ export interface DiagramModel {
    */
   caption?: string;
   /**
-   * Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; os demais, caixas e setas.
+   * Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; wireframe, a tela com seus elementos uns dentro dos outros; os demais, caixas e setas.
    */
-  kind: "architecture" | "flow" | "sequence" | "dependency" | "layers" | "tree" | "freeform";
+  kind: "architecture" | "flow" | "sequence" | "dependency" | "layers" | "tree" | "wireframe" | "freeform";
   projectId?: ProjectId;
   /**
    * Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).

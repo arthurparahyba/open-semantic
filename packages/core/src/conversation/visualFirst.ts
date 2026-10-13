@@ -20,6 +20,7 @@ const EXPLAIN = [
   /\bo que (e|faz) (o|a|esse|essa|este|esta) (projeto|repositorio|sistema|aplicacao|app|modulo|servico)\b/,
   /\b(entender|compreender|conhecer) (o|a|esse|essa|este|esta)\b/,
   /\bpor onde (passa|anda|vai)\b/,
+  /\b(wireframe|mockup|como (e|sao|fica|ficam) (a|as) (tela|telas|pagina|paginas|interface)|tela (inicial|principal|de))\b/,
   /\b(explain|how does|walk me through|overview|architecture)\b/,
 ];
 
@@ -33,19 +34,22 @@ export function asksForExplanation(message: string): boolean {
 }
 
 /** Tipos de diagrama que o app sabe sugerir pelo pedido. */
-export type SuggestedKind = "layers" | "sequence" | "tree";
+export type SuggestedKind = "layers" | "sequence" | "tree" | "wireframe";
 
 const KIND_HINTS: [SuggestedKind, RegExp][] = [
   ["layers", /\b(camadas?|layers?|niveis|tiers?|frontend.{0,20}backend.{0,20}(banco|dados)|apresentacao.{0,30}(dominio|negocio|infra))\b/],
   ["tree", /\b(como (o|a)? ?(repositorio|projeto|monorepo|codigo|pastas?) (esta|e|foi) (dividid|organizad|estruturad)|estrutura de pastas|arvore|pastas e (modulos|pacotes)|quais (sao )?os (pacotes|modulos))/],
+  ["wireframe", /\b(wireframe|mockup|como (e|sao|fica|ficam|seria) (a|as) (tela|telas|interface|pagina|paginas)|(tela|pagina) (inicial|principal))\b/],
   [
     "sequence",
     /\b(como (esta|foi|e) implementad|implementacao d|como funciona (a|o) (funcionalidade|fluxo|recurso|login|cadastro|salvamento|requisicao)|o que acontece quando|passo a passo|sequencia|quando (o usuario|eu) (clic|salv|envi|abr))/,
   ],
+  // Tela citada de passagem ("o que acontece quando clico na tela") fica com a sequência acima.
+  ["wireframe", /\b(telas?|interface (grafica|do usuario)|o que (o usuario|eu) ve(jo)?)\b/],
 ];
 
 /**
- * A forma sugerida para o diagrama, pelo jeito da pergunta: camadas, sequência ou árvore.
+ * A forma sugerida para o diagrama, pelo jeito da pergunta: camadas, sequência, árvore ou wireframe.
  * Sem sugestão, o modelo escolhe pelo guia do show_diagram (visão geral, fluxo, dependências).
  */
 export function suggestDiagramKind(message: string): SuggestedKind | undefined {
@@ -57,6 +61,7 @@ const KIND_REASON: Record<SuggestedKind, string> = {
   layers: "o pedido é sobre os níveis da aplicação",
   sequence: "o pedido é sobre como uma funcionalidade acontece passo a passo",
   tree: "o pedido é sobre como o código está dividido",
+  wireframe: "o pedido é sobre como a tela se parece",
 };
 
 /** A dica que vai junto do pedido para o modelo. */

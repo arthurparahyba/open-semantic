@@ -6,6 +6,7 @@
 //   layers:      "layer Nome" abre uma faixa; os nós seguintes são dela (de cima para baixo)
 //   sequence:    "participant id[Rótulo]" na ordem das colunas; a ->> b : mensagem; a -->> b : retorno
 //   tree:        um nó por linha; o recuo diz quem contém quem
+//   wireframe:   um elemento da tela por linha (id[Rótulo]:tipo); o recuo diz dentro de quem ele está
 import type { ShowDiagramEdge, ShowDiagramInput, ShowDiagramNode } from "./types.js";
 
 export interface NodeEvidence {
@@ -48,7 +49,9 @@ class SourceReader {
     const link = LINK.exec(trimmed);
     if (link) return this.link(link as unknown as [string, string, string, string, string | undefined], line);
     const id = this.node(trimmed, line);
-    if (this.kind === "tree") this.nest(id, text.length - text.trimStart().length);
+    const indent = text.length - text.trimStart().length;
+    if (this.kind === "tree") this.nest(id, indent);
+    if (this.kind === "wireframe") this.place(id, indent);
   }
 
   private openLayer(name: string, line: number) {
@@ -99,11 +102,20 @@ class SourceReader {
     this.parents.push({ indent, id });
   }
 
+  /** No wireframe, o recuo põe o elemento dentro do anterior menos recuado; não vira ligação. */
+  private place(id: string, indent: number) {
+    while (this.parents.length && this.parents.at(-1)!.indent >= indent) this.parents.pop();
+    const parent = this.parents.at(-1);
+    if (parent) this.nodes.set(id, { ...this.nodes.get(id)!, parent: parent.id });
+    this.parents.push({ indent, id });
+  }
+
   result(): { nodes: ShowDiagramNode[]; edges: ShowDiagramEdge[] } {
     if (!this.nodes.size) throw new SourceError("o texto não tem nenhum nó.");
     const missing = Object.keys(this.evidence).filter((k) => !k.includes("->") && !this.nodes.has(k));
     if (missing.length) throw new SourceError(`evidence cita nós que não estão no texto: ${missing.join(", ")}.`);
     if (this.kind === "sequence" && !this.edges.length) throw new SourceError("um diagrama sequence precisa de mensagens (a ->> b : mensagem).");
+    if (this.kind === "wireframe" && this.edges.length) throw new SourceError("wireframe não tem setas: use o recuo para pôr um elemento dentro do outro.");
     if (this.kind === "layers" && [...this.nodes.values()].some((n) => !n.layer)) {
       throw new SourceError("em layers, todo nó fica dentro de uma faixa: escreva 'layer Nome' antes dos nós.");
     }
