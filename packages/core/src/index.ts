@@ -43,11 +43,13 @@ export {
   activeProject,
   compactHistory,
   summarizeWorkspace,
+  workspaceHeader,
   type ChatEntry,
   type ConversationSettings,
   type ConversationView,
   type TurnLimits,
 } from "./conversation.js";
+export { WorkspaceContext, canvasAttention, workspaceIndex } from "./context.js";
 export { SYSTEM_PROMPT } from "./prompt.js";
 export { AGENT, SCRIPTS, ScriptError, scriptedPlan, type ScriptInfo } from "./scripts.js";
 

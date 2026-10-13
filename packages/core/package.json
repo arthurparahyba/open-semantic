@@ -16,6 +16,7 @@
     "@open-semantic/project-runtime": "workspace:*",
     "@open-semantic/protocol": "workspace:*",
     "@open-semantic/semantic": "workspace:*",
+    "@open-semantic/semantic-context": "workspace:*",
     "@open-semantic/workspace-store": "workspace:*"
   }
 }
