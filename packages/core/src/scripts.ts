@@ -3,8 +3,8 @@
 import { randomUUID } from "node:crypto";
 
 import type { BatchPlan, WorkspaceSnapshot } from "@open-semantic/protocol";
+import { activeProject } from "@open-semantic/workspace-store";
 
-import { activeProject } from "./conversation.js";
 
 export const AGENT = { kind: "agent" as const, id: "roteirizado" };
 

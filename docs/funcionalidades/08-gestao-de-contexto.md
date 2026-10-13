@@ -234,7 +234,7 @@ O prompt vai do mais estável ao mais volátil: instruções e ferramentas, mapa
 
 - `packages/semantic-context`: o motor, sem dependências. Índice BM25, `analyze`, `buildContext`, `search`, e a avaliação.
 - `packages/core/src/context.ts`: os adaptadores (índice, conteúdo, atenção).
-- `conversation.ts`: antes do modelo, analisa a mensagem, pergunta se precisar, leva o foco e monta o `<workspace>` com o contexto do motor no lugar de `summarizeWorkspace`. Guarda as unidades dos últimos assuntos. Nova ferramenta `search_workspace`. Entradas `choice` no chat (pergunta e suposição) e `Conversation.choose`.
+- `conversation/understand.ts`: antes do modelo, analisa a mensagem, pergunta se precisar, leva o foco e monta o `<workspace>` com o contexto do motor no lugar de `summarizeWorkspace`. Guarda as unidades dos últimos assuntos. Nova ferramenta `search_workspace`. Entradas `choice` no chat (pergunta e suposição) e `Conversation.choose`.
 - `navigation.frame` do agente atualiza o destaque mesmo quando o alvo já está na tela.
 - Painel do agente: cartão da pergunta rápida e "Trocar" na suposição.
 

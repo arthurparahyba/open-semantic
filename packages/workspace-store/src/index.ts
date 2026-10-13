@@ -12,6 +12,7 @@ export {
 } from "./commits.js";
 export { commitEvents, type EventContext } from "./events.js";
 export type { Removed } from "./removal.js";
+export { activeProject } from "./projects.js";
 export { findFreeSpot, overlaps, GAP, placeNew, regionAt, boundsOfRects, REGION_PADDING, type PlacementRequest } from "./placement.js";
 export { FileWorkspacePersistence, WorkspaceFolderPersistence, autosave, type PersistStatus, type WorkspacePersistence } from "./persistence.js";
 export { CAPTION_LINE, DIAGRAM_HEADER, DIAGRAM_PADDING, captionLines, contentSize, diagramSize } from "./diagramSize.js";

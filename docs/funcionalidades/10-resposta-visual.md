@@ -12,7 +12,7 @@ O Open Semantic responde desenhando. Quando a pessoa quer entender estrutura ou 
 
 ## A ferramenta `show_diagram`
 
-O modelo descreve só o desenho: `diagramId`, `title`, `kind` (`architecture`, `flow`, `sequence`, `dependency`), `caption`, nós (`id`, `label`, `kind`, `unit?`, `path?`, `seen?`) e ligações (`from`, `to`, `label?`, `type?`, `seen?`). O app (`packages/core/src/visual.ts`) transforma isso num lote comum, que passa pelo mesmo executor e pelo mesmo cartão:
+O modelo descreve só o desenho: `diagramId`, `title`, `kind` (`architecture`, `flow`, `sequence`, `dependency`), `caption`, nós (`id`, `label`, `kind`, `unit?`, `path?`, `seen?`) e ligações (`from`, `to`, `label?`, `type?`, `seen?`). O app (`packages/core/src/conversation/tools/showDiagram/`) transforma isso num lote comum, que passa pelo mesmo executor e pelo mesmo cartão:
 
 - unidades de contexto: reaproveita a do nó, a do diagrama ou uma com o mesmo nome no projeto; cria as que faltam, verificadas (`semantic.upsert_observation`, com a evidência do caminho) ou inferidas (`semantic.upsert_inference`);
 - relações: verificadas quando a ligação foi vista no código da origem, inferidas no resto;
