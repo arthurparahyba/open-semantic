@@ -110,3 +110,8 @@ Recomendação: **C**, mas em etapas: começar os novos tipos em JSON por tipo (
 1. Ordem: começar por camadas + sequência + estrutura?
 2. Formato: JSON agora e texto depois (recomendado), ou já o híbrido com texto?
 3. O seletor "ver como…" entra na primeira entrega ou depois?
+
+## BPMN e ER (modo planejamento)
+
+- **bpmn**: o processo de negócio como o usuário vê, com eventos de início e fim (círculos, o fim com borda grossa), tarefas (caixas) e decisões (losangos). É a primeira etapa do planejamento: o agente entrevista o usuário em cima desse desenho. Texto: `id[Rótulo]:start|end|task|gateway` e `a --> b : condição`.
+- **er**: o modelo de dados, com tabelas e colunas. Uma tabela por linha (`id[tabela]`), e as linhas recuadas abaixo dela são as colunas (`id integer PK`). As relações são escritas `a --> b : 1..N`. As colunas ficam em `attributes.columns` e a tabela cresce com elas.

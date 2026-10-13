@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import type { CanvasObject, DiagramModel, KnowledgeStatus, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import { FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, WIRE_TITLE, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
+import { ER_ROW, ER_TITLE, FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, WIRE_TITLE, bpmnShape, columnsOf, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
 
 import { run } from "./client.js";
 
@@ -172,6 +172,9 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           const quality = nodeQuality(node.semanticEntityId);
           const pinned = diagram.layout.pinned?.includes(node.id);
           if (wire) return <WireNode key={node.id} node={node} rect={rect} quality={quality} highlighted={highlightIds.has(node.id)} container={diagram.nodes.some((n) => n.attributes?.parent === node.id)} />;
+          if (drawsShape(diagram.kind, node.kind)) {
+            return <ShapedNode key={node.id} diagramKind={diagram.kind} node={node} rect={rect} quality={quality} highlighted={highlightIds.has(node.id)} onPointerDown={onNodePointerDown(node.id)} />;
+          }
           return (
             <g
               key={node.id}
@@ -210,6 +213,54 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
       {object.placedBy === "agent" && <span className="mod-origin">criado pelo agente</span>}
       <div className="mod-resize" onPointerDown={onResizePointerDown} aria-hidden />
     </section>
+  );
+}
+
+/** Nós que não são caixas: tabelas do er, eventos e decisões do bpmn. */
+const drawsShape = (diagramKind: DiagramModel["kind"], nodeKind: string) => diagramKind === "er" || (diagramKind === "bpmn" && bpmnShape(nodeKind) !== "task");
+
+function ShapedNode({ diagramKind, node, rect, quality, highlighted, onPointerDown }: { diagramKind: DiagramModel["kind"]; node: DiagramModel["nodes"][number]; rect: Rect; quality: Quality; highlighted: boolean; onPointerDown: (event: React.PointerEvent) => void }) {
+  return (
+    <g className={`diagram-node q-${quality}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} transform={`translate(${rect.position.x}, ${rect.position.y})`} onPointerDown={onPointerDown}>
+      <title>{`${node.label} · ${node.kind} · ${QUALITY_LABEL[quality]}`}</title>
+      {diagramKind === "er" ? <ErTable label={node.label} columns={columnsOf(node)} width={rect.size.width} height={rect.size.height} /> : <BpmnSymbol kind={node.kind} label={node.label} size={rect.size.width} />}
+    </g>
+  );
+}
+
+/** Evento do BPMN (círculo; o fim tem borda grossa) ou decisão (losango), com o rótulo embaixo. */
+function BpmnSymbol({ kind, label, size }: { kind: string; label: string; size: number }) {
+  const r = size / 2;
+  const end = kind === "end" || kind === "fim";
+  return (
+    <>
+      {bpmnShape(kind) === "event" ? (
+        <circle cx={r} cy={r} r={r - 1} className={`bpmn-event${end ? " is-end" : ""}`} />
+      ) : (
+        <polygon points={`${r},1 ${size - 1},${r} ${r},${size - 1} 1,${r}`} className="bpmn-gateway" />
+      )}
+      <text x={r} y={size + 14} textAnchor="middle" className="diagram-edge-label">
+        {label}
+      </text>
+    </>
+  );
+}
+
+/** Tabela do diagrama er: nome no topo e uma coluna por linha (chaves em destaque). */
+function ErTable({ label, columns, width, height }: { label: string; columns: string[]; width: number; height: number }) {
+  return (
+    <>
+      <rect width={width} height={height} rx={6} />
+      <line x1={0} y1={ER_TITLE} x2={width} y2={ER_TITLE} className="er-divider" />
+      <text x={10} y={ER_TITLE - 10} className="diagram-node-label er-title">
+        {label}
+      </text>
+      {columns.map((c, i) => (
+        <text key={i} x={10} y={ER_TITLE + 15 + i * ER_ROW} className={`er-column${/\b(PK|FK)\b/.test(c) ? " is-key" : ""}`}>
+          {c}
+        </text>
+      ))}
+    </>
   );
 }
 

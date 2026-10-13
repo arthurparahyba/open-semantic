@@ -66,3 +66,32 @@ export function wireLeafSize(kind: string, label: string): { width: number; heig
   const s = LEAF[kind] ?? { min: 120, height: 48 };
   return { width: s.fixed ?? Math.max(s.min, Math.round(label.length * 7.5) + 32), height: s.height };
 }
+
+// BPMN: eventos são círculos e decisões são losangos (o rótulo fica embaixo); tarefas são caixas.
+
+export type BpmnShape = "event" | "gateway" | "task";
+const EVENTS = new Set(["start", "end", "event", "inicio", "fim", "timer", "message"]);
+const GATEWAYS = new Set(["gateway", "decision", "decisao", "xor", "and", "or"]);
+export function bpmnShape(kind: string): BpmnShape {
+  if (EVENTS.has(kind)) return "event";
+  if (GATEWAYS.has(kind)) return "gateway";
+  return "task";
+}
+export const BPMN_EVENT = 44;
+export const BPMN_GATEWAY = 52;
+
+// ER: cada tabela tem um título e uma coluna por linha (attributes.columns).
+
+export const ER_TITLE = 30;
+export const ER_ROW = 20;
+
+/** As colunas de uma tabela (attributes.columns), ou [] quando não é tabela. */
+export function columnsOf(node: Pick<DiagramNode, "attributes">): string[] {
+  const columns = node.attributes?.columns;
+  return Array.isArray(columns) ? columns.filter((c): c is string => typeof c === "string") : [];
+}
+
+export function erTableSize(label: string, columns: string[]): { width: number; height: number } {
+  const longest = Math.max(label.length * 8, ...columns.map((c) => c.length * 7));
+  return { width: Math.min(320, Math.max(160, Math.round(longest + 32))), height: ER_TITLE + Math.max(1, columns.length) * ER_ROW + 8 };
+}

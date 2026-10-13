@@ -4,6 +4,11 @@ import type { ELK as ElkInstance, ELKConstructorArguments } from "elkjs/lib/elk-
 import type { DiagramLayout, DiagramModel, Rect, Size } from "@open-semantic/protocol";
 import { DIAGRAM_HEADER, DIAGRAM_PADDING } from "@open-semantic/workspace-store";
 import {
+  BPMN_EVENT,
+  BPMN_GATEWAY,
+  bpmnShape,
+  columnsOf,
+  erTableSize,
   FIRST_MESSAGE,
   LANE_GAP,
   LANE_GUTTER,
@@ -33,6 +38,17 @@ const elk = new ELK();
 const ELK_DIRECTION: Record<LayoutDirection, string> = { LR: "RIGHT", RL: "LEFT", TB: "DOWN", BT: "UP" };
 
 /** Largura do nó a partir do rótulo, para que o texto caiba sem medir fontes no processo principal. */
+/** O tamanho de um nó pela forma do tipo de diagrama: eventos e decisões do BPMN, tabelas do ER, caixas no resto. */
+export function shapeSize(node: Pick<DiagramModel["nodes"][number], "label" | "kind" | "attributes">, kind?: DiagramModel["kind"]): Size {
+  if (kind === "er") return erTableSize(node.label, columnsOf(node));
+  if (kind === "bpmn") {
+    const shape = bpmnShape(node.kind);
+    if (shape === "event") return { width: BPMN_EVENT, height: BPMN_EVENT };
+    if (shape === "gateway") return { width: BPMN_GATEWAY, height: BPMN_GATEWAY };
+  }
+  return nodeSize(node.label);
+}
+
 export function nodeSize(label: string): Size {
   return { width: Math.min(280, Math.max(120, Math.round(label.length * 8.5 + 48))), height: NODE_HEIGHT };
 }
@@ -42,14 +58,14 @@ export function nodeSize(label: string): Size {
  * posicionados pelo algoritmo. Mudar o layout nunca altera nós, arestas ou o Open Semantic (V0.1 §3.3).
  */
 export async function computeLayout(
-  model: Pick<DiagramModel, "nodes" | "edges" | "layout">,
+  model: Pick<DiagramModel, "nodes" | "edges" | "layout"> & { kind?: DiagramModel["kind"] },
   options: { algorithm: LayoutAlgorithm; direction?: LayoutDirection; respectPinned?: boolean },
 ): Promise<DiagramLayout> {
   // Faixas, sequência e árvore têm forma fixa: a posição sai da gramática, não do arraste.
   const structured = STRUCTURED.has(options.algorithm);
   const pinned = new Set(options.respectPinned === false || structured ? [] : (model.layout.pinned ?? []));
   const previous = model.layout.nodes;
-  const sizes = new Map(model.nodes.map((n) => [n.id, (!structured && previous[n.id]?.size) || nodeSize(n.label)]));
+  const sizes = new Map(model.nodes.map((n) => [n.id, (!structured && previous[n.id]?.size) || shapeSize(n, model.kind)]));
   const own = FIXED_LAYOUTS[options.algorithm];
   const placed = own ? own(model, sizes) : await elkLayout(model, sizes, options.algorithm, options.direction);
 

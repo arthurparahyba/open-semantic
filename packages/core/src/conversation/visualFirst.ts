@@ -13,6 +13,7 @@ export function changedDiagrams(before: Map<string, number>, snapshot: Workspace
 }
 
 const EXPLAIN = [
+  /\b(bpmn|modelo de dados|processo de negocio|fluxo de negocio|diagrama er)\b/,
   /\bexpli(que|ca|car|cacao|ca-me|que-me)\b/,
   /\bcomo (funciona|e organizad|esta organizad|se organiza|e a arquitetura|flui|passa)/,
   /\bdesenh[ae]\b/,
@@ -34,9 +35,11 @@ export function asksForExplanation(message: string): boolean {
 }
 
 /** Tipos de diagrama que o app sabe sugerir pelo pedido. */
-export type SuggestedKind = "layers" | "sequence" | "tree" | "wireframe";
+export type SuggestedKind = "layers" | "sequence" | "tree" | "wireframe" | "bpmn" | "er";
 
 const KIND_HINTS: [SuggestedKind, RegExp][] = [
+  ["bpmn", /\b(bpmn|processo de negocio|fluxo de negocio|processo (do|da|de) (cadastro|venda|compra|atendimento|pedido))\b/],
+  ["er", /\b(modelo de dados|diagrama er|entidade.relacionamento|tabelas? do banco|quais (sao )?as tabelas|estrutura do banco)\b/],
   ["layers", /\b(camadas?|layers?|niveis|tiers?|frontend.{0,20}backend.{0,20}(banco|dados)|apresentacao.{0,30}(dominio|negocio|infra))\b/],
   ["tree", /\b(como (o|a)? ?(repositorio|projeto|monorepo|codigo|pastas?) (esta|e|foi) (dividid|organizad|estruturad)|estrutura de pastas|arvore|pastas e (modulos|pacotes)|quais (sao )?os (pacotes|modulos))/],
   ["wireframe", /\b(wireframe|mockup|como (e|sao|fica|ficam|seria) (a|as) (tela|telas|interface|pagina|paginas)|(tela|pagina) (inicial|principal))\b/],
@@ -62,6 +65,8 @@ const KIND_REASON: Record<SuggestedKind, string> = {
   sequence: "o pedido é sobre como uma funcionalidade acontece passo a passo",
   tree: "o pedido é sobre como o código está dividido",
   wireframe: "o pedido é sobre como a tela se parece",
+  bpmn: "o pedido é sobre um processo de negócio",
+  er: "o pedido é sobre as tabelas e relações dos dados",
 };
 
 /** A dica que vai junto do pedido para o modelo. */

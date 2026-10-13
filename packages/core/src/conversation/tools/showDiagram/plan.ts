@@ -184,7 +184,7 @@ class DiagramPlanner {
   /** Faixa (layers) e contêiner (wireframe) do nó, com o id final do contêiner. */
   private attributesOf(n: ShowDiagramNode): { attributes?: Record<string, unknown> } {
     const parent = n.parent ? this.nodeIdOf.get(n.parent) : undefined;
-    const attributes = { ...(n.layer ? { layer: n.layer } : {}), ...(parent ? { parent } : {}) };
+    const attributes = { ...(n.layer ? { layer: n.layer } : {}), ...(parent ? { parent } : {}), ...(n.columns?.length ? { columns: n.columns } : {}) };
     return Object.keys(attributes).length ? { attributes } : {};
   }
 

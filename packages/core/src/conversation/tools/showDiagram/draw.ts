@@ -97,6 +97,7 @@ function layoutOf(input: ShowDiagramInput): { algorithm: string; direction?: str
   if (input.kind === "layers") return { algorithm: "lanes" };
   if (input.kind === "sequence") return { algorithm: "sequence" };
   if (input.kind === "wireframe") return { algorithm: "wireframe" };
+  if (input.kind === "bpmn" || input.kind === "er") return { algorithm: "layered", direction: input.direction ?? "LR" };
   if (input.kind === "tree") return { algorithm: "tree", direction: "TB" };
   return { algorithm: "layered", direction: input.direction ?? (input.kind === "architecture" || input.kind === "dependency" ? "TB" : "LR") };
 }

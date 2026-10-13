@@ -1,7 +1,7 @@
 // A entrada do show_diagram (o desenho que o modelo descreve) e o plano que sai dela.
 import type { Block, DiagramModel } from "@open-semantic/protocol";
 
-export const DIAGRAM_KINDS = ["layers", "sequence", "tree", "architecture", "flow", "dependency", "wireframe"] as const;
+export const DIAGRAM_KINDS = ["layers", "sequence", "tree", "architecture", "flow", "dependency", "wireframe", "bpmn", "er"] as const;
 
 export interface ShowDiagramNode {
   id: string;
@@ -17,6 +17,8 @@ export interface ShowDiagramNode {
   layer?: string;
   /** Elemento que contém este, num wireframe. */
   parent?: string;
+  /** Colunas de uma tabela, num diagrama er ("id PK", "owner_id FK → owners"). */
+  columns?: string[];
 }
 
 export interface ShowDiagramEdge {

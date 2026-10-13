@@ -7,6 +7,8 @@
 //   sequence:    "participant id[Rótulo]" na ordem das colunas; a ->> b : mensagem; a -->> b : retorno
 //   tree:        um nó por linha; o recuo diz quem contém quem
 //   wireframe:   um elemento da tela por linha (id[Rótulo]:tipo); o recuo diz dentro de quem ele está
+//   bpmn:        caixas e setas, com tipos start, end, task, gateway (a --> b : condição)
+//   er:          uma tabela por linha (id[Nome]); as linhas recuadas abaixo são as colunas; a --> b : 1..N
 import type { ShowDiagramEdge, ShowDiagramInput, ShowDiagramNode } from "./types.js";
 
 export interface NodeEvidence {
@@ -33,6 +35,8 @@ class SourceReader {
   private readonly edges: ShowDiagramEdge[] = [];
   private readonly parents: { indent: number; id: string }[] = [];
   private layer: string | undefined;
+  /** A última tabela citada num diagrama er: as linhas recuadas são colunas dela. */
+  private table: string | undefined;
 
   constructor(
     private readonly kind: ShowDiagramInput["kind"],
@@ -46,9 +50,12 @@ class SourceReader {
     if (layerHead) return this.openLayer(layerHead[1]!.trim(), line);
     const participant = /^(?:participant|actor)\s+(.+)$/i.exec(trimmed);
     if (participant) return void this.node(participant[1]!, line);
+    const indentEr = text.length - text.trimStart().length;
+    if (this.kind === "er" && indentEr > 0) return this.column(trimmed, line);
     const link = LINK.exec(trimmed);
     if (link) return this.link(link as unknown as [string, string, string, string, string | undefined], line);
     const id = this.node(trimmed, line);
+    this.table = id;
     const indent = text.length - text.trimStart().length;
     if (this.kind === "tree") this.nest(id, indent);
     if (this.kind === "wireframe") this.place(id, indent);
@@ -92,6 +99,13 @@ class SourceReader {
       ...(this.kind === "sequence" ? { order: this.edges.length + 1 } : {}),
       ...(arrow === "-->>" ? { reply: true } : {}),
     });
+  }
+
+  /** No er, uma linha recuada é uma coluna da tabela de cima ("id PK", "nome varchar"). */
+  private column(text: string, line: number) {
+    const table = this.table && this.nodes.get(this.table);
+    if (!table) throw new SourceError(`linha ${line}: coluna '${text}' sem tabela acima (escreva id[Tabela] antes, sem recuo).`);
+    this.nodes.set(table.id, { ...table, columns: [...(table.columns ?? []), text] });
   }
 
   /** Na árvore, o recuo diz quem contém quem. */

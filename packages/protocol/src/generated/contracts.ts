@@ -555,9 +555,19 @@ export interface DiagramModel {
    */
   caption?: string;
   /**
-   * Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; wireframe, a tela com seus elementos uns dentro dos outros; os demais, caixas e setas.
+   * Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; wireframe, a tela com seus elementos uns dentro dos outros; bpmn, um processo com eventos (círculos), tarefas e decisões (losangos); er, tabelas com colunas (attributes.columns) e relações; os demais, caixas e setas.
    */
-  kind: "architecture" | "flow" | "sequence" | "dependency" | "layers" | "tree" | "wireframe" | "freeform";
+  kind:
+    | "architecture"
+    | "flow"
+    | "sequence"
+    | "dependency"
+    | "layers"
+    | "tree"
+    | "wireframe"
+    | "bpmn"
+    | "er"
+    | "freeform";
   projectId?: ProjectId;
   /**
    * Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).
