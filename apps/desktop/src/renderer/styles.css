@@ -272,6 +272,10 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   justify-self: start; display: inline-flex; gap: 6px; align-items: center; font-weight: 600;
   background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 3px 8px; cursor: pointer;
 }
+.chat-next { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.chat-mode { font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.chat-next-step { background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12px; }
+.chat-next-step:disabled { opacity: .5; cursor: default; }
 .chat-tool { color: var(--text-2); font-size: 11.5px; padding-left: 4px; }
 .chat-tool::before { content: "↳ "; }
 .chat-notice { font-size: 12px; padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--border); color: var(--text-2); }

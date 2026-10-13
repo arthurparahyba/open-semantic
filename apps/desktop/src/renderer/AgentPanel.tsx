@@ -109,13 +109,14 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
     }
   };
 
-  const sendChat = async () => {
-    const text = draft.trim();
+  const sendText = async (text: string, fromDraft: boolean) => {
     if (!text || (busy && !asking)) return;
     const result = await api().sendChat(text);
-    if (result.ok) setDraft("");
-    else onError(result.message);
+    if (result.ok) {
+      if (fromDraft) setDraft("");
+    } else onError(result.message);
   };
+  const sendChat = () => sendText(draft.trim(), true);
 
   const resetChat = async () => {
     const result = await api().resetChat();
@@ -192,6 +193,16 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
                       </button>
                     ))}
                   {entry.text && <span className="chat-caption">{entry.text}</span>}
+                  {entry.next?.length ? (
+                    <div className="chat-next" data-testid="chat-next">
+                      {entry.mode && <span className="chat-mode">{entry.mode}</span>}
+                      {entry.next.map((step) => (
+                        <button key={step} type="button" className="chat-next-step" disabled={busy && !asking} onClick={() => void sendText(step, false)}>
+                          {step}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </li>
               );
             case "tool":

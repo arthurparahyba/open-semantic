@@ -16,7 +16,16 @@ export interface ConversationSettings {
 export type ChatEntry =
   | { id: string; kind: "user"; text: string; at: string }
   /** Resposta do agente. Quando o pedido desenhou ou mudou diagramas, o texto é a legenda deles. */
-  | { id: string; kind: "assistant"; text: string; diagramIds?: string[]; at: string }
+  | {
+      id: string;
+      kind: "assistant";
+      text: string;
+      diagramIds?: string[];
+      /** Num modo em etapas: o nome do modo e os botões de próximo passo (enviam o texto como mensagem). */
+      mode?: string;
+      next?: string[];
+      at: string;
+    }
   /** Um lote de mudanças; a interface mostra o cartão do lote (passos, confirmação, resultado). */
   | { id: string; kind: "batch"; batchId: string; at: string }
   /** Leitura feita pelo agente (pasta, arquivo, workspace), para o usuário ver o que ele consultou. */

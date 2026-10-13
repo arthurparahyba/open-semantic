@@ -33,10 +33,10 @@ export class Chat {
   }
 
   /** A resposta do pedido entra antes dos avisos dele (limite, interrupção), na ordem em que o usuário leu. */
-  answer(text: string, diagramIds: string[]) {
+  answer(text: string, diagramIds: string[], steps?: { mode: string; next: string[] }) {
     const trailing: ChatEntry[] = [];
     while (this.entries.length && this.entries[this.entries.length - 1]!.kind === "notice") trailing.unshift(this.entries.pop()!);
-    this.push({ kind: "assistant", text, ...(diagramIds.length ? { diagramIds } : {}) });
+    this.push({ kind: "assistant", text, ...(diagramIds.length ? { diagramIds } : {}), ...(steps ? steps : {}) });
     if (trailing.length) {
       this.entries.push(...trailing);
       this.changed();
