@@ -19,6 +19,7 @@ import type {
   WorkspaceSnapshot,
 } from "@open-semantic/protocol";
 
+import { diagramSize } from "./diagramSize.js";
 import { placeNew } from "./placement.js";
 
 export const REPO_DIR = ".open-semantic";
@@ -243,23 +244,11 @@ export function mergeRepoContent(
 
   for (const d of content.diagrams) {
     if (doc.canvas.objects.some((o) => o.id === d.id)) continue;
-    const size = diagramSize(d);
+    const size = diagramSize(d.layout, d.caption);
     const { rect, regionId } = placeNew(doc, size, {});
     const object: CanvasObject = { id: d.id, objectKind: "diagram", position: rect.position, size: rect.size, placedBy: "agent", ...(regionId ? { regionId } : {}) };
     doc.canvas.objects.push(object);
   }
-}
-
-/** Tamanho do objeto no canvas a partir do layout guardado (coordenadas relativas ao objeto, cabeçalho incluído). */
-function diagramSize(d: Omit<DiagramModel, "projectId">) {
-  let w = 320;
-  let h = 200;
-  for (const r of Object.values(d.layout.nodes ?? {})) {
-    if (!r) continue;
-    w = Math.max(w, r.position.x + r.size.width + 24);
-    h = Math.max(h, r.position.y + r.size.height + 24);
-  }
-  return { width: Math.round(w), height: Math.round(h) };
 }
 
 /**

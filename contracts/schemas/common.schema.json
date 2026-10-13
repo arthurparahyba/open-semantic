@@ -150,7 +150,7 @@
         "code": { "$ref": "#/$defs/ErrorCode" },
         "message": { "type": "string", "minLength": 1 },
         "retryable": { "type": "boolean" },
-        "argumentPath": { "description": "JSON Pointer para o argumento inválido, quando houver.", "type": "string" },
+        "argumentPath": { "description": "JSON Pointer para o argumento inválido, quando houver, relativo a arguments (\"/\" é o objeto inteiro). Num lote fora do contrato, relativo ao plano. Um ponteiro fora dos argumentos vai em details.requestPath.", "type": "string" },
         "targetId": { "type": "string" },
         "details": { "type": "object" }
       },

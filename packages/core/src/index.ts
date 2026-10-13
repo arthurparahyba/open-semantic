@@ -32,6 +32,7 @@ import {
 import { semanticHandlers } from "@open-semantic/semantic";
 
 import { AgentRunner, type AgentActivity } from "./agent.js";
+import { AGENT_OPERATIONS } from "./conversation.js";
 
 export { AgentRunner, describeStep, summarizeBatch, type ActivityStep, type AgentActivity } from "./agent.js";
 export {
@@ -80,10 +81,15 @@ export interface CoreOptions {
 /**
  * Política de autorização. O usuário age livremente pela interface; pedidos do agente
  * que excluem ou escrevem conteúdo exigem confirmação (docs/funcionalidades/06, tabela de autorização).
+ * O agente só muda o que está em AGENT_OPERATIONS; consultas ficam livres, porque as ferramentas dele leem pelo Dispatcher.
  */
 export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
-  return (request) => {
-    if (request.authorization.actor.kind === "user") return { decision: "allow" };
+  return (request, handler) => {
+    const actor = request.authorization.actor.kind;
+    if (actor === "user") return { decision: "allow" };
+    if (actor === "agent" && !handler.readOnly && !AGENT_OPERATIONS.includes(request.operation)) {
+      return { decision: "deny", reason: `O agente não pode usar ${request.operation}; essa operação é só da interface.` };
+    }
     switch (request.operation) {
       case "mod.delete":
         return store.read().workspace.settings.agentMayDeleteMods
@@ -124,16 +130,23 @@ export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
   };
 }
 
-/** Histórico persistente: uma linha JSON por ActionRecord. */
+/** Histórico persistente: uma linha JSON por ActionRecord. Na memória ficam só os registros mais recentes. */
 export class JsonlActionLog implements ActionLog {
   private chain: Promise<void> = Promise.resolve();
   private closed = false;
   readonly records: ActionRecord[] = [];
-  constructor(private readonly file: string) {}
+  constructor(
+    private readonly file: string,
+    private readonly options: { limit?: number; onError?: (err: unknown) => void } = {},
+  ) {}
   append(record: ActionRecord) {
     this.records.push(record);
+    const excess = this.records.length - (this.options.limit ?? 1_000);
+    if (excess > 0) this.records.splice(0, excess);
     if (this.closed) return;
-    this.chain = this.chain.then(() => appendFile(this.file, JSON.stringify(record) + "\n", "utf8")).catch(() => {});
+    this.chain = this.chain
+      .then(() => appendFile(this.file, JSON.stringify(record) + "\n", "utf8"))
+      .catch((err: unknown) => this.options.onError?.(err));
   }
   flush() {
     return this.chain;
@@ -168,7 +181,15 @@ export async function createCore(options: CoreOptions) {
   if (!loaded) await persistence.save(store.snapshot());
 
   const runtime = new ProjectRuntime(store);
-  const log = new JsonlActionLog(join(metaDir, "history.jsonl"));
+  const log = new JsonlActionLog(join(metaDir, "history.jsonl"), {
+    // A interface mostra no mesmo indicador do salvamento: disco cheio também impede salvar o workspace.
+    onError: (err) =>
+      options.onPersist?.({
+        state: "error",
+        revision: store.revision,
+        message: `O histórico de ações não foi gravado: ${err instanceof Error ? err.message : String(err)}`,
+      }),
+  });
   const dispatcher = new Dispatcher({
     actionLog: log,
     policy: defaultPolicy(store),

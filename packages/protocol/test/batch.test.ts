@@ -131,7 +131,7 @@ describe("BatchExecutor", () => {
       ]),
     );
     expect(result.status).toBe("rejected");
-    expect(result.steps.ruim).toMatchObject({ status: "rejected", error: { code: "INVALID_ARGUMENTS", argumentPath: "/arguments/regionId" } });
+    expect(result.steps.ruim).toMatchObject({ status: "rejected", error: { code: "INVALID_ARGUMENTS", argumentPath: "/regionId" } });
     expect(result.steps.ok).toBeUndefined();
     expect(calls).toEqual([]);
   });
@@ -231,7 +231,7 @@ describe("BatchExecutor", () => {
       ]),
     );
     expect(result.status).toBe("partially_completed");
-    expect(result.steps.region).toMatchObject({ status: "rejected", error: { argumentPath: "/arguments/dirRef" } });
+    expect(result.steps.region).toMatchObject({ status: "rejected", error: { argumentPath: "/dirRef", details: { binding: { step: "mk" } } } });
     expect(result.steps.depois?.status).toBe("skipped");
   });
 

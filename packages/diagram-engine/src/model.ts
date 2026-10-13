@@ -2,6 +2,7 @@ import {
   OperationError,
   contractValidator,
   describeErrors,
+  sameValue,
   type DiagramEdge,
   type DiagramModel,
   type DiagramNode,
@@ -83,7 +84,7 @@ export function applyPatch(model: DiagramModel, ops: DiagramOp[]): { model: Diag
     switch (op.op) {
       case "add_node": {
         if (next.nodes.some((n) => n.id === op.node.id)) {
-          const same = JSON.stringify(next.nodes.find((n) => n.id === op.node.id)) === JSON.stringify(op.node);
+          const same = sameValue(next.nodes.find((n) => n.id === op.node.id), op.node);
           if (same) break; // reaplicar o mesmo patch não duplica
           throw invalid(`Nó '${op.node.id}' já existe com outro conteúdo; use update_node.`, `${at}/node/id`);
         }
@@ -114,7 +115,7 @@ export function applyPatch(model: DiagramModel, ops: DiagramOp[]): { model: Diag
       }
       case "add_edge": {
         if (next.edges.some((e) => e.id === op.edge.id)) {
-          const same = JSON.stringify(next.edges.find((e) => e.id === op.edge.id)) === JSON.stringify(op.edge);
+          const same = sameValue(next.edges.find((e) => e.id === op.edge.id), op.edge);
           if (same) break;
           throw invalid(`Aresta '${op.edge.id}' já existe com outro conteúdo; use update_edge.`, `${at}/edge/id`);
         }

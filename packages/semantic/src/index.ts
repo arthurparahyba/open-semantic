@@ -6,6 +6,7 @@ import {
   SCHEMA_BASE_URI,
   contractValidator,
   describeErrors,
+  sameValue,
   type Change,
   type Evidence,
   type OperationHandler,
@@ -51,6 +52,18 @@ const relationInput = {
 type EntityInput = Pick<SemanticEntity, "id" | "kind" | "name"> &
   Partial<Pick<SemanticEntity, "description" | "aliases" | "projectId" | "artifactIds" | "attributes">>;
 type RelationInput = Pick<SemanticRelation, "id" | "type" | "sourceId" | "targetId"> & Partial<Pick<SemanticRelation, "attributes">>;
+
+/**
+ * Evidências que sustentam uma observação: só inspeção, execução ou afirmação do usuário (doc 05, status `verified`).
+ * `agent_reasoning` fica de fora de propósito: raciocínio do agente entra como inferência.
+ */
+export const OBSERVATION_EVIDENCE_KINDS = [
+  "file_inspection",
+  "directory_listing",
+  "command_execution",
+  "user_statement",
+  "diagram_edit",
+] as const;
 
 export function semanticHandlers({ store }: { store: WorkspaceStore }): OperationHandler[] {
   const requireArtifact = (id: string, path: string) => {
@@ -119,7 +132,7 @@ export function semanticHandlers({ store }: { store: WorkspaceStore }): Operatio
             required: ["id", "kind", "summary"],
             properties: {
               id: ref("common.schema.json#/$defs/EvidenceId"),
-              kind: { enum: ["file_inspection", "directory_listing", "command_execution", "user_statement", "diagram_edit"] },
+              kind: { enum: OBSERVATION_EVIDENCE_KINDS },
               artifactId: ref("common.schema.json#/$defs/ArtifactId"),
               span: ref("semantic.schema.json#/$defs/Evidence/properties/span"),
               summary: { type: "string", minLength: 1, maxLength: 2000 },
@@ -244,6 +257,7 @@ export function semanticHandlers({ store }: { store: WorkspaceStore }): Operatio
     {
       // Busca simples por nome, apelido ou tipo, para o agente montar contexto. Consultas ricas entram no M3.
       operation: "semantic.query",
+      readOnly: true,
       argumentsSchema: {
         type: "object",
         properties: {
@@ -314,7 +328,7 @@ function stripKnowledge<T extends { status: unknown; provenance: unknown; revisi
 function sameKnowledge(a: SemanticEntity | SemanticRelation, b: SemanticEntity | SemanticRelation): boolean {
   const norm = (x: SemanticEntity | SemanticRelation) => {
     const { operationId: _o, recordedAt: _r, turnId: _t, ...provenance } = x.provenance;
-    return JSON.stringify({ ...stripKnowledge(x), status: x.status, provenance });
+    return { ...stripKnowledge(x), status: x.status, provenance };
   };
-  return norm(a) === norm(b);
+  return sameValue(norm(a), norm(b));
 }

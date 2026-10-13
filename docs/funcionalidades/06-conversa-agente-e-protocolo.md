@@ -38,6 +38,8 @@ Diferença importante: **`rejected`** = falhou na validação, nada mudou. **`fa
 - O `operationId` é a chave. O Dispatcher guarda `(operationId → hash dos argumentos, resultado)`.
 - Mesmo id + mesmos argumentos → devolve o resultado guardado com `replayed: true`, sem executar de novo.
 - Mesmo id + argumentos diferentes → `IDEMPOTENCY_MISMATCH`.
+- Leituras (snapshot, query, list_dir, read_file) guardam só o hash dos argumentos: o reenvio consulta de novo, e o conteúdo lido não fica na memória.
+- O Dispatcher guarda os 1.000 resultados mais recentes; reenvios acontecem logo depois do original.
 - Operações de criação recebem o id do objeto do cliente (`modId`, `diagramId`…), então mesmo um id de operação novo não duplica o objeto: cria → `created`; repete com mesmo conteúdo → `unchanged`.
 - Operações naturalmente não idempotentes (`terminal.run`, `editor.apply_edit`, `navigation.back`) só são protegidas pela chave `operationId`.
 
@@ -54,6 +56,8 @@ Diferença importante: **`rejected`** = falhou na validação, nada mudou. **`fa
 | Executar comando | Conforme `commandPolicy` | Conforme `commandPolicy` (padrão: confirmar tudo) |
 
 Fluxo: o runtime responde `confirmation_required` com `token` e `summary`; a interface mostra o cartão; ao aprovar, a mesma requisição é reenviada com `authorization.confirmationToken`. Tokens expiram e valem para uma requisição específica (hash dos argumentos). Isso cobre o critério E5.
+
+O agente só muda o que está na lista dele (`AGENT_OPERATIONS`); qualquer outra mudança é recusada com `UNAUTHORIZED`, inclusive dentro de um lote. Leituras ficam liberadas.
 
 ## Lotes com dependências (decisão D3, confirmada em 12/10)
 

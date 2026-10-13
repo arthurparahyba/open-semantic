@@ -59,6 +59,16 @@ describe("applyPatch", () => {
     expect(twice.model.nodes).toHaveLength(3);
     expect(twice.summary.addedNodes).toEqual([]);
   });
+
+  it("reaplicar o mesmo nó ou aresta com as chaves em outra ordem não é \"outro conteúdo\" (B8)", () => {
+    const once = applyPatch(base(), [{ op: "add_node", node: { id: "nd_db1", label: "Banco", kind: "data_store" } }]).model;
+    const again = applyPatch(once, [
+      { op: "add_node", node: { kind: "data_store", label: "Banco", id: "nd_db1" } },
+      { op: "add_edge", edge: { label: "HTTP", targetNodeId: "nd_back", sourceNodeId: "nd_front", id: "edg_fb1" } },
+    ]);
+    expect(again.model.nodes).toHaveLength(3);
+    expect(again.summary).toMatchObject({ addedNodes: [], addedEdges: [] });
+  });
 });
 
 describe("computeLayout", () => {

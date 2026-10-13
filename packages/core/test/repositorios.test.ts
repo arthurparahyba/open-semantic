@@ -119,6 +119,28 @@ describe("Diagramas e conhecimento dentro do repositório", () => {
     expect(backendDir?.kind).toBe("directory");
   });
 
+  it("um diagrama trazido do repositório entra no canvas com o tamanho que teria se fosse criado aqui (B7)", async () => {
+    core = await createCore({ workspaceDir, debounceMs: 5, animationMs: 0 });
+    const created = await op("diagram.create", {
+      diagramId: "dgm_mini",
+      title: "Mini",
+      // A legenda ocupa linhas embaixo dos nós: o tamanho lido do repositório também precisa contar com elas.
+      caption: "A API recebe os pedidos do aplicativo e grava tudo no banco; o resto do sistema só lê o que ela publica.",
+      kind: "architecture",
+      projectId: "prj_minhaapp",
+      nodes: [{ id: "nd_api", label: "API", kind: "service" }],
+      edges: [],
+      layout: { algorithm: "layered", direction: "LR" },
+    });
+    expect(created.status, JSON.stringify(created.error)).toBe("succeeded");
+    const size = core.store.canvasObject("dgm_mini")?.size;
+    await core.close();
+
+    core = await createCore({ workspaceDir: await tempDir("os-ws2-"), debounceMs: 5, animationMs: 0 });
+    expect((await op("workspace.add_project", { projectId: "prj_clonado", name: "clonado", rootPath: repoDir })).status).toBe("succeeded");
+    expect(core.store.canvasObject("dgm_mini")?.size).toEqual(size);
+  });
+
   it("excluir o diagrama apaga o arquivo dele no repositório", async () => {
     core = await createCore({ workspaceDir, debounceMs: 5, animationMs: 0 });
     expect((await op("diagram.delete", { diagramId: "dgm_arch" })).status).toBe("succeeded");

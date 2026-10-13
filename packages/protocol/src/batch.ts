@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { OperationError } from "./errors.js";
+import { OperationError, pointerFields } from "./errors.js";
+import { pruneExpired } from "./tokens.js";
 import { containsBinding, fingerprintOf, stableStringify, type Dispatcher } from "./dispatcher.js";
 import type {
   BatchPlan,
@@ -213,8 +214,10 @@ export class BatchExecutor {
     plan: BatchPlan,
     items: { step: BatchStep; risk: ConfirmationRequest["risk"]; summary: string; reversible?: boolean }[],
   ): BatchResult {
+    const now = this.now().getTime();
+    pruneExpired(this.pending, now, this.confirmationTtlMs);
     const token = randomUUID();
-    const expiresAt = this.now().getTime() + this.confirmationTtlMs;
+    const expiresAt = now + this.confirmationTtlMs;
     this.pending.set(token, {
       batchId: plan.batchId,
       fingerprint: planFingerprint(plan),
@@ -421,7 +424,7 @@ export function resolveBindings(request: OperationRequest, results: Record<strin
           throw new OperationError(
             "INVALID_ARGUMENTS",
             `$bind '${bind.step}${bind.pointer}' não existe no resultado do passo.`,
-            { argumentPath: path, details: { binding: bind } },
+            pointerFields(path, { binding: bind }),
           );
         }
         return structuredClone(found);

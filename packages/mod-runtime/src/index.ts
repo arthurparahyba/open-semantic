@@ -3,6 +3,7 @@ import {
   SCHEMA_BASE_URI,
   compileWithContracts,
   describeErrors,
+  sameValue,
   type ModInstance,
   type ModTypeDescriptor,
   type OperationHandler,
@@ -130,6 +131,7 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
   return [
     {
       operation: "mod.list_types",
+      readOnly: true,
       argumentsSchema: { type: "object", additionalProperties: false },
       handle: () => ({ output: { types: MOD_TYPES }, changes: [] }),
     },
@@ -175,7 +177,7 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
         }
         if (args.uiState) validateUi(type, args.uiState as Record<string, unknown>);
         const existing = store.mod(args.modId as string);
-        if (existing && (existing.type !== type || JSON.stringify(existing.config) !== JSON.stringify(args.config))) {
+        if (existing && (existing.type !== type || !sameValue(existing.config, args.config))) {
           throw new OperationError("PRECONDITION_FAILED", "Já existe um mod com esse id e outra configuração; use mod.configure.", {
             targetId: existing.id,
           });
@@ -262,7 +264,7 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
           config: { ...mod.config, ...((args.config as object | undefined) ?? {}) },
           ...(args.uiState || mod.uiState ? { uiState: { ...(mod.uiState ?? {}), ...((args.uiState as object | undefined) ?? {}) } } : {}),
         };
-        if (JSON.stringify(next) === JSON.stringify(mod)) {
+        if (sameValue(next, mod)) {
           return { changes: [{ id: mod.id, change: "unchanged", revision: mod.revision }] };
         }
         const saved = store.transact(() => store.putMod(next));

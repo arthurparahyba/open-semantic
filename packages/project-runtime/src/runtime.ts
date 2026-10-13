@@ -108,24 +108,26 @@ export class ProjectRuntime {
       }
       return { artifact: await this.resolve(projectId, rootId, normalized, actor, operationId), created: false };
     }
-    // O ancestral mais próximo que existe precisa estar dentro da raiz (nada de escapar por link).
+    // Cria a partir do ancestral mais próximo que existe, validado antes de qualquer efeito: um link no
+    // meio do caminho que aponte para fora da raiz recusa o pedido sem criar nada lá fora.
     const segments = normalized.split("/");
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const prefix = segments.slice(0, i).join("/");
-      const found = await this.safeAbsolute(project, rootId, prefix, { mustExist: true }).catch(() => undefined);
-      if (found) break;
+    const existingAncestor = (depth: number) =>
+      this.safeAbsolute(project, rootId, segments.slice(0, depth).join("/"), { mustExist: true }).catch((err: unknown) => {
+        if (err instanceof OperationError && err.code === "TARGET_NOT_FOUND") return undefined;
+        throw err;
+      });
+    // Na profundidade 0 está a raiz: ela existe ou safeAbsolute lança, então o laço termina.
+    let depth = segments.length - 1;
+    let current = await existingAncestor(depth);
+    while (!current) current = await existingAncestor(--depth);
+    // Um segmento por vez, sem `recursive`: um link que apareça no caminho faz o mkdir falhar em vez de segui-lo.
+    for (const segment of segments.slice(depth)) {
+      const dir = join(current, segment);
+      await mkdir(dir).catch(async (err: NodeJS.ErrnoException) => {
+        if (err.code !== "EEXIST" || !(await lstat(dir)).isDirectory()) throw err;
+      });
+      current = dir;
     }
-    const target = await this.safeAbsolute(project, rootId, normalized, { mustExist: false }).catch(async (err: unknown) => {
-      if (!(err instanceof OperationError) || err.code !== "TARGET_NOT_FOUND") throw err;
-      // Diretórios intermediários ainda não existem: cria a partir do ancestral validado acima.
-      const rootAbs = await realpath(join(project.location.kind === "local" ? project.location.rootPath : "", project.roots.find((r) => r.id === rootId)!.path));
-      return join(rootAbs, ...segments);
-    });
-    await mkdir(target, { recursive: true });
-    assertInside(
-      await realpath(join(project.location.kind === "local" ? project.location.rootPath : "", project.roots.find((r) => r.id === rootId)!.path)),
-      await realpath(target),
-    );
     const at = this.now().toISOString();
     const artifact: ArtifactReference = {
       id: this.store.findArtifact(projectId, rootId, normalized)?.id ?? `art_${suffixOf(projectId)}_${this.newId("x").slice(2)}`,

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { toContractError } from "./errors.js";
+import { pointerFields, toContractError } from "./errors.js";
 import type {
   ActionRecord,
   Change,
@@ -12,6 +12,7 @@ import type {
   Precondition,
 } from "./generated/contracts.js";
 import { compileWithContracts, contractValidator, describeErrors, primaryError } from "./schemas.js";
+import { pruneExpired } from "./tokens.js";
 
 export type Args = Record<string, unknown>;
 
@@ -39,6 +40,11 @@ export interface OperationHandler {
   handle(args: Args, ctx: HandlerContext): HandlerOutcome | Promise<HandlerOutcome>;
   /** Remove conteúdo de arquivo ou segredos antes de gravar no histórico. */
   redact?(args: Args): Args;
+  /**
+   * Só consulta: não muda o workspace nem arquivos (registrar o artefato consultado não conta).
+   * O resultado não fica guardado para replay: repetir o mesmo operationId consulta de novo.
+   */
+  readOnly?: boolean;
 }
 
 export type AuthorizationDecision =
@@ -62,7 +68,8 @@ export type PreconditionEvaluator = (
 
 export interface IdempotencyEntry {
   fingerprint: string;
-  result: OperationResult;
+  /** Ausente nas leituras: o reenvio consulta de novo, mas com outros argumentos ainda dá IDEMPOTENCY_MISMATCH. */
+  result?: OperationResult;
 }
 
 export interface IdempotencyStore {
@@ -89,13 +96,20 @@ export interface DispatcherOptions {
   validateResults?: boolean;
 }
 
+/** Guarda os resultados mais recentes: reenvios acontecem logo depois do original, não horas depois. */
 export class MemoryIdempotencyStore implements IdempotencyStore {
   private readonly entries = new Map<string, IdempotencyEntry>();
+  constructor(private readonly limit = 1_000) {}
   get(id: string) {
     return this.entries.get(id);
   }
   set(id: string, entry: IdempotencyEntry) {
+    this.entries.delete(id);
     this.entries.set(id, entry);
+    for (const oldest of this.entries.keys()) {
+      if (this.entries.size <= this.limit) break;
+      this.entries.delete(oldest);
+    }
   }
 }
 
@@ -155,7 +169,7 @@ export class Dispatcher {
 
   /** Já existe resultado guardado para este operationId (reenvio será um replay). */
   recorded(operationId: string): boolean {
-    return this.idempotency.get(operationId) !== undefined;
+    return this.idempotency.get(operationId)?.result !== undefined;
   }
 
   operations(): string[] {
@@ -179,7 +193,7 @@ export class Dispatcher {
           code: "INVALID_ARGUMENTS",
           message: `Requisição fora do contrato: ${describeErrors(validateRequest.errors)}`,
           retryable: false,
-          argumentPath: err?.instancePath || "/",
+          ...pointerFields(err?.instancePath ?? ""),
         },
       };
     }
@@ -203,7 +217,7 @@ export class Dispatcher {
           code: "INVALID_ARGUMENTS",
           message: describeErrors(entry.validateArgs.errors),
           retryable: false,
-          argumentPath: "/arguments" + (err?.instancePath ?? ""),
+          argumentPath: err?.instancePath || "/",
         },
       };
     }
@@ -232,7 +246,7 @@ export class Dispatcher {
           code: "INVALID_ARGUMENTS",
           message: `Requisição fora do contrato: ${describeErrors(validateRequest.errors)}`,
           retryable: false,
-          argumentPath: err?.instancePath || "/",
+          ...pointerFields(err?.instancePath ?? ""),
         },
       });
     }
@@ -249,7 +263,7 @@ export class Dispatcher {
     const stored = this.idempotency.get(request.operationId);
     if (stored) {
       if (stored.fingerprint !== fingerprint) return this.idempotencyMismatch(request);
-      return { ...stored.result, replayed: true };
+      if (stored.result) return { ...stored.result, replayed: true };
     }
 
     const promise = this.run(request, fingerprint, preapproved);
@@ -365,7 +379,8 @@ export class Dispatcher {
     } catch (err) {
       result = await this.complete(request, requestedAt, "failed", { error: toContractError(err), changes: [] }, handler);
     }
-    this.idempotency.set(request.operationId, { fingerprint, result });
+    // Uma leitura não guarda a saída (o conteúdo de um arquivo, por exemplo): o reenvio consulta de novo.
+    this.idempotency.set(request.operationId, handler.readOnly ? { fingerprint } : { fingerprint, result });
     return result;
   }
 
@@ -374,8 +389,10 @@ export class Dispatcher {
     fingerprint: string,
     decision: Extract<AuthorizationDecision, { decision: "confirm" }>,
   ): OperationResult {
+    const now = this.now().getTime();
+    pruneExpired(this.confirmations, now, this.confirmationTtlMs);
     const token = randomUUID();
-    const expiresAt = this.now().getTime() + this.confirmationTtlMs;
+    const expiresAt = now + this.confirmationTtlMs;
     this.confirmations.set(token, { operationId: request.operationId, fingerprint, expiresAt });
     const confirmation: ConfirmationRequest = {
       token,
@@ -469,6 +486,11 @@ export function stableStringify(value: unknown): string {
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
   }
   return JSON.stringify(value);
+}
+
+/** Igualdade de valores JSON que não depende da ordem das chaves. */
+export function sameValue(a: unknown, b: unknown): boolean {
+  return stableStringify(a) === stableStringify(b);
 }
 
 export function containsBinding(value: unknown): boolean {

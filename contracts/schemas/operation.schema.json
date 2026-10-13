@@ -57,7 +57,7 @@
       "required": ["operationId", "operation", "arguments", "authorization"],
       "properties": {
         "operationId": {
-          "description": "Gerado pelo solicitante. Também é a chave de idempotência: reenviar o mesmo operationId com os mesmos argumentos devolve o resultado original com replayed=true.",
+          "description": "Gerado pelo solicitante. Também é a chave de idempotência: reenviar o mesmo operationId com os mesmos argumentos devolve o resultado original com replayed=true (uma leitura consulta de novo); com outros argumentos, IDEMPOTENCY_MISMATCH.",
           "$ref": "common.schema.json#/$defs/OperationId"
         },
         "operation": { "$ref": "#/$defs/OperationName" },

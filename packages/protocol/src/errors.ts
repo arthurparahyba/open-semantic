@@ -39,3 +39,17 @@ export function toContractError(err: unknown): ContractError {
   const message = err instanceof Error ? err.message : String(err);
   return { code: "INTERNAL", message: message || "erro interno", retryable: false };
 }
+
+/**
+ * Onde um erro aponta, a partir de um ponteiro da requisição inteira. `argumentPath` é sempre relativo a
+ * `arguments` (common.schema.json); um ponteiro fora dos argumentos vai em `details.requestPath`.
+ */
+export function pointerFields(
+  requestPointer: string,
+  details?: Record<string, unknown>,
+): Pick<ContractError, "argumentPath" | "details"> {
+  if (requestPointer === "/arguments" || requestPointer.startsWith("/arguments/")) {
+    return { argumentPath: requestPointer.slice("/arguments".length) || "/", ...(details && { details }) };
+  }
+  return { details: { ...details, requestPath: requestPointer || "/" } };
+}
