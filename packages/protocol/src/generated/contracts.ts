@@ -528,9 +528,9 @@ export interface DiagramEdge {
  */
 export interface DiagramLayout {
   /**
-   * lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção; wireframe: caixas dentro de caixas por attributes.parent, como uma tela.
+   * bpmn: processo da esquerda para a direita em raias (attributes.layer), voltas por baixo; lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção; wireframe: caixas dentro de caixas por attributes.parent, como uma tela.
    */
-  algorithm: "manual" | "layered" | "force" | "grid" | "lanes" | "sequence" | "tree" | "wireframe";
+  algorithm: "manual" | "layered" | "force" | "grid" | "lanes" | "sequence" | "tree" | "wireframe" | "bpmn";
   direction?: "LR" | "RL" | "TB" | "BT";
   /**
    * Retângulo de cada nó, relativo ao canto superior esquerdo do diagrama.

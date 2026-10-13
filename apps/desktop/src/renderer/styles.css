@@ -208,6 +208,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .diagram-node.q-inferred rect { stroke-dasharray: 6 4; }
 .bpmn-event, .bpmn-gateway { fill: var(--surface-2); stroke: var(--text-2); stroke-width: 1.5; }
 .bpmn-event.is-end { stroke-width: 3.5; }
+.bpmn-lane rect { fill: none; stroke: var(--border); stroke-width: 1; }
 .diagram-node.q-inferred .bpmn-event, .diagram-node.q-inferred .bpmn-gateway { stroke-dasharray: 6 4; }
 .er-divider { stroke: var(--text-2); stroke-width: 1; }
 .er-column { font-size: 12px; fill: var(--text-2); }

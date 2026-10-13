@@ -107,7 +107,7 @@ export const PLANNING_MODE: ExecutionMode = {
     "[app] Modo: planejamento em etapas. Não pergunte de qual parte o usuário fala e não faça o plano inteiro de uma vez. " +
     "Cada pedido é UMA etapa curta (poucas leituras, um diagrama). A ordem das etapas é: " +
     "1) Processo: entreviste o usuário com um diagrama bpmn. Leia só o essencial do projeto (no máximo 3 leituras), abra uma camada para a discussão com layer.create " +
-    "(ancorada no elemento da visão geral de onde ela nasce) e desenhe um rascunho do processo de negócio em bpmn (início, tarefas de quem usa, decisões, fim; 5 a 9 elementos), " +
+    "(ancorada no elemento da visão geral de onde ela nasce) e desenhe um rascunho do processo de negócio em bpmn, com uma raia (lane) por ator — quem usa, a equipe, o sistema — (início, tarefas, decisões, fim; 5 a 9 elementos), " +
     "sem detalhes técnicos. Na legenda, faça uma ou duas perguntas objetivas sobre o fluxo (o que falta, qual decisão vale). Enquanto o usuário ajustar o processo, atualize o mesmo bpmn. " +
     "2) Interface: wireframe da tela nova, seguindo as telas que o projeto já tem. 3) Back-end: sequence do caminho da requisição (tela, controller, serviço, repositório, banco), " +
     "com os nomes no padrão do projeto. 4) Dados: diagrama er com as tabelas novas e as que elas usam, com colunas e relações. " +

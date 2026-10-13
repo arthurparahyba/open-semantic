@@ -37,7 +37,7 @@ const captionSchema = { type: "string", maxLength: 600 };
 const layoutRequestSchema = {
   type: "object",
   properties: {
-    algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe"] },
+    algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe", "bpmn"] },
     direction: { enum: ["LR", "RL", "TB", "BT"] },
   },
   additionalProperties: false,
@@ -309,7 +309,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         required: ["diagramId", "algorithm"],
         properties: {
           diagramId,
-          algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe"] },
+          algorithm: { enum: ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe", "bpmn"] },
           direction: { enum: ["LR", "RL", "TB", "BT"] },
           respectPinned: { type: "boolean", default: true },
         },

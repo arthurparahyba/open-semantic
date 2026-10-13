@@ -4,6 +4,10 @@ import type { ELK as ElkInstance, ELKConstructorArguments } from "elkjs/lib/elk-
 import type { DiagramLayout, DiagramModel, Rect, Size } from "@open-semantic/protocol";
 import { DIAGRAM_HEADER, DIAGRAM_PADDING } from "@open-semantic/workspace-store";
 import {
+  BPMN_COL_GAP,
+  BPMN_LABEL,
+  BPMN_ROW,
+  bpmnHasLanes,
   BPMN_EVENT,
   BPMN_GATEWAY,
   bpmnShape,
@@ -81,11 +85,87 @@ const FIXED_LAYOUTS: Partial<Record<LayoutAlgorithm, (model: Model, sizes: Map<s
   lanes,
   sequence,
   wireframe: (model) => wireframe(model),
+  bpmn,
   manual,
   grid,
 };
 
-const STRUCTURED = new Set<LayoutAlgorithm>(["lanes", "sequence", "tree", "wireframe"]);
+const STRUCTURED = new Set<LayoutAlgorithm>(["lanes", "sequence", "tree", "wireframe", "bpmn"]);
+
+/**
+ * BPMN: o processo corre da esquerda para a direita em colunas (a ordem do fluxo, sem contar as voltas),
+ * e cada ator tem a sua raia. Dois elementos da mesma raia na mesma coluna ficam um embaixo do outro.
+ */
+function bpmn(model: Pick<DiagramModel, "nodes" | "edges">, sizes: Map<string, Size>): Record<string, Rect> {
+  const column = processColumns(model);
+  const lanes = layerOrder(model.nodes);
+  const gutter = bpmnHasLanes(model.nodes) ? LANE_GUTTER : 0;
+  // Largura de cada coluna: o maior elemento dela.
+  const widths: number[] = [];
+  for (const n of model.nodes) widths[column.get(n.id)!] = Math.max(widths[column.get(n.id)!] ?? 0, sizes.get(n.id)!.width);
+  const xs: number[] = [];
+  let x = DIAGRAM_PADDING + gutter + 12;
+  for (let c = 0; c < widths.length; c++) {
+    xs[c] = x;
+    x += (widths[c] ?? 0) + BPMN_COL_GAP;
+  }
+  const placed: Record<string, Rect> = {};
+  let top = DIAGRAM_HEADER + DIAGRAM_PADDING;
+  for (const lane of lanes) {
+    const used = new Map<number, number>();
+    let rows = 1;
+    for (const n of model.nodes.filter((m) => layerOf(m) === lane)) {
+      const c = column.get(n.id)!;
+      const row = used.get(c) ?? 0;
+      used.set(c, row + 1);
+      rows = Math.max(rows, row + 1);
+      const size = sizes.get(n.id)!;
+      placed[n.id] = {
+        position: { x: xs[c]! + ((widths[c] ?? 0) - size.width) / 2, y: top + row * BPMN_ROW + (BPMN_ROW - BPMN_LABEL - size.height) / 2 },
+        size,
+      };
+    }
+    top += rows * BPMN_ROW;
+  }
+  return placed;
+}
+
+/** Coluna de cada elemento: o caminho mais longo desde o início, ignorando as setas que voltam no fluxo. */
+function processColumns(model: Pick<DiagramModel, "nodes" | "edges">): Map<string, number> {
+  const out = new Map<string, string[]>(model.nodes.map((n) => [n.id, []]));
+  const incoming = new Map<string, number>(model.nodes.map((n) => [n.id, 0]));
+  for (const e of model.edges) {
+    if (!out.has(e.sourceNodeId) || !out.has(e.targetNodeId)) continue;
+    out.get(e.sourceNodeId)!.push(e.targetNodeId);
+    incoming.set(e.targetNodeId, incoming.get(e.targetNodeId)! + 1);
+  }
+  // Setas que voltam: as que chegam num elemento ainda aberto na busca a partir dos inícios.
+  const back = new Set<string>();
+  const state = new Map<string, "open" | "done">();
+  const visit = (id: string) => {
+    state.set(id, "open");
+    for (const to of out.get(id)!) {
+      if (state.get(to) === "open") back.add(`${id}>${to}`);
+      else if (!state.has(to)) visit(to);
+    }
+    state.set(id, "done");
+  };
+  const starts = model.nodes.filter((n) => n.kind === "start" || incoming.get(n.id) === 0);
+  for (const n of [...starts, ...model.nodes]) if (!state.has(n.id)) visit(n.id);
+  const column = new Map<string, number>();
+  const depth = (id: string, seen: Set<string>): number => {
+    if (column.has(id)) return column.get(id)!;
+    let d = 0;
+    for (const e of model.edges) {
+      if (e.targetNodeId !== id || back.has(`${e.sourceNodeId}>${id}`) || seen.has(e.sourceNodeId) || !out.has(e.sourceNodeId)) continue;
+      d = Math.max(d, depth(e.sourceNodeId, new Set([...seen, id])) + 1);
+    }
+    column.set(id, d);
+    return d;
+  };
+  for (const n of model.nodes) depth(n.id, new Set());
+  return column;
+}
 
 /** Camadas empilhadas de cima para baixo; os nós de cada camada lado a lado, dentro da faixa. */
 function lanes(model: Pick<DiagramModel, "nodes">, sizes: Map<string, Size>): Record<string, Rect> {

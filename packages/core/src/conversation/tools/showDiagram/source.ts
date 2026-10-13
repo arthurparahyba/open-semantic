@@ -7,7 +7,7 @@
 //   sequence:    "participant id[Rótulo]" na ordem das colunas; a ->> b : mensagem; a -->> b : retorno
 //   tree:        um nó por linha; o recuo diz quem contém quem
 //   wireframe:   um elemento da tela por linha (id[Rótulo]:tipo); o recuo diz dentro de quem ele está
-//   bpmn:        caixas e setas, com tipos start, end, task, gateway (a --> b : condição)
+//   bpmn:        "lane Ator" abre uma raia; tipos start, end, task, gateway (a --> b : condição)
 //   er:          uma tabela por linha (id[Nome]); as linhas recuadas abaixo são as colunas; a --> b : 1..N
 import type { ShowDiagramEdge, ShowDiagramInput, ShowDiagramNode } from "./types.js";
 
@@ -46,7 +46,7 @@ class SourceReader {
   line(text: string, line: number) {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const layerHead = /^layer\s+(.+)$/i.exec(trimmed);
+    const layerHead = /^(?:layer|lane)\s+(.+)$/i.exec(trimmed);
     if (layerHead) return this.openLayer(layerHead[1]!.trim(), line);
     const participant = /^(?:participant|actor)\s+(.+)$/i.exec(trimmed);
     if (participant) return void this.node(participant[1]!, line);
@@ -62,7 +62,7 @@ class SourceReader {
   }
 
   private openLayer(name: string, line: number) {
-    if (this.kind !== "layers") throw new SourceError(`linha ${line}: 'layer' só vale em diagramas layers.`);
+    if (this.kind !== "layers" && this.kind !== "bpmn") throw new SourceError(`linha ${line}: 'layer' só vale em diagramas layers e 'lane' em bpmn.`);
     this.layer = name;
   }
 
