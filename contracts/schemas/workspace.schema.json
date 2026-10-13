@@ -23,7 +23,12 @@
     "mods": { "type": "array", "items": { "$ref": "mod.schema.json#/$defs/ModInstance" } },
     "diagrams": { "type": "array", "items": { "$ref": "diagram.schema.json#/$defs/DiagramModel" } },
     "canvas": { "$ref": "#/$defs/Canvas" },
-    "navigation": { "$ref": "navigation.schema.json#/$defs/NavigationState" }
+    "navigation": { "$ref": "navigation.schema.json#/$defs/NavigationState" },
+    "layers": {
+      "description": "Camadas de assunto (docs/funcionalidades/11-camadas.md). Ausente em workspaces antigos: vale lista vazia.",
+      "type": "array",
+      "items": { "$ref": "layer.schema.json#/$defs/Layer" }
+    }
   },
   "additionalProperties": false,
   "$defs": {

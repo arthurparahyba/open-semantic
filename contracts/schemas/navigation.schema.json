@@ -40,6 +40,7 @@
         "camera": { "$ref": "#/$defs/Camera" },
         "focus": { "$ref": "#/$defs/Focus" },
         "lastOverview": { "$ref": "#/$defs/Camera" },
+        "activeLayerId": { "description": "Camada de assunto ativa. Ausente: a base (o workspace inteiro).", "$ref": "common.schema.json#/$defs/LayerId" },
         "history": { "type": "array", "items": { "$ref": "#/$defs/HistoryEntry" }, "maxItems": 20 },
         "motion": {
           "type": "object",

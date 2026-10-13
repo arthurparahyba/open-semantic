@@ -25,6 +25,7 @@ function doomed(doc: WorkspaceSnapshot, projectId: string) {
     entities,
     mods: new Set(doc.mods.filter(modGone).map((m) => m.id)),
     diagrams: new Set(doc.diagrams.filter((d) => d.projectId === projectId).map((d) => d.id)),
+    nodes: new Set(doc.diagrams.filter((d) => d.projectId === projectId).flatMap((d) => d.nodes.map((n) => n.id))),
     relations: new Set(doc.semantic.relations.filter((r) => entities.has(r.sourceId) || entities.has(r.targetId)).map((r) => r.id)),
     evidence: new Set(doc.semantic.evidence.filter((ev) => ev.artifactId !== undefined && artifacts.has(ev.artifactId)).map((ev) => ev.id)),
   };
@@ -43,6 +44,7 @@ export function removeProjectFrom(doc: WorkspaceSnapshot, projectId: string): Re
   doc.canvas.objects = doc.canvas.objects.filter((o) => !gone.mods.has(o.id) && !gone.diagrams.has(o.id));
   doc.canvas.regions = doc.canvas.regions.map((r) => unlinkEntities(r, gone));
   unlinkFocus(doc, gone);
+  unlinkLayers(doc, gone);
   return { artifacts: gone.artifacts.size, mods: gone.mods.size, diagrams: gone.diagrams.size, entities: gone.entities.size };
 }
 
@@ -99,4 +101,15 @@ function unlinkFocus(doc: WorkspaceSnapshot, gone: Gone) {
   const highlightIds = keep(focus.highlightIds, isGone);
   if (targetIds === focus.targetIds && highlightIds === focus.highlightIds) return;
   doc.navigation = { ...doc.navigation, focus: { ...focus, ...(targetIds ? { targetIds } : {}), ...(highlightIds ? { highlightIds } : {}) } };
+}
+
+/** Diagramas, nós e mods que saíram deixam de ser membros e âncoras das camadas; a camada fica. */
+function unlinkLayers(doc: WorkspaceSnapshot, gone: Gone) {
+  if (!doc.layers?.length) return;
+  const isGone = (id: string) => gone.diagrams.has(id) || gone.mods.has(id) || gone.nodes.has(id);
+  doc.layers = doc.layers.map((layer) => {
+    const members = layer.members.filter((m) => !isGone(m.id));
+    const anchors = keep(layer.anchors, isGone) ?? [];
+    return members.length === layer.members.length && anchors === layer.anchors ? layer : { ...layer, members, anchors };
+  });
 }

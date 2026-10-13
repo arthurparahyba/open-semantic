@@ -22,6 +22,7 @@
     "NavigationId": { "type": "string", "pattern": "^nav_[A-Za-z0-9_-]{3,64}$" },
     "TurnId": { "type": "string", "pattern": "^turn_[A-Za-z0-9_-]{3,64}$" },
     "GrantId": { "type": "string", "pattern": "^grt_[A-Za-z0-9_-]{3,64}$" },
+    "LayerId": { "type": "string", "pattern": "^lyr_[A-Za-z0-9_-]{3,64}$" },
     "StepId": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
 
     "CanvasObjectId": {
@@ -41,7 +42,7 @@
     },
     "AnyId": {
       "type": "string",
-      "pattern": "^(ws|prj|root|mod|dgm|nd|edg|sem|rel|evd|art|rgn|act|bat|evt|nav|turn|grt)_[A-Za-z0-9_-]{3,64}$"
+      "pattern": "^(ws|prj|root|mod|dgm|nd|edg|sem|rel|evd|art|rgn|act|bat|evt|nav|turn|grt|lyr)_[A-Za-z0-9_-]{3,64}$"
     },
 
     "Timestamp": { "type": "string", "format": "date-time" },

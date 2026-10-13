@@ -21,8 +21,8 @@ function expectInvalid(ref: string, value: unknown) {
 }
 
 describe("contratos", () => {
-  it("registra os 8 schemas", () => {
-    expect(contractSchemas).toHaveLength(8);
+  it("registra os 9 schemas", () => {
+    expect(contractSchemas).toHaveLength(9);
   });
 
   it("aceita os exemplos do fluxo de referência", () => {

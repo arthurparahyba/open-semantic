@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/layer.schema.json",
+  "title": "Open Semantic V0.2 — camadas de assunto",
+  "description": "Recortes nomeados por assunto que atravessam unidades (docs/funcionalidades/11-camadas.md). Uma camada só referencia elementos: desfazê-la nunca apaga diagramas, mods ou mensagens.",
+  "$defs": {
+    "LayerMemberId": {
+      "description": "O que pode ser membro de uma camada: diagrama, nó, mod ou trecho de conversa (turno).",
+      "anyOf": [
+        { "$ref": "common.schema.json#/$defs/DiagramId" },
+        { "$ref": "common.schema.json#/$defs/NodeId" },
+        { "$ref": "common.schema.json#/$defs/ModId" },
+        { "$ref": "common.schema.json#/$defs/TurnId" }
+      ]
+    },
+    "LayerMember": {
+      "type": "object",
+      "required": ["id", "weight", "addedBy"],
+      "properties": {
+        "id": { "$ref": "#/$defs/LayerMemberId" },
+        "weight": { "description": "Pertinência ao assunto. Peso baixo aparece esmaecido, não some.", "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string" },
+        "addedBy": { "enum": ["agent", "user"], "description": "Membros que o usuário pôs ou tirou o agente não desfaz." }
+      },
+      "additionalProperties": false
+    },
+    "Layer": {
+      "type": "object",
+      "required": ["id", "name", "anchors", "members", "origin", "createdAt", "lastActiveAt"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/LayerId" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string" },
+        "parentId": { "description": "Camada mãe. Ausente: a filha nasce da base (o workspace).", "$ref": "common.schema.json#/$defs/LayerId" },
+        "anchors": {
+          "description": "Elementos da camada de baixo de onde a camada nasceu. Normalmente um; uma camada de integração pode ter um por aplicação.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/LayerMemberId" },
+          "uniqueItems": true
+        },
+        "members": { "type": "array", "items": { "$ref": "#/$defs/LayerMember" } },
+        "origin": { "enum": ["agent", "user"] },
+        "createdAt": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "lastActiveAt": { "$ref": "common.schema.json#/$defs/Timestamp" },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

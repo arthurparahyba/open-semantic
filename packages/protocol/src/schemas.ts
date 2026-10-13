@@ -3,6 +3,7 @@ import addFormatsModule from "ajv-formats";
 
 import common from "../../../contracts/schemas/common.schema.json" with { type: "json" };
 import diagram from "../../../contracts/schemas/diagram.schema.json" with { type: "json" };
+import layer from "../../../contracts/schemas/layer.schema.json" with { type: "json" };
 import mod from "../../../contracts/schemas/mod.schema.json" with { type: "json" };
 import navigation from "../../../contracts/schemas/navigation.schema.json" with { type: "json" };
 import operation from "../../../contracts/schemas/operation.schema.json" with { type: "json" };
@@ -12,7 +13,7 @@ import workspace from "../../../contracts/schemas/workspace.schema.json" with { 
 
 export const SCHEMA_BASE_URI = "https://schemas.open-semantic.invalid/v0.2/";
 
-export const contractSchemas = [common, project, semantic, mod, diagram, navigation, workspace, operation];
+export const contractSchemas = [common, project, semantic, mod, diagram, layer, navigation, workspace, operation];
 
 // ajv-formats é CommonJS; o default import pode vir embrulhado conforme o carregador.
 const addFormats = ((addFormatsModule as unknown as { default?: unknown }).default ?? addFormatsModule) as (

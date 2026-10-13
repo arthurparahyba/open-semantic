@@ -133,6 +133,14 @@ def check_snapshot(name, ws):
     for t in ws["navigation"]["focus"].get("targetIds", []) + ws["navigation"]["focus"].get("highlightIds", []):
         if t not in ids:
             errors.append(f"{name}: navigation.focus cita {t}, inexistente")
+    layers = ws.get("layers", [])
+    for ly in layers:
+        reg(ly["id"], "layer")
+    for ly in layers:
+        if "parentId" in ly:
+            need(ly["parentId"], "layer", f"layer {ly['id']}.parentId")
+    if "activeLayerId" in ws["navigation"]:
+        need(ws["navigation"]["activeLayerId"], "layer", "navigation.activeLayerId")
 
 
 # ---------- integridade do lote ----------

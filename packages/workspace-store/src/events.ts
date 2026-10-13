@@ -49,6 +49,10 @@ function eventsOf(change: StoreChange): Draft[] {
     }
     case "canvas":
       return movedEvents(change);
+    case "layers": {
+      const layer = change.after ?? change.before;
+      return layer ? [{ type: "layer.changed", source: "workspace_store", subjectId: change.id, payload: { change: change.kind, name: layer.name } }] : [];
+    }
     default:
       // Projetos, evidências, o workspace e a navegação não têm evento próprio no contrato.
       return [];
