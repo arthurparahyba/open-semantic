@@ -57,7 +57,7 @@
         "id": { "$ref": "common.schema.json#/$defs/DiagramId" },
         "title": { "type": "string" },
         "caption": { "description": "Legenda curta que explica o diagrama, mostrada junto dele no canvas e no chat. O diagrama é a resposta; a legenda o acompanha.", "type": "string", "maxLength": 600 },
-        "kind": { "enum": ["architecture", "flow", "sequence", "dependency", "layers", "tree", "wireframe", "freeform"], "description": "Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; wireframe, a tela com seus elementos uns dentro dos outros; os demais, caixas e setas." },
+        "kind": { "enum": ["architecture", "flow", "sequence", "dependency", "layers", "tree", "wireframe", "bpmn", "er", "freeform"], "description": "Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; wireframe, a tela com seus elementos uns dentro dos outros; bpmn, um processo com eventos (círculos), tarefas e decisões (losangos); er, tabelas com colunas (attributes.columns) e relações; os demais, caixas e setas." },
         "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
         "anchorIds": { "description": "Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).", "type": "array", "items": { "$ref": "common.schema.json#/$defs/SemanticEntityId" }, "uniqueItems": true, "minItems": 1 },
         "nodes": { "type": "array", "items": { "$ref": "#/$defs/DiagramNode" } },

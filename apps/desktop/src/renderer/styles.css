@@ -206,6 +206,12 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .diagram-node rect { fill: var(--surface-2); stroke: var(--text-2); stroke-width: 1.5; }
 .diagram-node.q-verified rect { stroke: var(--accent); stroke-width: 2; }
 .diagram-node.q-inferred rect { stroke-dasharray: 6 4; }
+.bpmn-event, .bpmn-gateway { fill: var(--surface-2); stroke: var(--text-2); stroke-width: 1.5; }
+.bpmn-event.is-end { stroke-width: 3.5; }
+.diagram-node.q-inferred .bpmn-event, .diagram-node.q-inferred .bpmn-gateway { stroke-dasharray: 6 4; }
+.er-divider { stroke: var(--text-2); stroke-width: 1; }
+.er-column { font-size: 12px; fill: var(--text-2); }
+.er-column.is-key { fill: var(--text); font-weight: 600; }
 .diagram-node.q-stale rect, .diagram-node.q-broken rect, .diagram-node.q-invalid rect { stroke: var(--warn); stroke-dasharray: 2 3; }
 /* Wireframe: a tela em tons neutros; o verificado mantém a borda de destaque e o inferido, o tracejado. */
 .wire-node { cursor: default; }

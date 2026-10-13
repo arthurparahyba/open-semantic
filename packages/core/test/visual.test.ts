@@ -353,6 +353,38 @@ describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
     expect(status("Menu")).toBe("inferred");
   });
 
+  it("bpmn: eventos e decisões com tamanho próprio, setas na ordem do processo", async () => {
+    const { diagram } = await draw("desenhe o processo de negócio do cadastro de produtos", {
+      diagramId: "dgm_minhaapp_processo",
+      title: "Cadastro de produto",
+      kind: "bpmn",
+      why: "processo",
+      caption: "O lojista preenche o produto e o sistema valida antes de salvar.",
+      source: "i[Início]:start\nf[Preencher produto]:task\nv[Dados válidos?]:gateway\ns[Salvar]:task\nfim[Cadastrado]:end\ni --> f\nf --> v\nv --> s : sim\nv --> f : não\ns --> fim",
+    });
+    expect(diagram.kind).toBe("bpmn");
+    const rect = (label: string) => diagram.layout.nodes[diagram.nodes.find((n) => n.label === label)!.id]!;
+    expect(rect("Início").size).toEqual({ width: 44, height: 44 });
+    expect(rect("Dados válidos?").size).toEqual({ width: 52, height: 52 });
+    expect(rect("Início").position.x).toBeLessThan(rect("Salvar").position.x);
+    expect(diagram.edges).toHaveLength(5);
+  });
+
+  it("er: as linhas recuadas viram colunas da tabela e a tabela cresce com elas", async () => {
+    const { diagram } = await draw("mostre o modelo de dados dos produtos", {
+      diagramId: "dgm_minhaapp_dados",
+      title: "Modelo de dados",
+      kind: "er",
+      why: "dados",
+      caption: "Cada produto pertence a uma categoria.",
+      source: "cat[categories]\n  id integer PK\n  name varchar\nprod[products]\n  id integer PK\n  name varchar\n  price decimal\n  category_id integer FK\ncat --> prod : 1..N",
+    });
+    const products = diagram.nodes.find((n) => n.label === "products")!;
+    expect(products.attributes?.columns).toEqual(["id integer PK", "name varchar", "price decimal", "category_id integer FK"]);
+    expect(diagram.layout.nodes[products.id]!.size.height).toBeGreaterThan(diagram.layout.nodes[diagram.nodes.find((n) => n.label === "categories")!.id]!.size.height);
+    expect(diagram.edges[0]!.label).toBe("1..N");
+  });
+
   it("wireframe com seta volta como erro: a tela se monta pelo recuo", async () => {
     const provider = new FakeProvider([
       () => ({ toolCalls: [call("show_diagram", { diagramId: "dgm_x_tela", title: "X", kind: "wireframe", why: "-", caption: "-", source: "a[A]:screen\n  b[B]:button\na --> b" })] }),
@@ -419,6 +451,9 @@ describe("Escolha do tipo de diagrama", () => {
     ["desenhe o wireframe da página de login", "wireframe"],
     ["o que o usuário vê ao abrir o app?", "wireframe"],
     ["o que acontece quando o usuário clica em salvar na tela?", "sequence"],
+    ["desenhe o processo de negócio do cadastro", "bpmn"],
+    ["mostre o modelo de dados dos pets", "er"],
+    ["quais são as tabelas do banco?", "er"],
     ["mostre a arquitetura", undefined],
     ["quem depende de quem?", undefined],
   ])("'%s' → %s", (text, kind) => expect(suggestDiagramKind(text)).toBe(kind));

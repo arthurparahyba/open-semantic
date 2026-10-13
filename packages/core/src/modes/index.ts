@@ -105,14 +105,16 @@ export const PLANNING_MODE: ExecutionMode = {
   nextSteps: ["Seguir para a próxima etapa", "Ajustar esta etapa", "Encerrar o planejamento"],
   instructions:
     "[app] Modo: planejamento em etapas. Não pergunte de qual parte o usuário fala e não faça o plano inteiro de uma vez. " +
-    "Cada pedido é UMA etapa curta (poucas leituras, um diagrama). " +
-    "Primeira etapa: leia só o essencial do projeto (no máximo 3 leituras), abra uma camada para a discussão com layer.create " +
-    "(ancorada no elemento da visão geral de onde ela nasce) e desenhe um rascunho do fluxo de ponta a ponta em alto nível (kind flow: " +
-    "início, passos, decisões, fim; 5 a 9 caixas). Etapas seguintes, conforme o usuário pedir: refine uma peça por vez na mesma camada " +
-    "(tela: wireframe; back-end: architecture; caminho da requisição: sequence; dados: modelo de dados), recomendando o que o projeto já " +
-    "usa como padrão e marcando o resto como suposição. Na continuação, use o diagrama e a camada da etapa anterior que estão no <workspace>. " +
+    "Cada pedido é UMA etapa curta (poucas leituras, um diagrama). A ordem das etapas é: " +
+    "1) Processo: entreviste o usuário com um diagrama bpmn. Leia só o essencial do projeto (no máximo 3 leituras), abra uma camada para a discussão com layer.create " +
+    "(ancorada no elemento da visão geral de onde ela nasce) e desenhe um rascunho do processo de negócio em bpmn (início, tarefas de quem usa, decisões, fim; 5 a 9 elementos), " +
+    "sem detalhes técnicos. Na legenda, faça uma ou duas perguntas objetivas sobre o fluxo (o que falta, qual decisão vale). Enquanto o usuário ajustar o processo, atualize o mesmo bpmn. " +
+    "2) Interface: wireframe da tela nova, seguindo as telas que o projeto já tem. 3) Back-end: sequence do caminho da requisição (tela, controller, serviço, repositório, banco), " +
+    "com os nomes no padrão do projeto. 4) Dados: diagrama er com as tabelas novas e as que elas usam, com colunas e relações. " +
+    "Cada etapa fica na mesma camada, embaixo da anterior. Na continuação, use o diagrama e a camada da etapa anterior que estão no <workspace>. " +
+    "O que ainda não existe no código é suposição (sem path). " +
     "Termine sempre com uma legenda de uma ou duas frases que pergunta se é isso, e na última linha: " +
-    '"Próximos passos: <opção 1> | <opção 2> | <opção 3>" (ações curtas, como "Detalhar a tela" ou "Ajustar o fluxo").',
+    '"Próximos passos: <opção 1> | <opção 2> | <opção 3>" (ações curtas, como "Seguir para a interface" ou "Ajustar o processo").',
 };
 
 export const BUILTIN_MODES: ExecutionMode[] = [BRIEF_MODE, PLANNING_MODE];

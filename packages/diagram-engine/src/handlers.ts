@@ -142,7 +142,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           diagramId,
           title: { type: "string", minLength: 1 },
           caption: captionSchema,
-          kind: { enum: ["architecture", "flow", "sequence", "dependency", "layers", "tree", "wireframe", "freeform"] },
+          kind: { enum: ["architecture", "flow", "sequence", "dependency", "layers", "tree", "wireframe", "bpmn", "er", "freeform"] },
           projectId: ref("common.schema.json#/$defs/ProjectId"),
           anchorIds: anchorIdsSchema,
           nodes: { type: "array", items: ref("diagram.schema.json#/$defs/DiagramNode") },
@@ -185,7 +185,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         const nodes = args.nodes as DiagramNode[];
         const edges = args.edges as DiagramEdge[];
         const layout = await computeLayout(
-          { nodes, edges, layout: { algorithm: "manual", nodes: {} } },
+          { nodes, edges, kind: args.kind as DiagramModel["kind"], layout: { algorithm: "manual", nodes: {} } },
           { algorithm: requested.algorithm ?? "layered", direction: requested.direction ?? "LR" },
         );
         const { projectId, anchorIds } = anchoring(args.projectId as string | undefined, args.anchorIds as string[] | undefined);
