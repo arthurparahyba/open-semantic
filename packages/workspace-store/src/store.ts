@@ -1,5 +1,6 @@
 import type {
   ArtifactReference,
+  Block,
   Camera,
   CanvasObject,
   DiagramModel,
@@ -46,6 +47,7 @@ export function emptySnapshot({ id, name, now = () => new Date() }: CreateWorksp
     semantic: { entities: [], relations: [], evidence: [] },
     mods: [],
     diagrams: [],
+    blocks: [],
     canvas: { objects: [], regions: [] },
     layers: [],
     navigation: {
@@ -58,6 +60,7 @@ export function emptySnapshot({ id, name, now = () => new Date() }: CreateWorksp
   };
 }
 
+const withoutArrangement = <T extends { arrangement?: unknown }>({ arrangement: _gone, ...item }: T): T => item as T;
 const withoutRegion = ({ regionId: _left, ...object }: CanvasObject): CanvasObject => object;
 const isWorkspaceChange = (c: StoreChange): c is Extract<StoreChange, { collection: "workspace" }> => c.collection === "workspace";
 
@@ -84,6 +87,7 @@ export class WorkspaceStore {
     // Estado transitório não sobrevive a reabrir (V0.1 §2.4).
     this.doc.navigation.motion = { status: "idle" };
     this.doc.layers ??= [];
+    this.doc.blocks ??= [];
     freezeDocument(this.doc);
   }
 
@@ -322,7 +326,43 @@ export class WorkspaceStore {
     if (!this.remove("diagrams", id)) return false;
     this.removeCanvasObject(id);
     this.forgetInLayers(new Set([id, ...nodeIds]));
+    this.forgetArrangedOn(id);
     return true;
+  }
+
+  // ---------- blocos de explicação (docs/funcionalidades/13-layout-semantico.md) ----------
+  blocks(): readonly Block[] {
+    return this.doc.blocks ?? [];
+  }
+
+  block(id: string): Block | undefined {
+    return this.blocks().find((b) => b.id === id);
+  }
+
+  /** Grava o bloco incrementando a revisão dele. */
+  putBlock(block: Block): Block {
+    const next = { ...structuredClone(block), revision: (this.block(block.id)?.revision ?? 0) + 1 };
+    this.put("blocks", next);
+    return next;
+  }
+
+  /** Tira o bloco do canvas; os blocos colados nele (annotates) saem junto. */
+  deleteBlock(id: string): boolean {
+    if (!this.remove("blocks", id)) return false;
+    this.removeCanvasObject(id);
+    this.forgetArrangedOn(id);
+    return true;
+  }
+
+  /**
+   * O alvo saiu: os blocos colados nele saem também; quem continuava ou detalhava o alvo perde só a relação.
+   */
+  private forgetArrangedOn(targetId: string) {
+    for (const b of this.blocks().filter((x) => x.arrangement?.targetId === targetId)) {
+      if (b.arrangement!.relation === "annotates") this.deleteBlock(b.id);
+      else this.putBlock(withoutArrangement(b));
+    }
+    for (const d of this.doc.diagrams.filter((x) => x.arrangement?.targetId === targetId)) this.putDiagram(withoutArrangement(d));
   }
 
   // ---------- camadas de assunto (docs/funcionalidades/11-camadas.md) ----------
@@ -429,6 +469,7 @@ export class WorkspaceStore {
       this.mod(id) ??
       this.project(id) ??
       this.diagram(id) ??
+      this.block(id) ??
       this.region(id) ??
       this.layer(id) ??
       this.entity(id) ??

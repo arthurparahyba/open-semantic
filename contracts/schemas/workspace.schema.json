@@ -24,6 +24,11 @@
     "diagrams": { "type": "array", "items": { "$ref": "diagram.schema.json#/$defs/DiagramModel" } },
     "canvas": { "$ref": "#/$defs/Canvas" },
     "navigation": { "$ref": "navigation.schema.json#/$defs/NavigationState" },
+    "blocks": {
+      "description": "Blocos de explicação (títulos, textos, listas, tabelas) do canvas. Ausente em workspaces antigos: vale lista vazia.",
+      "type": "array",
+      "items": { "$ref": "block.schema.json#/$defs/Block" }
+    },
     "layers": {
       "description": "Camadas de assunto (docs/funcionalidades/11-camadas.md). Ausente em workspaces antigos: vale lista vazia.",
       "type": "array",
@@ -66,7 +71,7 @@
       "required": ["id", "objectKind", "position", "size"],
       "properties": {
         "id": { "$ref": "common.schema.json#/$defs/CanvasObjectId" },
-        "objectKind": { "enum": ["mod", "diagram"] },
+        "objectKind": { "enum": ["mod", "diagram", "block"] },
         "position": { "$ref": "common.schema.json#/$defs/Point" },
         "size": { "$ref": "common.schema.json#/$defs/Size" },
         "zIndex": { "type": "integer", "default": 0 },

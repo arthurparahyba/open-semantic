@@ -1,6 +1,6 @@
 // O fim do plano do show_diagram: a ordem dos passos semânticos, o desenho (diagrama novo, ou só o que mudou)
 // e o enquadramento.
-import type { DiagramModel } from "@open-semantic/protocol";
+import type { Arrangement, DiagramModel } from "@open-semantic/protocol";
 
 import type { BatchStepInput, PlannedEdge, PlannedNode, ShowDiagramInput } from "./types.js";
 
@@ -48,6 +48,8 @@ export interface Drawing {
   /** A unidade existe no workspace ou entra com este plano. */
   isUnit(id: string): boolean;
   notes: string[];
+  /** Relação com a explicação que já está no canvas (doc 13); só vale para um diagrama novo. */
+  arrangement?: Arrangement;
 }
 
 /** diagram.create para um diagrama novo; diagram.apply_patch só com o que mudou; nenhum passo se nada mudou. */
@@ -56,13 +58,13 @@ export function drawStep(d: Drawing, dependsOn: string[]): BatchStepInput | unde
   return step && { ...step, ...(dependsOn.length ? { dependsOn } : {}) };
 }
 
-/** Enquadra o diagrama, depois do desenho quando houve um. */
-export function frameStep(input: ShowDiagramInput, drew: boolean): BatchStepInput {
+/** Enquadra o diagrama e os blocos da seção, depois do que foi desenhado. */
+export function frameStep(input: ShowDiagramInput, ids: string[], after: string[]): BatchStepInput {
   return {
     id: "show",
     operation: "navigation.frame",
-    arguments: { targets: { visualIds: [input.diagramId] }, intent: "focus", highlight: true, reason: input.title.slice(0, 120) },
-    ...(drew ? { dependsOn: ["draw"] } : {}),
+    arguments: { targets: { visualIds: [input.diagramId, ...ids] }, intent: "focus", highlight: true, reason: input.title.slice(0, 120) },
+    ...(after.length ? { dependsOn: after } : {}),
   };
 }
 
@@ -81,6 +83,7 @@ function createStep(d: Drawing): BatchStepInput {
       kind: input.kind,
       projectId: d.projectId,
       ...(anchor ? { anchorIds: [anchor] } : {}),
+      ...(d.arrangement ? { arrangement: d.arrangement } : {}),
       ...(d.caption ? { caption: d.caption } : {}),
       nodes: d.nodes,
       edges: d.edges,

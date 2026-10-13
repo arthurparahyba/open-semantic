@@ -32,7 +32,7 @@ const OUTSIDE = { protocol: ["contracts/"] };
 
 /** A interface roda no navegador: de @open-semantic/* só importa tipos, mais estes módulos sem Node. */
 const BROWSER_DIRS = ["apps/desktop/src/renderer/", "apps/desktop/src/shared/", "apps/desktop/src/preload/"];
-const BROWSER_VALUES = ["@open-semantic/navigator", "@open-semantic/workspace-store/anchoring", "@open-semantic/workspace-store/commits", "@open-semantic/workspace-store/layers", "@open-semantic/workspace-store/diagramShapes", "@open-semantic/workspace-store/projects"];
+const BROWSER_VALUES = ["@open-semantic/navigator", "@open-semantic/workspace-store/anchoring", "@open-semantic/workspace-store/commits", "@open-semantic/workspace-store/layers", "@open-semantic/workspace-store/diagramShapes", "@open-semantic/workspace-store/projects", "@open-semantic/workspace-store/layout"];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = (pkg) => {

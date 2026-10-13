@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { childMarks, litObjects } from "@open-semantic/workspace-store/layers";
+import { REBALANCE_THRESHOLD, displacement, type Move } from "@open-semantic/workspace-store/layout";
 import { activeProject } from "@open-semantic/workspace-store/projects";
 
 import type { PersistState, WorkspaceInfo } from "../shared/api.js";
 import { AgentPanel } from "./AgentPanel.js";
+import { BlockView } from "./BlockView.js";
 import { Canvas, type CanvasHandle, type ObjectRenderProps } from "./Canvas.js";
 import { OperationFailed, api, newId, run, runOk } from "./client.js";
 import { DiagramView } from "./DiagramView.js";
@@ -75,6 +77,50 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
   }, [activeLayerId, snapshot]);
 
   const fail = (err: unknown) => notify(err instanceof OperationFailed ? err.message : String(err));
+
+  // Reorganização (doc 13): depois que diagramas ou blocos entram ou saem, e com o usuário parado, o layout
+  // pode reorganizar a explicação; a mudança é animada e tem desfazer. Arrastar ou rolar o canvas adia.
+  const lastGesture = useRef(0);
+  const rebalancing = useRef(false);
+  const rebalance = useCallback(
+    async (mode: "auto" | "all") => {
+      if (rebalancing.current) return;
+      rebalancing.current = true;
+      try {
+        const all = mode === "all";
+        const preview = await runOk<{ moves: Move[] }>("canvas.rebalance", { preview: true, all });
+        if (mode === "auto" && displacement(preview.moves) < REBALANCE_THRESHOLD) return;
+        if (!preview.moves.length) return notify("O canvas já está organizado.");
+        const rects = preview.moves.flatMap((m) => {
+          const size = snapshot?.canvas.objects.find((o) => o.id === m.objectId)?.size ?? { width: 1, height: 1 };
+          return [{ position: m.from, size }, { position: m.to, size }];
+        });
+        let applied: Move[] = [];
+        await canvas.current?.arrange(rects, async () => {
+          applied = (await runOk<{ moves: Move[] }>("canvas.rebalance", { all })).moves;
+        });
+        if (applied.length) notify("Reorganizei o canvas.", { label: "Desfazer", run: () => void run("canvas.arrange", { moves: applied.map((m) => ({ objectId: m.objectId, position: m.from })) }) });
+      } catch (err) {
+        fail(err);
+      } finally {
+        rebalancing.current = false;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snapshot, notify],
+  );
+  const explanationKey = snapshot?.canvas.objects.filter((o) => o.objectKind !== "mod").map((o) => o.id).join(",");
+  const lastKey = useRef(explanationKey);
+  useEffect(() => {
+    if (explanationKey === undefined || lastKey.current === explanationKey) return undefined;
+    const first = lastKey.current === undefined;
+    lastKey.current = explanationKey;
+    if (first) return undefined;
+    const timer = setTimeout(() => {
+      if (Date.now() - lastGesture.current > 3000) void rebalance("auto");
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [explanationKey, rebalance]);
 
   const openFolder = async () => {
     try {
@@ -153,6 +199,11 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
   const renderObject = (props: ObjectRenderProps) => {
     const { object } = props;
     const onFocus = () => canvas.current?.frame([object.id]);
+    if (object.objectKind === "block") {
+      const block = snapshot?.blocks?.find((b) => b.id === object.id);
+      if (!block) return null;
+      return <BlockView block={block} highlighted={props.highlighted} onHeaderPointerDown={props.onHeaderPointerDown} onFocus={onFocus} onError={notify} />;
+    }
     if (object.objectKind === "diagram") {
       const diagram = snapshot?.diagrams.find((d) => d.id === object.id);
       if (!diagram || !snapshot) return null;
@@ -252,6 +303,9 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
         <button type="button" onClick={() => canvas.current?.frame([], "overview")} disabled={empty}>
           Ver tudo
         </button>
+        <button type="button" onClick={() => void rebalance("all")} disabled={empty} title="Reorganiza as explicações da camada ativa, inclusive o que você arrumou à mão" data-testid="rebalance">
+          Reorganizar
+        </button>
         <label className="toggle" title="Quando ligada, o agente pode levar a câmera até o que ele mostra">
           <input type="checkbox" checked={autoNavigate} onChange={() => void toggleAutoNavigate()} data-testid="auto-navigate" />
           Navegação automática
@@ -272,6 +326,7 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
           litObjectIds={litObjects(snapshot)}
           layerMarks={childMarks(snapshot)}
           onOpenLayer={(id) => void activateLayer(id)}
+          onUserGesture={() => (lastGesture.current = Date.now())}
         />
         <LayersPanel
           snapshot={snapshot}

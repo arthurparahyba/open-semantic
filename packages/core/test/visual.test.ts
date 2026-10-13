@@ -319,6 +319,37 @@ describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
   });
 });
 
+describe("Explicação de cima para baixo (doc 13)", () => {
+  it("título, introdução e notas viram blocos colados; o passo seguinte desce e o detalhe vai à direita", async () => {
+    const infra = { ...overview, diagramId: "dgm_minhaapp_infra", title: "Infraestrutura", heading: "Infraestrutura", intro: "Onde os dados ficam.", notes: [{ kind: "list", items: ["Banco relacional", "Cache"], ordered: true }] };
+    const seq = { ...overview, diagramId: "dgm_minhaapp_cache", title: "Cache", kind: "sequence", source: "participant api[API]\nparticipant db[Banco]\napi ->> db : lê\ndb -->> api : dados", nodes: undefined, edges: undefined, details: "dgm_minhaapp_infra" };
+    const provider = new FakeProvider([
+      () => ({ toolCalls: [call("show_diagram", overview)] }),
+      () => ({ toolCalls: [call("show_diagram", infra)] }),
+      () => ({ toolCalls: [call("show_diagram", seq)] }),
+      () => ({ toolCalls: [call("show_blocks", { blocks: [{ kind: "heading", title: "Próximos passos", continues: "dgm_minhaapp_infra" }] })] }),
+      () => ({ text: "Pronto." }),
+    ]);
+    await conversation(provider).send("explique a aplicação, a infraestrutura e o cache");
+    for (const r of provider.requests.slice(1)) expect(lastToolResult(r).status, JSON.stringify(lastToolResult(r))).toBe("completed");
+    const snap = core.store.snapshot();
+    const at = (id: string) => snap.canvas.objects.find((o) => o.id === id)!;
+    const [first, second, detail] = [at("dgm_minhaapp_overview"), at("dgm_minhaapp_infra"), at("dgm_minhaapp_cache")];
+    // Sem relação dita, o diagrama novo continua o anterior: embaixo, alinhado à esquerda.
+    expect(second.position.x).toBe(first.position.x);
+    expect(second.position.y).toBeGreaterThan(first.position.y + first.size.height);
+    expect(detail.position.x).toBeGreaterThan(second.position.x + second.size.width);
+    const intro = snap.blocks!.find((b) => b.id === "blk_minhaapp_infra_intro")!;
+    expect(intro).toMatchObject({ kind: "heading", title: "Infraestrutura", text: "Onde os dados ficam.", arrangement: { relation: "annotates", targetId: "dgm_minhaapp_infra" } });
+    expect(at(intro.id).position.y + at(intro.id).size.height).toBeLessThanOrEqual(second.position.y);
+    expect(at(intro.id).position.y).toBeGreaterThan(first.position.y + first.size.height);
+    const note = at("blk_minhaapp_infra_n1");
+    expect(note.position.y).toBeGreaterThanOrEqual(second.position.y + second.size.height);
+    const next = snap.blocks!.find((b) => b.title === "Próximos passos")!;
+    expect(at(next.id).position.y).toBeGreaterThan(note.position.y + note.size.height);
+  });
+});
+
 describe("Escolha do tipo de diagrama", () => {
   it.each([
     ["explique as camadas da aplicação", "layers"],

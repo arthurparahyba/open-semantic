@@ -2,6 +2,7 @@ import {
   OperationError,
   SCHEMA_BASE_URI,
   sameValue,
+  type Arrangement,
   type CanvasObject,
   type DiagramEdge,
   type DiagramModel,
@@ -10,7 +11,7 @@ import {
   type OperationHandler,
   type Point,
 } from "@open-semantic/protocol";
-import { placeNew, placedBy, repositoryUnit, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
+import { placeInFlow, placeNew, placedBy, repositoryUnit, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
 
 import { computeLayout, diagramSize, type LayoutAlgorithm, type LayoutDirection } from "./layout.js";
 import { applyPatch, checkModel, type DiagramOp } from "./model.js";
@@ -148,6 +149,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           edges: { type: "array", items: ref("diagram.schema.json#/$defs/DiagramEdge") },
           layout: layoutRequestSchema,
           placement: placementSchema,
+          arrangement: ref("common.schema.json#/$defs/Arrangement"),
         },
         additionalProperties: false,
       },
@@ -160,6 +162,10 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           throw new OperationError("REFERENCE_INVALID", `Projeto '${args.projectId}' não existe.`, { argumentPath: "/projectId" });
         }
         checkAnchors(args.anchorIds as string[] | undefined);
+        const target = (args.arrangement as Arrangement | undefined)?.targetId;
+        if (target && !store.canvasObject(target)) {
+          throw new OperationError("REFERENCE_INVALID", `${target} não está no canvas.`, { argumentPath: "/arrangement/targetId" });
+        }
         const regionId = (args.placement as PlacementRequest | undefined)?.regionId;
         if (regionId && !store.region(regionId)) {
           throw new OperationError("REFERENCE_INVALID", `Região '${regionId}' não existe.`, { argumentPath: "/placement/regionId" });
@@ -190,6 +196,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           kind: args.kind as DiagramModel["kind"],
           ...(projectId ? { projectId } : {}),
           ...(anchorIds.length ? { anchorIds: anchorIds as NonNullable<DiagramModel["anchorIds"]> } : {}),
+          ...(args.arrangement ? { arrangement: args.arrangement as Arrangement } : {}),
           nodes,
           edges,
           layout,
@@ -197,11 +204,14 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         };
         const size = diagramSize(layout, model.caption);
         const saved = store.transact(() => {
-          const { rect, regionId, grownRegion } = placeNew(store.read(), size, {
-            ...((args.placement ?? {}) as PlacementRequest),
-            ...(anchorIds[0] ? { unitId: anchorIds[0] } : {}),
+          // Com relação declarada (doc 13), o lugar sai dela; senão, das âncoras e da região.
+          let regionId: string | undefined;
+          const rect = placeInFlow(store, size, model.arrangement, () => {
+            const placed = placeNew(store.read(), size, { ...((args.placement ?? {}) as PlacementRequest), ...(anchorIds[0] ? { unitId: anchorIds[0] } : {}) });
+            if (placed.grownRegion) store.putRegion(placed.grownRegion);
+            regionId = placed.regionId;
+            return placed.rect;
           });
-          if (grownRegion) store.putRegion(grownRegion);
           const zIndex = Math.max(0, ...store.read().canvas.objects.map((o) => o.zIndex ?? 0)) + 1;
           const object: CanvasObject = {
             id,

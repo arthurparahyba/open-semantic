@@ -13,7 +13,8 @@ export {
 export { commitEvents, type EventContext } from "./events.js";
 export type { Removed } from "./removal.js";
 export { activeProject } from "./projects.js";
-export { findFreeSpot, overlaps, GAP, placeNew, regionAt, boundsOfRects, REGION_PADDING, type PlacementRequest } from "./placement.js";
+export * from "./layout/index.js";
+export { dropOrphanBlocks } from "./orphanBlocks.js";
 export { FileWorkspacePersistence, WorkspaceFolderPersistence, autosave, type PersistStatus, type WorkspacePersistence } from "./persistence.js";
 export { CAPTION_LINE, DIAGRAM_HEADER, DIAGRAM_PADDING, captionLines, contentSize, diagramSize } from "./diagramSize.js";
 export {
@@ -47,6 +48,7 @@ export {
   unitItems,
   type AnchorDoc,
   type ContextGroup,
-} from "./anchoring.js";
+} from "./layout/anchoring.js";
+export { blockHandlers, placeInFlow, type BlockHandlerDeps } from "./blockHandlers.js";
 export { layerHandlers, keepNewDiagramsInActiveLayer, BORN_IN_LAYER, elementExists, inLayer, mergeMembers, type LayerHandlerDeps } from "./layerHandlers.js";
 export { activeLayerOf, childMarks, layerTree, litObjects, type LayerMark, type LayerNode } from "./layerView.js";

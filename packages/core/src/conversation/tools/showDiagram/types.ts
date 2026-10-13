@@ -1,5 +1,5 @@
 // A entrada do show_diagram (o desenho que o modelo descreve) e o plano que sai dela.
-import type { DiagramModel } from "@open-semantic/protocol";
+import type { Block, DiagramModel } from "@open-semantic/protocol";
 
 export const DIAGRAM_KINDS = ["layers", "sequence", "tree", "architecture", "flow", "dependency"] as const;
 
@@ -41,7 +41,19 @@ export interface ShowDiagramInput {
   nodes: ShowDiagramNode[];
   edges?: ShowDiagramEdge[];
   remove?: string[];
+  /** Título da seção, acima do diagrama (doc 13). */
+  heading?: string;
+  /** Texto de introdução, acima do diagrama, junto do título. */
+  intro?: string;
+  /** Notas embaixo do diagrama: texto, lista ou tabela. */
+  notes?: SectionNote[];
+  /** Diagrama ou bloco que este continua (fica embaixo). */
+  continues?: string;
+  /** Diagrama ou bloco que este aprofunda (fica à direita). */
+  details?: string;
 }
+
+export type SectionNote = Pick<Block, "title" | "text" | "items" | "ordered" | "columns" | "rows"> & { kind: "text" | "list" | "table" };
 
 export interface BatchStepInput {
   id: string;
