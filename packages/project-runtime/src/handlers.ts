@@ -41,6 +41,10 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
     {
       // Escrita leve: o agente pode criar diretórios sem confirmação (tabela de autorização em 06).
       operation: "project.create_dir",
+      agent: {
+        guide: "{projectId, rootId, path} creates a folder. Output: /output/artifacts/0/id is the folder's artifactId.",
+        describe: (args) => `criar a pasta ${String(args.path)}/`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["projectId", "rootId", "path"],
@@ -103,6 +107,11 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
     },
     {
       operation: "project.write_file",
+      agent: {
+        guide: "{artifactId, content, expectedContentHash?} overwrites an existing file (needs confirmation). Pass the contentHash from read_file.",
+        describe: () => "gravar alterações em um arquivo",
+        confirm: () => ({ risk: "high", summary: "Gravar alterações em um arquivo do projeto.", reversible: false }),
+      },
       argumentsSchema: {
         ...artifactArg,
         required: ["artifactId", "content"],

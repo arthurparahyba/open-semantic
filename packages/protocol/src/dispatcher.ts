@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { actorRefusal, type Args, type AuthorizationDecision, type AuthorizationPolicy, type HandlerContext, type OperationHandler } from "./catalog.js";
 import { pointerFields, toContractError } from "./errors.js";
 import type {
   ActionRecord,
-  Change,
   ConfirmationRequest,
   DomainEvent,
   Error as ContractError,
@@ -13,49 +13,6 @@ import type {
 } from "./generated/contracts.js";
 import { compileWithContracts, contractValidator, describeErrors, primaryError } from "./schemas.js";
 import { pruneExpired } from "./tokens.js";
-
-export type Args = Record<string, unknown>;
-
-export interface HandlerContext {
-  request: OperationRequest;
-  now(): Date;
-}
-
-export interface HandlerOutcome {
-  output?: Args;
-  changes: Change[];
-  workspaceRevision?: number;
-  undo?: ActionRecord["undo"];
-}
-
-/** Uma operação registrada. O módulo dono implementa; o Dispatcher valida, autoriza, registra e garante idempotência. */
-export interface OperationHandler {
-  /** Nome no formato modulo.acao, por exemplo "mod.create". */
-  operation: string;
-  /** JSON Schema dos argumentos. Pode usar {"$ref": "https://schemas.open-semantic.invalid/v0.2/..."}. */
-  argumentsSchema?: object;
-  /** Verificações que dependem do estado (referências existem, transição é válida). Lançar aqui → `rejected`. */
-  check?(args: Args, ctx: HandlerContext): void | Promise<void>;
-  /** Executa. Lançar aqui → `failed`. */
-  handle(args: Args, ctx: HandlerContext): HandlerOutcome | Promise<HandlerOutcome>;
-  /** Remove conteúdo de arquivo ou segredos antes de gravar no histórico. */
-  redact?(args: Args): Args;
-  /**
-   * Só consulta: não muda o workspace nem arquivos (registrar o artefato consultado não conta).
-   * O resultado não fica guardado para replay: repetir o mesmo operationId consulta de novo.
-   */
-  readOnly?: boolean;
-}
-
-export type AuthorizationDecision =
-  | { decision: "allow" }
-  | { decision: "deny"; reason: string }
-  | { decision: "confirm"; risk: ConfirmationRequest["risk"]; summary: string; reversible?: boolean };
-
-export type AuthorizationPolicy = (
-  request: OperationRequest,
-  handler: OperationHandler,
-) => AuthorizationDecision | Promise<AuthorizationDecision>;
 
 export type PreconditionOutcome =
   | { ok: true }
@@ -82,7 +39,7 @@ export interface ActionLog {
 }
 
 export interface DispatcherOptions {
-  /** Padrão: permite tudo. A política real (V0.2 §6 de 06-conversa-agente-e-protocolo) entra no M2. */
+  /** Padrão: permite tudo (testes e ferramentas). O app usa `catalogPolicy`, que sai do catálogo de operações. */
   policy?: AuthorizationPolicy;
   /** Sem avaliador, qualquer requisição com pré-condições é rejeitada: melhor recusar do que ignorar. */
   evaluatePrecondition?: PreconditionEvaluator;
@@ -133,6 +90,7 @@ interface RegisteredHandler {
 
 const validateRequest = contractValidator("operation.schema.json#/$defs/OperationRequest");
 const validateResult = contractValidator("operation.schema.json#/$defs/OperationResult");
+const validateName = contractValidator("operation.schema.json#/$defs/OperationName");
 const OPERATION_ID = /^act_[A-Za-z0-9_-]{3,64}$/;
 
 /** Ponto único por onde o agente (e a interface) pedem mudanças. Ver docs/funcionalidades/06-conversa-agente-e-protocolo.md. */
@@ -157,8 +115,8 @@ export class Dispatcher {
   }
 
   register(handler: OperationHandler): this {
-    if (!/^(workspace|canvas|region|mod|diagram|semantic|navigation|project)\.[a-z_]+$/.test(handler.operation)) {
-      throw new Error(`nome de operação inválido: ${handler.operation}`);
+    if (!validateName(handler.operation)) {
+      throw new Error(`nome de operação inválido: ${handler.operation} (o domínio precisa estar em OperationName, operation.schema.json)`);
     }
     if (this.handlers.has(handler.operation)) throw new Error(`operação já registrada: ${handler.operation}`);
     const entry: RegisteredHandler = { handler };
@@ -181,9 +139,26 @@ export class Dispatcher {
     return this.handlers.get(operation)?.handler.argumentsSchema;
   }
 
+  /** Operações que o agente de IA usa nos lotes, em ordem alfabética, com a linha de cada uma no prompt. */
+  agentOperations(): { operation: string; guide: string }[] {
+    return this.operations().flatMap((operation) => {
+      const agent = this.handlers.get(operation)!.handler.agent;
+      return agent ? [{ operation, guide: agent.guide }] : [];
+    });
+  }
+
+  /** O passo em linguagem do usuário ("criar a pasta backend/"). Sem descrição, ou se ela falhar, o nome da operação. */
+  describe(operation: string, args: Args): string {
+    try {
+      return this.handlers.get(operation)?.handler.agent?.describe(args) ?? operation;
+    } catch {
+      return operation;
+    }
+  }
+
   /**
    * Checagem sem efeitos usada pelo executor de lotes antes de executar qualquer passo:
-   * forma da requisição, operação conhecida, argumentos (quando não há $bind pendente) e decisão de autorização.
+   * forma da requisição, operação conhecida, quem pode chamar, argumentos (quando não há $bind pendente) e decisão de autorização.
    */
   async inspect(raw: unknown): Promise<{ error?: ContractError; decision?: AuthorizationDecision }> {
     if (!validateRequest(raw)) {
@@ -209,6 +184,8 @@ export class Dispatcher {
         },
       };
     }
+    const refusal = actorRefusal(entry.handler, request.authorization.actor);
+    if (refusal) return { decision: { decision: "deny", reason: refusal } };
     const bound = containsBinding(request.arguments) || containsBinding(request.targetId);
     if (!bound && entry.validateArgs && !entry.validateArgs(request.arguments)) {
       const err = primaryError(entry.validateArgs.errors);
@@ -298,6 +275,9 @@ export class Dispatcher {
     }
     const { handler, validateArgs } = entry;
     const args = request.arguments as Args;
+
+    const refusal = actorRefusal(handler, request.authorization.actor);
+    if (refusal) return reject({ code: "UNAUTHORIZED", message: refusal, retryable: false });
 
     if (validateArgs && !validateArgs(args)) {
       const err = primaryError(validateArgs.errors);

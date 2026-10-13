@@ -1,12 +1,6 @@
 // Ponte entre um agente (roteirizado ou de IA) e o executor de lotes:
 // guarda lotes à espera de confirmação, aplica a decisão do usuário e narra o resultado efetivo.
-import {
-  type BatchExecutor,
-  type BatchPlan,
-  type BatchResult,
-  type OperationResult,
-  type WorkspaceSnapshot,
-} from "@open-semantic/protocol";
+import type { BatchExecutor, BatchPlan, BatchResult, OperationResult } from "@open-semantic/protocol";
 
 export interface ActivityStep {
   stepId: string;
@@ -32,7 +26,8 @@ export interface AgentActivity {
 
 export interface AgentRunnerOptions {
   executor: BatchExecutor;
-  snapshot(): WorkspaceSnapshot;
+  /** O passo em linguagem do usuário, para o cartão do lote e o resumo. Vem do catálogo de operações (Dispatcher.describe). */
+  describe(operation: string, args: Record<string, unknown>): string;
   now?: () => Date;
   onActivity?: (activity: AgentActivity) => void;
 }
@@ -59,13 +54,17 @@ export class AgentRunner {
 
   /** Executa um lote do agente. Se precisar de confirmação, fica pendente até `respond`. */
   async run(plan: BatchPlan): Promise<BatchResult> {
-    const labels = new Map(plan.steps.map((s) => [s.stepId, describeStep(s.request.operation, s.request.arguments, this.options.snapshot())]));
     const activity: AgentActivity = {
       batchId: plan.batchId,
       intent: plan.intent,
       status: "validating",
       startedAt: this.now().toISOString(),
-      steps: plan.steps.map((s) => ({ stepId: s.stepId, operation: s.request.operation, label: labels.get(s.stepId)!, status: "pending" })),
+      steps: plan.steps.map((s) => ({
+        stepId: s.stepId,
+        operation: s.request.operation,
+        label: this.options.describe(s.request.operation, s.request.arguments),
+        status: "pending",
+      })),
     };
     this.publish(activity);
     return this.execute(plan, activity);
@@ -164,69 +163,12 @@ function highestRisk(risks: string[]): string {
   return risks.reduce((a, b) => (order.indexOf(b) > order.indexOf(a) ? b : a), "low");
 }
 
-/** Descrição curta de um passo, no infinitivo ("criar a pasta backend/"). */
-export function describeStep(operation: string, args: Record<string, unknown>, snapshot?: WorkspaceSnapshot): string {
-  const a = args as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const modTitle = (id: string) => snapshot?.mods.find((m) => m.id === id)?.title ?? id;
-  const typeName: Record<string, string> = { explorer: "um Explorer", editor: "um Editor" };
-  switch (operation) {
-    case "workspace.add_project":
-      return `trazer a pasta ${a.rootPath} para o workspace`;
-    case "workspace.clone_repository":
-      return `baixar o repositório ${a.url}`;
-    case "project.create_dir":
-      return `criar a pasta ${a.path}/`;
-    case "semantic.upsert_observation":
-      return `registrar ${a.entity?.name ?? "a entidade"} como conhecimento verificado`;
-    case "semantic.upsert_inference": {
-      const declared = new Map<string, string>((a.entities ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
-      const nameOf = (id: string) => declared.get(id) ?? snapshot?.semantic.entities.find((e) => e.id === id)?.name ?? id;
-      const relations: { sourceId: string; targetId: string }[] = a.relations ?? [];
-      // Ligações entre entidades que ainda não existem (criadas no mesmo lote) aparecem pela quantidade, não por ids.
-      const known = (id: string) => declared.has(id) || Boolean(snapshot?.semantic.entities.some((e) => e.id === id));
-      const named = relations.every((r) => known(r.sourceId) && known(r.targetId));
-      const names = [
-        ...(a.entities ?? []).map((e: { name: string }) => e.name),
-        ...(named || relations.length <= 1 ? relations.map((r) => `${nameOf(r.sourceId)} → ${nameOf(r.targetId)}`) : [`${relations.length} ligações`]),
-      ];
-      return `registrar como suposição: ${names.join(", ") || "inferência"}`;
-    }
-    case "region.create":
-      return `criar a região “${a.title}”`;
-    case "mod.create":
-      return `abrir ${typeName[a.type] ?? `um mod ${a.type}`}${a.title ? ` “${a.title}”` : ""}`;
-    case "mod.delete":
-      return `remover “${modTitle(a.modId)}” do canvas`;
-    case "diagram.create":
-      return `montar o diagrama “${a.title}”`;
-    case "diagram.apply_patch":
-      return `alterar o diagrama ${a.diagramId}`;
-    case "diagram.anchor":
-      return `ligar o diagrama ${a.diagramId} a outro assunto`;
-    case "diagram.delete":
-      return `excluir o diagrama ${a.diagramId}`;
-    case "navigation.frame":
-      return a.reason ? `mostrar na tela: ${a.reason}` : "enquadrar os objetos na tela";
-    case "navigation.overview":
-      return "mostrar o canvas inteiro";
-    case "project.write_file":
-      return "gravar alterações em um arquivo";
-    default:
-      return operation;
-  }
-}
-
 /**
  * Narração do resultado efetivo. Só afirma o que terminou com `succeeded` (V0.1 §6: sem simular sucesso);
  * todo o resto aparece como não feito, com o motivo.
  */
-export function summarizeBatch(plan: BatchPlan, result: BatchResult, activity?: AgentActivity): string {
-  const label = (stepId: string) => {
-    const known = activity?.steps.find((s) => s.stepId === stepId)?.label;
-    if (known) return known;
-    const step = plan.steps.find((s) => s.stepId === stepId)!;
-    return describeStep(step.request.operation, step.request.arguments);
-  };
+export function summarizeBatch(plan: BatchPlan, result: BatchResult, activity: AgentActivity): string {
+  const label = (stepId: string) => activity.steps.find((s) => s.stepId === stepId)?.label ?? stepId;
   const done: string[] = [];
   const notDone: string[] = [];
   const notes: string[] = [];

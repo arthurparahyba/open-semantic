@@ -129,6 +129,11 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
   return [
     {
       operation: "diagram.create",
+      agent: {
+        guide:
+          '{diagramId, title, kind, caption?, projectId, anchorIds?, nodes:[{id, label, kind, semanticEntityId?}], edges:[{id, sourceNodeId, targetNodeId, label?, semanticRelationId?}], layout:{algorithm:"layered", direction:"LR"}, placement?}',
+        describe: (args) => `montar o diagrama “${String(args.title)}”`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["diagramId", "title", "kind", "nodes", "edges"],
@@ -229,6 +234,10 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
 
     {
       operation: "diagram.apply_patch",
+      agent: {
+        guide: "{diagramId, ops?, caption?, relayout?}",
+        describe: (args) => `alterar o diagrama ${String(args.diagramId)}`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["diagramId"],
@@ -281,6 +290,10 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
 
     {
       operation: "diagram.layout",
+      agent: {
+        guide: '{diagramId, algorithm:"layered"|"grid"|"force"|"manual", direction?} recomputes the layout.',
+        describe: (args) => `reorganizar o diagrama ${String(args.diagramId)}`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["diagramId", "algorithm"],
@@ -348,6 +361,10 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
     {
       // Muda as unidades de contexto do diagrama. Ele não sai do lugar sozinho: mover é outro pedido.
       operation: "diagram.anchor",
+      agent: {
+        guide: "{diagramId, anchorIds} changes the units the diagram is about (and so where it sits).",
+        describe: (args) => `ligar o diagrama ${String(args.diagramId)} a outro assunto`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["diagramId", "anchorIds"],
@@ -372,6 +389,11 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
     {
       // Para o agente, sempre com confirmação (política em @open-semantic/core).
       operation: "diagram.delete",
+      agent: {
+        guide: "{diagramId}",
+        describe: (args) => `excluir o diagrama ${String(args.diagramId)}`,
+        confirm: () => ({ risk: "medium", summary: "Excluir um diagrama do canvas.", reversible: false }),
+      },
       argumentsSchema: { type: "object", required: ["diagramId"], properties: { diagramId }, additionalProperties: false },
       handle(args) {
         const id = args.diagramId as string;

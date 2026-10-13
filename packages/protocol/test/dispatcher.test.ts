@@ -5,6 +5,7 @@ import {
   MemoryActionLog,
   MemoryIdempotencyStore,
   OperationError,
+  catalogPolicy,
   sameValue,
   type AuthorizationPolicy,
   type DomainEvent,
@@ -368,10 +369,94 @@ describe("Dispatcher · autorização e confirmação (E5)", () => {
 });
 
 describe("Dispatcher · registro", () => {
-  it("recusa nomes fora do padrão e registros duplicados", () => {
+  it("recusa nomes fora do contrato (OperationName) e registros duplicados", () => {
     const { dispatcher, handler } = setup();
-    expect(() => dispatcher.register({ ...handler, operation: "foo.bar" })).toThrow();
+    expect(() => dispatcher.register({ ...handler, operation: "foo.bar" })).toThrow(/OperationName/);
+    expect(() => dispatcher.register({ ...handler, operation: "region.Create" })).toThrow(/OperationName/);
     expect(() => dispatcher.register(handler)).toThrow(/já registrada/);
+  });
+});
+
+describe("Catálogo de operações (A3)", () => {
+  const user = { kind: "user" as const, id: "arthur" };
+  const handler = (operation: string, extra: Partial<OperationHandler> = {}): OperationHandler => ({
+    operation,
+    argumentsSchema: { type: "object", required: ["modId"], properties: { modId: { type: "string" } }, additionalProperties: false },
+    handle: (args) => ({ changes: [{ id: String(args.modId), change: "updated" }] }),
+    ...extra,
+  });
+  const ask = (operation: string, args: Record<string, unknown>, actor: { kind: "user" | "agent"; id: string } = agent, n = 1) => ({
+    operationId: `act_cat_${operation.replace(".", "_")}_${n}`,
+    operation,
+    arguments: args,
+    authorization: { actor },
+  });
+
+  it("quem não está em actors é recusado antes de validar os argumentos, na checagem do lote e na execução", async () => {
+    const dispatcher = new Dispatcher();
+    const handle = vi.fn(() => ({ changes: [] }));
+    dispatcher.register(handler("workspace.set_active_project", { actors: ["user"], handle }));
+    // Argumentos inválidos de propósito: o agente nem chega à validação deles.
+    const refused = await dispatcher.dispatch(ask("workspace.set_active_project", { outro: 1 }));
+    expect(refused.error).toMatchObject({ code: "UNAUTHORIZED", message: "Só o usuário pode usar workspace.set_active_project." });
+    expect(await dispatcher.inspect(ask("workspace.set_active_project", { outro: 1 }))).toEqual({
+      decision: { decision: "deny", reason: "Só o usuário pode usar workspace.set_active_project." },
+    });
+    expect(handle).not.toHaveBeenCalled();
+    expect((await dispatcher.dispatch(ask("workspace.set_active_project", { modId: "mod_notas" }, user, 2))).status).toBe("succeeded");
+  });
+
+  it("catalogPolicy: o usuário e as consultas passam; o agente só muda o que o handler abre, com a confirmação que ele pede", async () => {
+    const dispatcher = new Dispatcher({ policy: catalogPolicy });
+    dispatcher.register(handler("mod.close"));
+    dispatcher.register(handler("mod.get", { readOnly: true }));
+    dispatcher.register(
+      handler("mod.delete", {
+        agent: {
+          guide: "{modId} removes a mod.",
+          describe: (args) => `remover ${String(args.modId)}`,
+          confirm: (args) => (args.modId === "mod_importante" ? { risk: "medium", summary: "Remover um mod.", reversible: false } : undefined),
+        },
+      }),
+    );
+    const onlyUi = await dispatcher.dispatch(ask("mod.close", { modId: "mod_notas" }));
+    expect(onlyUi.error).toMatchObject({ code: "UNAUTHORIZED", message: "O agente não pode usar mod.close; essa operação é só da interface." });
+    expect((await dispatcher.dispatch(ask("mod.close", { modId: "mod_notas" }, user))).status).toBe("succeeded");
+    expect((await dispatcher.dispatch(ask("mod.get", { modId: "mod_notas" }))).status).toBe("succeeded");
+    expect((await dispatcher.dispatch(ask("mod.delete", { modId: "mod_notas" }))).status).toBe("succeeded");
+    const confirm = await dispatcher.dispatch(ask("mod.delete", { modId: "mod_importante" }, agent, 2));
+    expect(confirm.status).toBe("confirmation_required");
+    expect(confirm.confirmation).toMatchObject({ risk: "medium", summary: "Remover um mod.", reversible: false });
+  });
+
+  it("agentOperations lista, em ordem, só as operações abertas ao agente, com a linha de cada uma no prompt", () => {
+    const dispatcher = new Dispatcher();
+    const agentAccess = (guide: string) => ({ agent: { guide, describe: () => guide } });
+    dispatcher.register(handler("region.create", agentAccess("{regionId, title}")));
+    dispatcher.register(handler("mod.close"));
+    dispatcher.register(handler("diagram.create", agentAccess("{diagramId}")));
+    expect(dispatcher.agentOperations()).toEqual([
+      { operation: "diagram.create", guide: "{diagramId}" },
+      { operation: "region.create", guide: "{regionId, title}" },
+    ]);
+  });
+
+  it("describe usa a frase do handler e cai no nome da operação sem frase ou quando ela falha", () => {
+    const dispatcher = new Dispatcher();
+    dispatcher.register(handler("mod.close"));
+    dispatcher.register(
+      handler("mod.configure", {
+        agent: {
+          guide: "{modId, title?}",
+          describe: (args) => `renomear para ${(args.title as string).toUpperCase()}`,
+        },
+      }),
+    );
+    expect(dispatcher.describe("mod.configure", { modId: "mod_notas", title: "notas" })).toBe("renomear para NOTAS");
+    // Os argumentos chegam antes da validação: podem estar incompletos.
+    expect(dispatcher.describe("mod.configure", { modId: "mod_notas" })).toBe("mod.configure");
+    expect(dispatcher.describe("mod.close", { modId: "mod_notas" })).toBe("mod.close");
+    expect(dispatcher.describe("mod.inexistente", {})).toBe("mod.inexistente");
   });
 });
 

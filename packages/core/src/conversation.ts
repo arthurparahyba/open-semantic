@@ -29,7 +29,7 @@ import {
 
 import type { AgentRunner } from "./agent.js";
 import { WorkspaceContext, canvasAttention, topicReason } from "./context.js";
-import { SYSTEM_PROMPT } from "./prompt.js";
+import { systemPrompt } from "./prompt.js";
 import {
   SHOW_DIAGRAM_TOOL,
   VISUAL_NUDGE,
@@ -151,6 +151,9 @@ export class Conversation {
   private readonly limits: TurnLimits;
   private readonly now: () => Date;
   private readonly newId: () => string;
+  /** Prompt e ferramentas do modelo. Saem do catálogo de operações e não mudam com o app aberto (o cache do provedor vale). */
+  private readonly system: string;
+  private readonly tools: ToolSpec[];
 
   constructor(private readonly options: ConversationOptions) {
     this.limits = { ...DEFAULT_LIMITS, ...options.limits };
@@ -165,6 +168,9 @@ export class Conversation {
       newId: this.newId,
       ask: (question) => this.ask(question),
     });
+    const operations = options.dispatcher.agentOperations();
+    this.system = systemPrompt(operations);
+    this.tools = agentTools(operations.map((o) => o.operation));
   }
 
   view(): ConversationView {
@@ -275,9 +281,9 @@ export class Conversation {
         }
         const completion = await provider.complete({
           model: model.id,
-          system: SYSTEM_PROMPT,
+          system: this.system,
           messages: this.history,
-          tools: TOOLS,
+          tools: this.tools,
           maxOutputTokens: this.limits.maxOutputTokens,
           signal: abort.signal,
         });
@@ -445,7 +451,9 @@ export class Conversation {
         case "describe_operation": {
           const operation = String(call.input.operation ?? "");
           const schema = this.options.dispatcher.argumentsSchema(operation);
-          if (!this.options.dispatcher.operations().includes(operation)) return fail(`Operação desconhecida: ${operation}. Conhecidas: ${AGENT_OPERATIONS.join(", ")}`);
+          if (!this.options.dispatcher.operations().includes(operation)) {
+            return fail(`Operação desconhecida: ${operation}. Conhecidas: ${this.options.dispatcher.agentOperations().map((o) => o.operation).join(", ")}`);
+          }
           return ok({ operation, arguments: schema ? inlineContractRefs(schema) : { type: "object" } });
         }
         case "list_dir": {
@@ -687,30 +695,6 @@ function compact(value: unknown): unknown {
   return text.length > 2_000 ? `${text.slice(0, 2_000)}…` : value;
 }
 
-/** Operações que o agente de IA pode usar nos lotes (as demais são da interface). */
-export const AGENT_OPERATIONS = [
-  "workspace.add_project",
-  "workspace.clone_repository",
-  "project.create_dir",
-  "project.write_file",
-  "semantic.upsert_observation",
-  "semantic.upsert_inference",
-  "region.create",
-  "region.update",
-  "region.delete",
-  "mod.create",
-  "mod.configure",
-  "mod.delete",
-  "canvas.place",
-  "diagram.create",
-  "diagram.apply_patch",
-  "diagram.layout",
-  "diagram.anchor",
-  "diagram.delete",
-  "navigation.frame",
-  "navigation.overview",
-];
-
 /** Projeto em que o agente trabalha quando o pedido não diz outro: o último que o usuário abriu. */
 export function activeProject(snapshot: WorkspaceSnapshot) {
   const id = snapshot.workspace.activeProjectId;
@@ -778,7 +762,8 @@ export function summarizeWorkspace(snapshot: WorkspaceSnapshot) {
   };
 }
 
-const TOOLS: ToolSpec[] = [
+/** Ferramentas de leitura e a resposta visual: não dependem do catálogo. */
+const READ_TOOLS: ToolSpec[] = [
   SHOW_DIAGRAM_TOOL as ToolSpec,
   {
     name: "get_workspace",
@@ -824,47 +809,54 @@ const TOOLS: ToolSpec[] = [
       additionalProperties: false,
     },
   },
-  {
-    name: "describe_operation",
-    description: "Returns the exact JSON Schema of an operation's arguments. Use it before the first use of an operation whose arguments you are not sure about.",
-    inputSchema: {
-      type: "object",
-      properties: { operation: { type: "string", enum: AGENT_OPERATIONS } },
-      required: ["operation"],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "run_batch",
-    description:
-      "Executes a batch of workspace operations in dependency order. This is the ONLY way to change anything (files, canvas, diagrams, semantic layer, camera). All steps are validated first; if any step needs the user's confirmation, the call waits until the user approves or declines on a card in the app. Returns the real status of every step: report to the user only what succeeded.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        intent: { type: "string", description: "Short description of the batch in the user's language, shown on the card." },
-        steps: {
-          type: "array",
-          minItems: 1,
-          maxItems: 30,
-          items: {
-            type: "object",
-            properties: {
-              id: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$", description: "Step id, unique in the batch." },
-              operation: { type: "string", enum: AGENT_OPERATIONS },
-              arguments: {
-                type: "object",
-                description: 'Operation arguments. A value can be {"$bind": {"step": "<earlier step id>", "pointer": "/output/..."}} to use an earlier step\'s output; that step must be in dependsOn (directly or transitively).',
-              },
-              dependsOn: { type: "array", items: { type: "string" } },
-            },
-            required: ["id", "operation", "arguments"],
-            additionalProperties: false,
-          },
-        },
-        stopOnFailure: { type: "boolean", description: "true: cancel the remaining steps when one fails. Default false: only steps that depend on the failed one are skipped." },
-      },
-      required: ["intent", "steps"],
-      additionalProperties: false,
-    },
-  },
 ];
+
+/** As ferramentas do modelo. describe_operation e run_batch aceitam só as operações que o catálogo abre ao agente. */
+function agentTools(operations: string[]): ToolSpec[] {
+  return [
+    ...READ_TOOLS,
+    {
+      name: "describe_operation",
+      description: "Returns the exact JSON Schema of an operation's arguments. Use it before the first use of an operation whose arguments you are not sure about.",
+      inputSchema: {
+        type: "object",
+        properties: { operation: { type: "string", enum: operations } },
+        required: ["operation"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "run_batch",
+      description:
+        "Executes a batch of workspace operations in dependency order. This is the ONLY way to change anything (files, canvas, diagrams, semantic layer, camera). All steps are validated first; if any step needs the user's confirmation, the call waits until the user approves or declines on a card in the app. Returns the real status of every step: report to the user only what succeeded.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          intent: { type: "string", description: "Short description of the batch in the user's language, shown on the card." },
+          steps: {
+            type: "array",
+            minItems: 1,
+            maxItems: 30,
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$", description: "Step id, unique in the batch." },
+                operation: { type: "string", enum: operations },
+                arguments: {
+                  type: "object",
+                  description: 'Operation arguments. A value can be {"$bind": {"step": "<earlier step id>", "pointer": "/output/..."}} to use an earlier step\'s output; that step must be in dependsOn (directly or transitively).',
+                },
+                dependsOn: { type: "array", items: { type: "string" } },
+              },
+              required: ["id", "operation", "arguments"],
+              additionalProperties: false,
+            },
+          },
+          stopOnFailure: { type: "boolean", description: "true: cancel the remaining steps when one fails. Default false: only steps that depend on the failed one are skipped." },
+        },
+        required: ["intent", "steps"],
+        additionalProperties: false,
+      },
+    },
+  ];
+}

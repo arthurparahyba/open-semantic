@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ANTHROPIC_MODELS, type ChatMessage, type Completion, type CompletionRequest, type LlmProvider } from "@open-semantic/llm";
 import { inlineContractRefs } from "@open-semantic/protocol";
 
-import { AGENT_OPERATIONS, Conversation, SYSTEM_PROMPT, createCore, type ConversationView, type Core, type TurnLimits } from "../src/index.js";
+import { CLAUDE_AGENT, Conversation, createCore, systemPrompt, type ConversationView, type Core, type TurnLimits } from "../src/index.js";
 
 type Step = (request: CompletionRequest) => Partial<Completion>;
 
@@ -73,11 +73,34 @@ function enumValues(schema: unknown): unknown[] {
   return [...(Array.isArray(node.enum) ? node.enum : []), ...("const" in node ? [node.const] : []), ...Object.values(node).flatMap(enumValues)];
 }
 
+/** Os argumentos no começo da linha de uma operação: "{a, b?, c:{x, y}} faz…" → a, b, c. */
+function guideArguments(guide: string): string[] {
+  const names: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of guide.slice(1)) {
+    if (depth === 0 && (char === "," || char === "}")) {
+      names.push(current.trim().split(/[:?\s(]/)[0]!);
+      if (char === "}") break;
+      current = "";
+      continue;
+    }
+    if ("{[(".includes(char)) depth++;
+    if ("}])".includes(char)) depth--;
+    current += char;
+  }
+  return names.filter(Boolean);
+}
+
+/** O prompt de sistema que o modelo recebe: as operações vêm do catálogo do núcleo. */
+const prompt = () => systemPrompt(core.dispatcher.agentOperations());
+
 /** O lote de exemplo do prompt de sistema, com os ids do projeto aberto. Garante que o exemplo continua válido. */
 function promptExample() {
   const snapshot = core.store.snapshot();
   const project = snapshot.projects[0]!;
-  const json = SYSTEM_PROMPT.slice(SYSTEM_PROMPT.indexOf('{"intent"'))
+  const text = prompt();
+  const json = text.slice(text.indexOf('{"intent"'))
     .replaceAll("prj_x", project.id)
     .replaceAll("root_x", project.roots[0].id);
   return JSON.parse(json) as Record<string, unknown>;
@@ -105,12 +128,56 @@ afterEach(async () => {
 });
 
 describe("Conversa com o agente de IA", () => {
-  it("todas as operações oferecidas ao modelo existem no núcleo", () => {
-    for (const operation of AGENT_OPERATIONS) expect(core.dispatcher.operations()).toContain(operation);
+  it("o prompt e as ferramentas do modelo saem do catálogo: só as operações abertas ao agente (A3)", async () => {
+    const provider = new FakeProvider([() => ({ text: "Oi." })]);
+    await conversation(provider).send("oi");
+    const request = provider.requests[0]!;
+    const agentOperations = core.dispatcher.agentOperations().map((o) => o.operation);
+    expect(request.system).toBe(prompt());
+    const enums = request.tools.filter((t) => t.name === "describe_operation" || t.name === "run_batch").map((t) => enumValues(t.inputSchema));
+    expect(enums).toEqual([agentOperations, agentOperations]);
+    // Operações só da interface ficam de fora.
+    expect(agentOperations).not.toContain("workspace.remove_project");
+    expect(agentOperations).not.toContain("navigation.set_control");
+  });
+
+  it("o prompt só cita operações que existem e que o agente pode pedir (A3)", () => {
+    const agentOperations = core.dispatcher.agentOperations().map((o) => o.operation);
+    const domains = [...new Set(core.dispatcher.operations().map((o) => o.slice(0, o.indexOf("."))))];
+    const cited = new Set(prompt().match(new RegExp(`\\b(?:${domains.join("|")})\\.[a-z_]+`, "g")));
+    expect(cited.size).toBeGreaterThan(15);
+    for (const operation of cited) expect(agentOperations, operation).toContain(operation);
+  });
+
+  it("o prompt ensina a configuração de cada tipo de mod com a chave que a validação aceita (B10)", async () => {
+    const line = prompt()
+      .split("\n")
+      .find((l) => l.startsWith("- mod.create "))!;
+    const keys = Object.fromEntries([...line.matchAll(/\{(\w+): (?:folder|file) artifactId\} for (\w+)/g)].map(([, key, type]) => [type, key]));
+    expect(Object.keys(keys).sort()).toEqual(["editor", "explorer"]);
+    const project = core.store.project("prj_minhaapp")!;
+    const readme = await core.dispatcher.dispatch({
+      operationId: "act_conv_readme",
+      operation: "project.resolve",
+      arguments: { projectId: project.id, rootId: project.roots[0]!.id, path: "README.md" },
+      authorization: { actor: CLAUDE_AGENT },
+    });
+    const target: Record<string, unknown> = { explorer: project.rootRef, editor: (readme.output as { artifact: { id: string } }).artifact.id };
+    for (const type of ["explorer", "editor"]) {
+      const created = await core.dispatcher.dispatch({
+        operationId: `act_conv_mod_${type}`,
+        operation: "mod.create",
+        arguments: { modId: `mod_${type}_prompt`, type, config: { [keys[type]!]: target[type] } },
+        authorization: { actor: CLAUDE_AGENT },
+      });
+      expect(created.status, JSON.stringify(created.error)).toBe("succeeded");
+    }
   });
 
   it("todo valor de enum citado nas operações do prompt existe no schema da operação (B4)", () => {
-    const lines = SYSTEM_PROMPT.split("\n").filter((l) => /^- [a-z]+\.[a-z_]+ /.test(l));
+    const lines = prompt()
+      .split("\n")
+      .filter((l) => /^- [a-z]+\.[a-z_]+ /.test(l));
     expect(lines.length).toBeGreaterThan(10);
     for (const line of lines) {
       const operation = line.slice(2, line.indexOf(" ", 2));
@@ -118,6 +185,15 @@ describe("Conversa com o agente de IA", () => {
       for (const [, alternatives] of line.matchAll(/\w+:((?:"[^"]*"\|?)+)/g)) {
         for (const [, value] of alternatives!.matchAll(/"([^"]*)"/g)) expect(known, `${operation}: ${value}`).toContain(value);
       }
+    }
+  });
+
+  it("a linha de cada operação no prompt começa pelos argumentos, e todos existem no schema dela (A3)", () => {
+    for (const { operation, guide } of core.dispatcher.agentOperations()) {
+      expect(guide, operation).toMatch(/^\{/);
+      const schema = inlineContractRefs(core.dispatcher.argumentsSchema(operation)) as { properties?: object };
+      const known = Object.keys(schema.properties ?? {});
+      for (const name of guideArguments(guide)) expect(known, `${operation}: ${name}`).toContain(name);
     }
   });
 

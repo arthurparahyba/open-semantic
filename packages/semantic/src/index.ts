@@ -7,6 +7,7 @@ import {
   contractValidator,
   describeErrors,
   sameValue,
+  type Args,
   type Change,
   type Evidence,
   type OperationHandler,
@@ -118,9 +119,29 @@ export function semanticHandlers({ store }: { store: WorkspaceStore }): Operatio
     };
   };
 
+  /** O passo de uma suposição: os nomes das entidades e das ligações (ou quantas são, entre entidades criadas no mesmo lote). */
+  const describeInference = (args: Args) => {
+    const entities = (args.entities as { id: string; name: string }[] | undefined) ?? [];
+    const relations = (args.relations as { sourceId: string; targetId: string }[] | undefined) ?? [];
+    const declared = new Map(entities.map((e) => [e.id, e.name]));
+    const nameOf = (id: string) => declared.get(id) ?? store.entity(id)?.name ?? id;
+    const known = (id: string) => declared.has(id) || store.entity(id) !== undefined;
+    const named = relations.every((r) => known(r.sourceId) && known(r.targetId));
+    const names = [
+      ...entities.map((e) => e.name),
+      ...(named || relations.length <= 1 ? relations.map((r) => `${nameOf(r.sourceId)} → ${nameOf(r.targetId)}`) : [`${relations.length} ligações`]),
+    ];
+    return `registrar como suposição: ${names.join(", ") || "inferência"}`;
+  };
+
   return [
     {
       operation: "semantic.upsert_observation",
+      agent: {
+        guide:
+          '{entity:{id, kind, name, projectId, artifactIds}, evidence:{id, kind:"directory_listing"|"file_inspection", artifactId, summary}, relations?}',
+        describe: (args) => `registrar ${(args.entity as { name?: string } | undefined)?.name ?? "a entidade"} como conhecimento verificado`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["entity", "evidence"],
@@ -193,6 +214,10 @@ export function semanticHandlers({ store }: { store: WorkspaceStore }): Operatio
 
     {
       operation: "semantic.upsert_inference",
+      agent: {
+        guide: "{entities?, relations?:[{id, type, sourceId, targetId}], confidence (0..1), rationale}",
+        describe: describeInference,
+      },
       argumentsSchema: {
         type: "object",
         required: ["confidence", "rationale"],
