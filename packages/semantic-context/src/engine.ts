@@ -210,7 +210,7 @@ export class SemanticContextEngine {
 
     // 3. Termos com mais de um candidato: supor quando dá, perguntar quando não dá.
     const assumptions: Assumption[] = [];
-    const candidatesByTerm = this.termCandidates(hits, g);
+    const candidatesByTerm = this.termCandidates(hits, g, raws);
     const subtract = (term: string, keep: (owner: string) => boolean) => {
       for (const [id, h] of hits) {
         const owner = this.owner(id);
@@ -296,12 +296,21 @@ export class SemanticContextEngine {
     for (const u of unresolved) {
       const inMain = main && u.candidates.some((c) => main.unitIds.includes(c) || main.unitIds.some((m) => this.isAncestor(g, c, m) || this.isAncestor(g, m, c)));
       if (!inMain || !main) continue;
+      // Só um sinônimo casou ("tela" achando WebConfiguration por "web"): não é dúvida real, a IA segue sem perguntar.
+      if (!candidatesByTerm.get(u.term)!.direct) continue;
+      // Opções com o mesmo nome não ajudam a escolher: fica a primeira de cada nome.
+      const seenLabels = new Set<string>();
+      const options: Clarification["options"] = [];
+      for (const c of u.candidates) {
+        const label = this.label(c, g);
+        const key = terms(label).sort().join(" ");
+        if (seenLabels.has(key)) continue;
+        seenLabels.add(key);
+        options.push({ ref: c, label });
+      }
+      if (options.length < 2) continue;
       const raw = raws.get(u.term) ?? u.term;
-      question = {
-        term: u.term,
-        text: `De qual ${raw} você está falando?`,
-        options: u.candidates.slice(0, 6).map((c) => ({ ref: c, label: this.label(c, g) })),
-      };
+      question = { term: u.term, text: `De qual ${raw} você está falando?`, options: options.slice(0, 6) };
       break;
     }
 
@@ -392,8 +401,10 @@ export class SemanticContextEngine {
    * Candidatos de cada termo: unidades identificadas por ele (nome, alias, papel; não só a descrição).
    * Unidade e quem a contém não são dúvida: vale a mais geral.
    */
-  private termCandidates(hits: Map<string, TermHit>, g: Graph) {
+  private termCandidates(hits: Map<string, TermHit>, g: Graph, raws: Map<string, string>) {
     const byTerm = new Map<string, Map<string, number>>();
+    // Unidades achadas pela palavra que o usuário disse (ou sua forma canônica), não só por um sinônimo.
+    const direct = new Map<string, Set<string>>();
     const expanded = new Map<string, string[]>();
     for (const [id, h] of hits) {
       const owner = this.owner(id);
@@ -409,16 +420,17 @@ export class SemanticContextEngine {
         if (!m) byTerm.set(t, (m = new Map()));
         // O melhor item de cada unidade, não a soma: uma unidade com muitos diagramas não ganha só por isso.
         m.set(owner, Math.max(m.get(owner) ?? 0, v));
+        if (this.index.identifiedBy(id, [t, raws.get(t) ?? t])) (direct.get(t) ?? direct.set(t, new Set()).get(t)!).add(owner);
       }
     }
-    const out = new Map<string, { candidates: string[]; scores: Map<string, number> }>();
+    const out = new Map<string, { candidates: string[]; scores: Map<string, number>; direct: boolean }>();
     for (const [term, units] of [...byTerm].sort((a, b) => cmp(a[0], b[0]))) {
       const best = Math.max(...units.values());
       let candidates = [...units].filter(([, v]) => v >= best * 0.5).map(([u]) => u);
       const set = new Set(candidates);
       candidates = candidates.filter((c) => !this.ancestors(g, c).some((a) => set.has(a)));
       candidates.sort((a, b) => units.get(b)! - units.get(a)! || cmp(a, b));
-      out.set(term, { candidates, scores: units });
+      out.set(term, { candidates, scores: units, direct: candidates.some((c) => direct.get(term)?.has(c)) });
     }
     return out;
   }
