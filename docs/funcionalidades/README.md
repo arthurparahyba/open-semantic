@@ -18,6 +18,7 @@ Documentos de origem: [visão do produto](../visao.md) e [Especificação V0.1](
 | 8 | [Motor de contexto semântico](08-gestao-de-contexto.md) | Agent Orchestrator (contexto) | índice de relevância, contexto enviado à IA |
 | 9 | [Ancoragem e projeção do canvas](09-ancoragem-e-projecao.md) | Open Semantic + Workspace Store | a que unidade de contexto cada diagrama pertence; o layout sai daí |
 | 10 | [Resposta visual](10-resposta-visual.md) | Agente + Diagram Engine | explicação de estrutura ou fluxo vira diagrama com legenda; o texto acompanha |
+| 11 | [Camadas de assunto](11-camadas.md) | Agente + Canvas + Motor de contexto | recortes por assunto que nascem do aprofundamento, ancorados na camada de baixo |
 
 ## Como as peças se ligam
 
