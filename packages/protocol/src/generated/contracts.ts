@@ -103,12 +103,12 @@ export type StepId = string;
  */
 export type CanvasObjectId = ModId | DiagramId;
 /**
- * Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar.
+ * Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar. Uma unidade de contexto (sem_) vale pelo grupo desenhado em volta dela.
  *
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "VisualTargetId".
  */
-export type VisualTargetId = ModId | DiagramId | NodeId | EdgeId | RegionId;
+export type VisualTargetId = ModId | DiagramId | NodeId | EdgeId | RegionId | SemanticEntityId;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "AnyId".
