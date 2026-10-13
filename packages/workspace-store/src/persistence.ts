@@ -181,12 +181,20 @@ export function autosave(
   });
 
   return {
-    /** Grava imediatamente o que estiver pendente (usar ao fechar o app). */
+    /**
+     * Grava imediatamente o que estiver pendente e espera a fila esvaziar, inclusive o que mudar durante a espera
+     * (o fim de uma animação, por exemplo). Usar ao fechar o app: depois disso nada fica para gravar.
+     */
     async flush() {
-      if (timer) {
-        clearTimeout(timer);
-        await saveNow();
-      } else await saving;
+      for (;;) {
+        if (timer) {
+          clearTimeout(timer);
+          saveNow();
+        }
+        const current = saving;
+        await current;
+        if (!timer && saving === current) return;
+      }
     },
     stop() {
       unsubscribe();

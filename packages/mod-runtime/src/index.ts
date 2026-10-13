@@ -254,15 +254,15 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
       check(args) {
         const mod = requireMod(args.modId as string);
         if (args.config) validateConfig(mod.type, { ...mod.config, ...(args.config as object) });
-        if (args.uiState) validateUi(mod.type, { ...(mod.uiState ?? {}), ...(args.uiState as object) });
+        if (args.uiState) validateUi(mod.type, { ...mod.uiState, ...(args.uiState as object) });
       },
       handle(args) {
         const mod = requireMod(args.modId as string);
         const next: ModInstance = {
           ...mod,
           ...(args.title ? { title: args.title as string } : {}),
-          config: { ...mod.config, ...((args.config as object | undefined) ?? {}) },
-          ...(args.uiState || mod.uiState ? { uiState: { ...(mod.uiState ?? {}), ...((args.uiState as object | undefined) ?? {}) } } : {}),
+          config: { ...mod.config, ...(args.config as object | undefined) },
+          ...(args.uiState || mod.uiState ? { uiState: { ...mod.uiState, ...(args.uiState as object | undefined) } } : {}),
         };
         if (sameValue(next, mod)) {
           return { changes: [{ id: mod.id, change: "unchanged", revision: mod.revision }] };

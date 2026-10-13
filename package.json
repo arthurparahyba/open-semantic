@@ -13,12 +13,18 @@
     "gen:types": "node scripts/gen-types.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "validate:contracts": "python3 contracts/validar.py"
+    "validate:contracts": "python3 contracts/validar.py",
+    "lint": "oxlint --deny-warnings",
+    "guardrails": "node scripts/check-boundaries.mjs && node scripts/metrics.mjs --check",
+    "metrics": "node scripts/metrics.mjs",
+    "metrics:baseline": "node scripts/metrics.mjs --update-baseline"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "json-schema-to-typescript": "^16.0.0",
+    "oxlint": "1.86.0",
+    "rolldown": "1.2.13",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4",
-    "@types/node": "^26.6.5"
+    "vitest": "^5.0.4"
   }
 }

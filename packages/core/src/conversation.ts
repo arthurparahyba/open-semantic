@@ -505,7 +505,7 @@ export class Conversation {
       return project.rootRef;
     }
     const result = await this.read("project.resolve", { projectId, rootId, path });
-    return (result.output?.artifact as { id: string }).id;
+    return (result.output as { artifact: { id: string } }).artifact.id;
   }
 
   /** Leitura pelo protocolo, assinada pelo agente: fica no histórico de ações como qualquer outra operação. */
