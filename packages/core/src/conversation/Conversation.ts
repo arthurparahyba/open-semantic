@@ -43,6 +43,7 @@ export class Conversation {
   readonly modes = new ModeRegistry(BUILTIN_MODES);
   /** Modo do pedido atual (ou do último), para um modo em etapas continuar. */
   private mode: ExecutionMode | undefined;
+  private request = "";
   private readonly batches: ConversationBatches;
   private readonly limits: TurnLimits;
   private readonly newId: () => string;
@@ -71,6 +72,7 @@ export class Conversation {
       usage: { ...this.usage },
       costUsd: this.costUsd,
       ...(this.lastRequest ? { lastRequest: structuredClone(this.lastRequest) } : {}),
+      modes: this.modes.list().map((m) => ({ id: m.id, name: m.name })),
     };
   }
 
@@ -107,7 +109,8 @@ export class Conversation {
     return this.chat.status === "idle" || this.understanding.waiting;
   }
 
-  async send(text: string): Promise<void> {
+  /** `mode` força um modo (o chip da resposta: "refazer como…"); sem ele, o modo sai da mensagem. */
+  async send(text: string, options: { mode?: string } = {}): Promise<void> {
     const message = text.trim();
     if (!message) return;
     let previous: string | undefined;
@@ -126,8 +129,9 @@ export class Conversation {
     // "todos" respondendo à pergunta rápida: o pedido anterior continua, cobrindo todas as opções.
     const all = previous !== undefined && acceptsAll(message);
     const request = all ? previous! : message;
-    const mode = this.modes.pick(request, this.mode ? { previous: this.mode.id } : {});
+    const mode = this.chooseMode(request, options.mode);
     this.mode = mode;
+    this.request = request;
     const turn = this.startTurn(provider, message, mode);
     let done!: () => void;
     this.running = new Promise((r) => (done = r));
@@ -150,6 +154,12 @@ export class Conversation {
       this.finish(turn);
       done();
     }
+  }
+
+  /** O modo forçado (chip da resposta) ou o que a mensagem ativa; um modo em etapas pode continuar. */
+  private chooseMode(request: string, forced: string | undefined): ExecutionMode {
+    const chosen = forced ? this.modes.get(forced) : undefined;
+    return chosen ?? this.modes.pick(request, this.mode ? { previous: this.mode.id } : {});
   }
 
   /** Quando a última chamada passou do limite de tokens, os pedidos anteriores são resumidos antes do próximo. */
@@ -229,7 +239,8 @@ export class Conversation {
     const { text, next } = splitNextSteps(raw);
     const steps = mode?.cadence === "steps" ? (next.length ? next : (mode.nextSteps ?? [])) : [];
     const caption = diagramIds.map((id) => snapshot.diagrams.find((d) => d.id === id)?.caption).find(Boolean);
-    this.chat.answer(text || caption || "", diagramIds, steps.length && mode ? { mode: mode.name, next: steps } : undefined);
+    const chip = mode ? { mode: { id: mode.id, name: mode.name, request: this.request } } : {};
+    this.chat.answer(text || caption || "", diagramIds, { ...chip, ...(steps.length ? { next: steps } : {}) });
   }
 
   private emit() {

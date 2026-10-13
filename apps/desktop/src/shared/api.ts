@@ -84,7 +84,8 @@ export interface OpenSemanticApi {
   setApiKey(key: string | null): Promise<{ ok: true; view: AgentSettingsView } | { ok: false; message: string }>;
   conversation(): Promise<ConversationView>;
   onConversation(listener: (view: ConversationView) => void): () => void;
-  sendChat(text: string): Promise<Outcome>;
+  /** `mode` refaz o pedido num modo de execução escolhido (o chip da resposta). */
+  sendChat(text: string, mode?: string): Promise<Outcome>;
   stopChat(): Promise<void>;
   /** Escolha numa pergunta rápida ou troca de suposição do motor de contexto. */
   chooseInChat(entryId: string, ref: string): Promise<Outcome>;

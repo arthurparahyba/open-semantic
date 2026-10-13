@@ -415,6 +415,19 @@ describe("Conversa com o agente de IA", () => {
     expect(conv.view().entries.at(-1)).toMatchObject({ kind: "assistant", text: "oi" });
   });
 
+  it("o chip refaz o pedido no modo escolhido, com só as instruções desse modo", async () => {
+    const provider = new FakeProvider([() => ({ text: "breve" }), () => ({ text: "ampla" })]);
+    const conv = conversation(provider);
+    await conv.send("o que tem aqui?");
+    const first = conv.view().entries.at(-1)!;
+    expect(first).toMatchObject({ kind: "assistant", mode: { id: "breve", request: "o que tem aqui?" } });
+    expect(JSON.stringify(provider.requests[0]!.messages)).not.toContain("Modo:");
+    await conv.send("o que tem aqui?", { mode: "ampla" });
+    expect(JSON.stringify(provider.requests[1]!.messages.at(-1))).toContain("Modo: explicação ampla");
+    expect(conv.view().entries.at(-1)).toMatchObject({ kind: "assistant", mode: { id: "ampla", name: "Explicação ampla" } });
+    expect(conv.view().modes.map((m) => m.id)).toEqual(["breve", "ampla", "planejamento"]);
+  });
+
   it("nova conversa zera o histórico e o custo", async () => {
     const provider = new FakeProvider([() => ({ text: "oi" }), () => ({ text: "oi de novo" })]);
     const conv = conversation(provider);

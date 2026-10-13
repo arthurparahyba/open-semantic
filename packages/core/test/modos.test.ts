@@ -25,6 +25,12 @@ describe("modos de execução", () => {
     ).toBe("breve");
   });
 
+  it("pedido de entender o sistema inteiro entra na explicação ampla", () => {
+    expect(modes.pick("me explique o sistema inteiro").id).toBe("ampla");
+    expect(modes.pick("quero entender a aplicação como um todo").id).toBe("ampla");
+    expect(modes.pick("como funciona o cadastro de pet?").id).toBe("breve");
+  });
+
   it("um modo registrado depois tem prioridade e o padrão continua sendo o primeiro", () => {
     const local = new ModeRegistry(BUILTIN_MODES);
     local.register({ id: "bpmn", name: "Processo", activatesWhen: (m) => /processo/.test(m), cadence: "steps" });

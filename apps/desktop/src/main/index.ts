@@ -125,12 +125,12 @@ app.whenReady().then(async () => {
   );
   ipcMain.handle(CHANNELS.agentKey, (_event, key: unknown) => settings.setKey(typeof key === "string" ? key : null));
   ipcMain.handle(CHANNELS.chat, () => conversation?.view() ?? null);
-  ipcMain.handle(CHANNELS.chatSend, (_event, text: unknown) => {
+  ipcMain.handle(CHANNELS.chatSend, (_event, text: unknown, mode: unknown) => {
     if (!conversation) return noWorkspace;
     if (typeof text !== "string" || !text.trim()) return { ok: false, message: "Escreva um pedido." };
     if (!conversation.accepts()) return failure(new ConversationBusyError("O agente ainda está trabalhando no pedido anterior."));
     // Não espera o pedido terminar: o progresso chega pelo canal de mudanças da conversa.
-    void conversation.send(text).catch(() => {});
+    void conversation.send(text, typeof mode === "string" ? { mode } : {}).catch(() => {});
     return { ok: true };
   });
   ipcMain.handle(CHANNELS.chatStop, () => conversation?.stop());
