@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { childMarks, litObjects } from "@open-semantic/workspace-store/layers";
 import { activeProject } from "@open-semantic/workspace-store/projects";
 
 import type { PersistState, WorkspaceInfo } from "../shared/api.js";
@@ -7,6 +8,7 @@ import { AgentPanel } from "./AgentPanel.js";
 import { Canvas, type CanvasHandle, type ObjectRenderProps } from "./Canvas.js";
 import { OperationFailed, api, newId, run, runOk } from "./client.js";
 import { DiagramView } from "./DiagramView.js";
+import { LayersPanel } from "./LayersPanel.js";
 import { ModFrame } from "./ModFrame.js";
 import { Editor } from "./mods/Editor.js";
 import { Explorer } from "./mods/Explorer.js";
@@ -15,6 +17,7 @@ import { useWorkspace } from "./useWorkspace.js";
 interface Toast {
   id: number;
   message: string;
+  action?: { label: string; run(): void };
 }
 
 export function App({ workspace }: { workspace: WorkspaceInfo }) {
@@ -40,11 +43,36 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
     requestAnimationFrame(() => canvas.current?.frame(ids, intent));
   }, [pendingFrame, snapshot]);
 
-  const notify = useCallback((message: string) => {
+  const notify = useCallback((message: string, action?: Toast["action"]) => {
     const id = ++toastSeq.current;
-    setToasts((t) => [...t, { id, message }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+    setToasts((t) => [...t, { id, message, ...(action ? { action } : {}) }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 10000 : 6000);
   }, []);
+
+  // Camada criada pelo agente: avisa com o desfazer à mão (doc 11, controle do usuário).
+  const knownLayers = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!snapshot) return;
+    const layers = snapshot.layers ?? [];
+    const known = knownLayers.current;
+    knownLayers.current = new Set(layers.map((l) => l.id));
+    if (!known) return;
+    for (const layer of layers.filter((l) => !known.has(l.id) && l.origin === "agent")) {
+      notify(`Criei a camada “${layer.name}”.`, { label: "Desfazer", run: () => void run("layer.dissolve", { layerId: layer.id }) });
+    }
+  }, [snapshot, notify]);
+
+  // Entrar numa camada é um zoom até os membros dela que estão no canvas; voltar à base mostra tudo.
+  const activeLayerId = snapshot?.navigation.activeLayerId;
+  const lastActive = useRef(activeLayerId);
+  useEffect(() => {
+    if (!snapshot || lastActive.current === activeLayerId) return;
+    lastActive.current = activeLayerId;
+    const lit = litObjects(snapshot);
+    const ids = lit ? snapshot.canvas.objects.filter((o) => lit.has(o.id)).map((o) => o.id) : [];
+    if (lit && !ids.length) return;
+    requestAnimationFrame(() => canvas.current?.frame(ids, ids.length ? "focus" : "overview"));
+  }, [activeLayerId, snapshot]);
 
   const fail = (err: unknown) => notify(err instanceof OperationFailed ? err.message : String(err));
 
@@ -163,6 +191,8 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
     );
   };
 
+  const activateLayer = (layerId: string | undefined) => runOk("layer.activate", layerId ? { layerId } : {}).catch(fail);
+
   if (!snapshot) return <div className="splash">Abrindo workspace…</div>;
   const empty = snapshot.canvas.objects.length === 0 && snapshot.canvas.regions.length === 0;
   const autoNavigate = snapshot.navigation.control.mode !== "user_locked";
@@ -234,7 +264,21 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
 
       <div className={`workarea${agentOpen ? " with-panel" : ""}`}>
       <main className="stage">
-        <Canvas snapshot={snapshot} handle={canvas} renderObject={renderObject} onZoomChange={setZoom} />
+        <Canvas
+          snapshot={snapshot}
+          handle={canvas}
+          renderObject={renderObject}
+          onZoomChange={setZoom}
+          litObjectIds={litObjects(snapshot)}
+          layerMarks={childMarks(snapshot)}
+          onOpenLayer={(id) => void activateLayer(id)}
+        />
+        <LayersPanel
+          snapshot={snapshot}
+          onActivate={(id) => void activateLayer(id)}
+          onRename={(layerId, name) => void runOk("layer.update", { layerId, name }).catch(fail)}
+          onDissolve={(layerId) => void runOk("layer.dissolve", { layerId }).catch(fail)}
+        />
         {empty && (
           <div className="empty">
             <h1>Comece pela conversa</h1>
@@ -263,6 +307,11 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
         {toasts.map((t) => (
           <div key={t.id} className="toast">
             {t.message}
+            {t.action && (
+              <button type="button" className="toast-action" onClick={() => { t.action!.run(); setToasts((all) => all.filter((x) => x.id !== t.id)); }}>
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>
