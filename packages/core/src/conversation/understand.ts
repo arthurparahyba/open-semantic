@@ -3,7 +3,7 @@
 import type { Dispatcher, WorkspaceSnapshot } from "@open-semantic/protocol";
 import type { AttentionPort, Clarification, Relevance, TargetRef } from "@open-semantic/semantic-context";
 
-import { WorkspaceContext, canvasAttention, topicReason } from "../context.js";
+import { WorkspaceContext, canvasAttention, layerView, topicReason } from "../context.js";
 import type { Chat } from "./chat.js";
 import { CLAUDE_AGENT } from "./types.js";
 import { workspaceHeader } from "./workspaceSummary.js";
@@ -41,7 +41,8 @@ export class Understanding {
     }
     const main = relevance.topics[0];
     if (main) this.recent = [...main.unitIds, ...this.recent.filter((u) => !main.unitIds.includes(u))].slice(0, 8);
-    const pack = await this.context.engine.buildContext({ relevance, content: this.context.content(snapshot) });
+    const layer = layerView(snapshot);
+    const pack = await this.context.engine.buildContext({ relevance, content: this.context.content(snapshot), ...(layer ? { layer } : {}) });
     return `${JSON.stringify(workspaceHeader(snapshot))}\n\n${pack.text}`;
   }
 
