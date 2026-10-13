@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { DiagramModel } from "@open-semantic/protocol";
 
@@ -87,6 +88,12 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
   }, []);
 
   const busy = conversation !== null && conversation.status !== "idle";
+  // A pergunta rápida não trava o envio: uma mensagem nova descarta as opções e segue.
+  const asking = conversation?.entries.some((e) => e.kind === "choice" && e.mode === "question" && !e.chosen && !e.dismissed) ?? false;
+  const input = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (input.current) grow(input.current);
+  }, [draft]);
   const itemCount = (conversation?.entries.length ?? 0) + activity.length;
   useEffect(() => {
     feedEnd.current?.scrollIntoView?.({ block: "end" });
@@ -104,7 +111,7 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
 
   const sendChat = async () => {
     const text = draft.trim();
-    if (!text || busy) return;
+    if (!text || (busy && !asking)) return;
     const result = await api().sendChat(text);
     if (result.ok) setDraft("");
     else onError(result.message);
@@ -209,43 +216,50 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
         })}
         {busy && (
           <li className="chat-progress" data-testid="chat-progress">
-            {conversation!.entries.some((e) => e.kind === "choice" && e.mode === "question" && !e.chosen) ? "esperando sua resposta" : CONVERSATION_STATUS[conversation!.status]}
+            {asking ? "esperando sua resposta" : CONVERSATION_STATUS[conversation!.status]}
           </li>
         )}
         <li ref={feedEnd} aria-hidden className="feed-end" />
       </ol>
 
-      <form
-        className="chat-composer"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void sendChat();
-        }}
-      >
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void sendChat();
-            }
+      {createPortal(
+        <form
+          className="chat-composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void sendChat();
           }}
-          placeholder={keyMissing ? "Configure a chave para conversar" : hasProject ? "Peça algo ao agente…" : "Cole o caminho de uma pasta ou o link de um repositório…"}
-          disabled={keyMissing}
-          rows={2}
-          data-testid="chat-input"
-        />
-        {busy ? (
-          <button type="button" onClick={() => void api().stopChat()} data-testid="chat-stop">
-            Parar
-          </button>
-        ) : (
-          <button type="submit" className="primary" disabled={keyMissing || !draft.trim()} data-testid="chat-send">
-            Enviar
-          </button>
-        )}
-      </form>
+        >
+          <textarea
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              grow(e.target);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void sendChat();
+              }
+            }}
+            placeholder={keyMissing ? "Configure a chave para conversar" : hasProject ? "Peça algo ao agente…" : "Cole o caminho de uma pasta ou o link de um repositório…"}
+            disabled={keyMissing}
+            rows={1}
+            ref={input}
+            data-testid="chat-input"
+          />
+          {busy && !asking ? (
+            <button type="button" onClick={() => void api().stopChat()} data-testid="chat-stop">
+              Parar
+            </button>
+          ) : (
+            <button type="submit" className="primary" disabled={keyMissing || !draft.trim()} data-testid="chat-send" title={asking ? "A mensagem nova descarta as opções e segue no lugar delas" : undefined}>
+              Enviar
+            </button>
+          )}
+        </form>,
+        document.body,
+      )}
 
       <details className="agent-scripts">
         <summary>Roteiros de teste (sem IA, sem custo)</summary>
@@ -322,6 +336,12 @@ function BatchCard({ activity: a, onError }: { activity: AgentActivity; onError(
   );
 }
 
+/** A caixa começa com uma linha e cresce até 10; dali em diante, rolagem. */
+function grow(el: HTMLTextAreaElement) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+}
+
 type ChoiceEntry = Extract<ConversationView["entries"][number], { kind: "choice" }>;
 
 /**
@@ -335,7 +355,7 @@ function ChoiceCard({ entry, onError }: { entry: ChoiceEntry; onError(message: s
     if (!result.ok) onError(result.message);
     else setOpen(false);
   };
-  const pending = entry.mode === "question" && !entry.chosen;
+  const pending = entry.mode === "question" && !entry.chosen && !entry.dismissed;
   return (
     <li className={`chat-choice mode-${entry.mode}`} data-testid="chat-choice">
       <span>

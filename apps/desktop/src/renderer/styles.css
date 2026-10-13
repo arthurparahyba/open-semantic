@@ -155,7 +155,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   background: color-mix(in srgb, var(--surface) 85%, transparent); padding: 3px 8px; border-radius: 6px;
   pointer-events: none;
 }
-.toasts { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 1000; }
+.toasts { position: fixed; right: 16px; bottom: 72px; display: grid; gap: 8px; z-index: 1000; }
 .toast {
   max-width: 380px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--danger);
   border-left-width: 4px; border-radius: 8px; box-shadow: var(--shadow);
@@ -284,8 +284,20 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .chat-choice button.link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 12px; }
 .chat-progress { color: var(--text-2); font-size: 12px; font-style: italic; }
 .feed-end { height: 1px; }
-.chat-composer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); align-items: flex-end; }
-.chat-composer textarea { flex: 1; resize: vertical; min-height: 40px; max-height: 200px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+/* Caixa de mensagem: discreta, no centro do rodapé; ~45% da janela, com mínimo fixo, e a largura toda em janelas estreitas. */
+.chat-composer {
+  position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 20;
+  width: clamp(min(420px, calc(100vw - 24px)), 45vw, 900px);
+  display: flex; gap: 6px; align-items: flex-end; padding: 4px 4px 4px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
+}
+.chat-composer textarea {
+  flex: 1; resize: none; border: 0; outline: none; background: transparent; color: var(--text); font: inherit;
+  line-height: 20px; padding: 5px 0; min-height: 30px; max-height: calc(10 * 20px + 10px); overflow-y: auto;
+}
+.chat-composer button { border-radius: 14px; padding: 4px 12px; }
+.stage .hint { bottom: 64px; }
+.agent-panel .agent-feed, .agent-panel > ol { padding-bottom: 64px; }
 
 /* Diálogo de configurações do agente */
 .dialog-backdrop { position: fixed; inset: 0; background: rgba(10, 14, 22, 0.35); display: grid; place-items: center; z-index: 50; padding: 16px; }

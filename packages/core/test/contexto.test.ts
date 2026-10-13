@@ -162,6 +162,21 @@ describe("motor de contexto na conversa", () => {
     expect(conv.view().status).toBe("idle");
   });
 
+  it("uma mensagem nova durante a pergunta descarta as opções e segue com ela", async () => {
+    const provider = new FakeProvider([() => ({ text: "Pela api-contas." })]);
+    const conv = conversation(provider);
+    const first = conv.send("Como o portal fala com o back-end?");
+    await until(() => conv.view().status === "waiting_user");
+    expect(conv.accepts()).toBe(true);
+    await conv.send("Como o app mobile fala com o back-end?");
+    await first;
+    expect(provider.requests).toHaveLength(1);
+    expect(firstUserText(provider)).toContain("app mobile");
+    expect(choices(conv)[0]).toMatchObject({ mode: "question", dismissed: true });
+    expect(conv.view().entries.some((e) => e.kind === "notice" && e.text.includes("parado"))).toBe(false);
+    expect(conv.view().status).toBe("idle");
+  });
+
   it("supõe quando só um back-end está ligado ao front, e a suposição pode ser trocada", async () => {
     const provider = new FakeProvider([() => ({ text: "Pela api-contas." }), () => ({ text: "E pela api-cartoes." })]);
     const conv = conversation(provider);
