@@ -27,9 +27,9 @@ export class Understanding {
   }
 
   /** O bloco <workspace> do pedido, ou undefined quando a pessoa parou na pergunta rápida. */
-  async understand(message: string): Promise<string | undefined> {
+  async understand(message: string, options: { broad?: boolean } = {}): Promise<string | undefined> {
     const snapshot = this.context.sync();
-    const relevance = await this.relevance(message, snapshot);
+    const relevance = await this.relevance(message, snapshot, options.broad ?? false);
     if (!relevance) return undefined;
     this.offerAssumptions(relevance);
     if (relevance.primaryTarget) {
@@ -47,10 +47,10 @@ export class Understanding {
   }
 
   /** O que a mensagem cita. Uma dúvida que muda o foco vira pergunta rápida, e a análise refaz com a resposta. */
-  private async relevance(message: string, snapshot: WorkspaceSnapshot): Promise<Relevance | undefined> {
+  private async relevance(message: string, snapshot: WorkspaceSnapshot, broad: boolean): Promise<Relevance | undefined> {
     const engine = this.context.engine;
     const choices: Record<string, string> = {};
-    const input = () => ({ text: message, focus: { visibleIds: snapshot.navigation.focus.targetIds ?? [] }, recent: this.recent, choices });
+    const input = () => ({ text: message, focus: { visibleIds: snapshot.navigation.focus.targetIds ?? [] }, recent: this.recent, choices, broad });
     const first = engine.analyze(input());
     if (!first.question) return first;
     const answer = await this.attention.ask(first.question);

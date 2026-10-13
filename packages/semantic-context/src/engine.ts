@@ -28,6 +28,8 @@ const DEAD = new Set(["rejected", "invalid"]);
 const EXPLICIT_ID = /\b(?:sem|dgm|nd|edg|mod|rgn)_[A-Za-z0-9_-]{3,64}\b/g;
 const MENTION = /@([\p{L}\p{N}_.-]+)/gu;
 /** Palavras de quem pergunta como as peças conversam entre si. */
+/** Termos que, no chat, quase sempre falam da conversa e não do projeto: nunca viram pergunta rápida. */
+const CHAT_WORDS = new Set(["mensagem", "resposta", "pergunta", "conversa", "chat", "pedido"]);
 const INTERACTION = /\b(interac|integra|chama|chamada|call|fala|conversa|comunica|envia|manda|consome|publica|requisi|request|talk)/;
 
 export interface AnalyzeInput {
@@ -36,6 +38,8 @@ export interface AnalyzeInput {
   recent?: RecentTopics;
   /** Respostas do usuário a perguntas anteriores: termo → unidade escolhida. */
   choices?: Record<string, TargetRef>;
+  /** Pedido amplo ou de planejamento: o motor não pergunta "de qual X", a IA decide o que cada termo cobre. */
+  broad?: boolean;
   /** Para depuração e para a avaliação: recebe o estado de cada passo. */
   trace?: (stage: string, data: unknown) => void;
 }
@@ -293,7 +297,9 @@ export class SemanticContextEngine {
     // 5. Dúvida que muda o foco: está no assunto principal.
     let question: Clarification | undefined;
     const main = topics[0];
-    for (const u of unresolved) {
+    for (const u of input.broad ? [] : unresolved) {
+      // Palavras sobre a própria conversa ("a mensagem", "sua resposta") não apontam para o projeto.
+      if (CHAT_WORDS.has(u.term)) continue;
       const inMain = main && u.candidates.some((c) => main.unitIds.includes(c) || main.unitIds.some((m) => this.isAncestor(g, c, m) || this.isAncestor(g, m, c)));
       if (!inMain || !main) continue;
       // Só um sinônimo casou ("tela" achando WebConfiguration por "web"): não é dúvida real, a IA segue sem perguntar.
