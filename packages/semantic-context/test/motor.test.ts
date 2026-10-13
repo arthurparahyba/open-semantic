@@ -81,3 +81,20 @@ describe("motor de contexto", () => {
     expect(pack.dropped.length).toBeGreaterThan(0);
   });
 });
+
+describe("pergunta só quando a dúvida é real", () => {
+  it("não pergunta quando só um sinônimo casou (tela → web)", () => {
+    const local = new SemanticContextEngine();
+    local.feed({
+      upsert: [
+        { id: "sem_pc", kind: "unit", name: "spring-petclinic", unitKind: "repository", unitIds: ["sem_pc"] },
+        { id: "sem_pc_web1", kind: "unit", name: "WebConfiguration", description: "idioma ?lang=", unitIds: ["sem_pc_web1"] },
+        { id: "sem_pc_web2", kind: "unit", name: "Configuração", aliases: ["web"], description: "cache de vets, web, boas-vindas", unitIds: ["sem_pc_web2"] },
+        { id: "sem_pc_boot", kind: "unit", name: "Bootstrap e Font Awesome via WebJars", aliases: ["web"], unitIds: ["sem_pc_boot"] },
+      ],
+      links: ["sem_pc_web1", "sem_pc_web2", "sem_pc_boot"].map((to) => ({ from: "sem_pc", to, type: "contains" })),
+    } as never);
+    const r = local.analyze({ text: "Apresente como é a tela inicial da aplicação" });
+    expect(r.question).toBeUndefined();
+  });
+});
