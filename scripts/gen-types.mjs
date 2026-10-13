@@ -21,7 +21,7 @@ for (const file of readdirSync(schemaDir).filter((f) => f.endsWith(".schema.json
   }
   // O schema raiz do workspace é o snapshot completo.
   if (schema.type === "object" && schema.properties) {
-    const { $schema, $id, $defs, ...rootSchema } = schema;
+    const { $schema: _schema, $id: _id, $defs: _defs, ...rootSchema } = schema;
     defs.WorkspaceSnapshot = rootSchema;
   }
 }
@@ -44,7 +44,7 @@ function rewrite(node) {
 // Títulos fazem o gerador usar o nome do $def como nome do tipo.
 const bundled = { $defs: {} };
 for (const [name, def] of Object.entries(rewrite(defs))) {
-  const { title, ...rest } = def;
+  const { title: _title, ...rest } = def;
   bundled.$defs[name] = { title: name, ...rest };
 }
 

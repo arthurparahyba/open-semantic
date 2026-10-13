@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "unicorn/no-useless-spread": "off"
+  },
+  "overrides": [
+    {
+      "files": ["apps/desktop/src/renderer/AgentPanel.tsx", "apps/desktop/src/renderer/App.tsx"],
+      "rules": { "react/refs": "off", "react/set-state-in-effect": "off" }
+    }
+  ],
+  "ignorePatterns": ["**/generated/**", "**/dist/**", "**/test-results/**"]
+}

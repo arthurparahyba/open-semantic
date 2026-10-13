@@ -759,7 +759,7 @@ export class SemanticContextEngine {
         const d = this.index.get(u);
         if (!d) continue;
         const evidence = (await input.content?.read(u, 1)) ?? "";
-        const full = [this.unitLine(d, g, true), ...this.unitLinks(u, g), evidence].filter(Boolean).join("\n");
+        const full = [this.unitLine(d, g, true), ...this.unitLinks(u), evidence].filter(Boolean).join("\n");
         offer(u, "assunto principal", [
           [1, full],
           [0, this.unitLine(d, g, false)],
@@ -814,7 +814,7 @@ export class SemanticContextEngine {
     return `${d.id} "${d.name}"${aliases} [${bits.join(", ")}]${desc}`;
   }
 
-  private unitLinks(unit: string, g: Graph): string[] {
+  private unitLinks(unit: string): string[] {
     return this.links
       .filter((l) => l.type !== "contains" && (l.from === unit || l.to === unit))
       .map((l) => `  ${l.from} -${l.type}-> ${l.to}`)

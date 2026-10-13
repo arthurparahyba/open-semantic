@@ -18,8 +18,6 @@ import { contractValidator, describeErrors } from "./schemas.js";
 const validatePlan = contractValidator("operation.schema.json#/$defs/BatchPlan");
 const validateBatchResult = contractValidator("operation.schema.json#/$defs/BatchResult");
 
-const RISK_ORDER: ConfirmationRequest["risk"][] = ["low", "medium", "high", "irreversible"];
-
 export interface BatchExecutorOptions {
   dispatcher: Dispatcher;
   now?: () => Date;

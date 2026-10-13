@@ -22,7 +22,7 @@ type Status = { kind: "loading" } | { kind: "ready" } | { kind: "conflict" } | {
 
 function languageFor(path: string): Extension[] {
   if (/\.(m|c)?(j|t)sx?$/.test(path)) return [javascript({ jsx: true, typescript: /\.tsx?$/.test(path) })];
-  if (/\.json$/.test(path)) return [json()];
+  if (path.endsWith(".json")) return [json()];
   if (/\.(md|markdown)$/.test(path)) return [markdown()];
   return [];
 }

@@ -36,7 +36,16 @@ pnpm test          # testes de todos os pacotes
 pnpm typecheck     # checagem de tipos
 pnpm test:e2e      # abre o app real e percorre os fluxos do M1 e do M2 (no Linux sem tela: xvfb-run -a pnpm test:e2e)
 pnpm validate:contracts
+pnpm lint          # oxlint com as regras de correção
+pnpm guardrails    # tamanho das funções e fronteiras entre pacotes (veja abaixo)
+pnpm metrics       # relatório de funções longas, complexas ou com muitos parâmetros
 ```
+
+### Guardrails do CI
+
+O CI recusa código novo que passe destes limites por função: 80 linhas, complexidade 15, 4 parâmetros e 4 níveis de aninhamento. As funções que já passavam deles estão em `scripts/metrics-baseline.json`; a lista só diminui. Quando você divide uma delas, rode `pnpm metrics:baseline` para tirá-la da lista. Se uma função nova precisar mesmo passar do limite, rode o mesmo comando e explique no PR.
+
+`scripts/check-boundaries.mjs` guarda a arquitetura em camadas: `protocol`, `llm` e `semantic-context` não importam nenhum pacote do app, os módulos de domínio só usam `protocol` e `workspace-store`, e a interface (renderer) só importa tipos, mais os módulos puros `navigator` e `workspace-store/anchoring`.
 
 ### O que dá para fazer no M1
 

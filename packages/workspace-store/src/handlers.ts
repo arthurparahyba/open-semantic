@@ -33,7 +33,7 @@ export interface WorkspaceHandlerDeps {
 }
 
 /** Endereços que aceitamos clonar: https (GitHub, GitLab etc.) ou git@host:dono/repo. */
-export const CLONE_URL = /^(https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9._~\/-]+?|git@[A-Za-z0-9.-]+:[A-Za-z0-9._~\/-]+?)(\.git)?\/?$/;
+export const CLONE_URL = /^(https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9._~/-]+?|git@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+?)(\.git)?\/?$/;
 
 /** Nome de pasta a partir do endereço do repositório: https://github.com/dono/xpto.git → xpto. */
 export function repoNameFromUrl(url: string): string {
