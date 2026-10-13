@@ -5,6 +5,7 @@ import type {
   CanvasObject,
   DiagramModel,
   Evidence,
+  Layer,
   ModInstance,
   NavigationState,
   Project,
@@ -26,6 +27,7 @@ export interface CollectionItems {
   diagrams: DiagramModel;
   regions: Region;
   canvas: CanvasObject;
+  layers: Layer;
   navigation: NavigationState;
 }
 
@@ -75,10 +77,12 @@ export const LISTS: Lists = {
   diagrams: { get: (d) => d.diagrams, set: (d, items) => void (d.diagrams = items) },
   regions: { get: (d) => d.canvas.regions, set: (d, items) => void (d.canvas.regions = items) },
   canvas: { get: (d) => d.canvas.objects, set: (d, items) => void (d.canvas.objects = items) },
+  // Workspaces antigos não têm camadas: a lista nasce vazia na primeira leitura.
+  layers: { get: (d) => (d.layers ??= []), set: (d, items) => void (d.layers = items) },
 };
 
 /** As coleções na ordem do documento; as mudanças de um commit seguem esta ordem. */
-export const COLLECTIONS: Collection[] = ["workspace", "projects", "artifacts", "entities", "relations", "evidence", "mods", "diagrams", "regions", "canvas", "navigation"];
+export const COLLECTIONS: Collection[] = ["workspace", "projects", "artifacts", "entities", "relations", "evidence", "mods", "diagrams", "regions", "canvas", "layers", "navigation"];
 
 export function isList(collection: Collection): collection is ListCollection {
   return collection !== "workspace" && collection !== "navigation";

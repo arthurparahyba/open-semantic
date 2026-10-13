@@ -92,6 +92,11 @@ export type TurnId = string;
 export type GrantId = string;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "LayerId".
+ */
+export type LayerId = string;
+/**
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "StepId".
  */
 export type StepId = string;
@@ -171,6 +176,17 @@ export type ErrorCode =
   | "TIMEOUT"
   | "INTERNAL";
 /**
+ * O que pode ser membro de uma camada: diagrama, nó, mod ou trecho de conversa (turno).
+ *
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "LayerMemberId".
+ */
+export type LayerMemberId = DiagramId | NodeId | ModId | TurnId;
+/**
+ * Camada mãe. Ausente: a filha nasce da base (o workspace).
+ */
+export type LayerId1 = string;
+/**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "ModType".
  */
@@ -180,6 +196,10 @@ export type ModType = ("explorer" | "editor" | "terminal" | "table") | string;
  * via the `definition` "ModInstance".
  */
 export type ModInstance = ModInstance1;
+/**
+ * Camada de assunto ativa. Ausente: a base (o workspace inteiro).
+ */
+export type LayerId2 = string;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "OperationName".
@@ -556,6 +576,41 @@ export interface DiagramPatch {
   relayout?: boolean;
 }
 /**
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "LayerMember".
+ */
+export interface LayerMember {
+  id: LayerMemberId;
+  /**
+   * Pertinência ao assunto. Peso baixo aparece esmaecido, não some.
+   */
+  weight: number;
+  reason?: string;
+  /**
+   * Membros que o usuário pôs ou tirou o agente não desfaz.
+   */
+  addedBy: "agent" | "user";
+}
+/**
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "Layer".
+ */
+export interface Layer {
+  id: LayerId;
+  name: string;
+  description?: string;
+  parentId?: LayerId1;
+  /**
+   * Elementos da camada de baixo de onde a camada nasceu. Normalmente um; uma camada de integração pode ter um por aplicação.
+   */
+  anchors: LayerMemberId[];
+  members: LayerMember[];
+  origin: "agent" | "user";
+  createdAt: Timestamp;
+  lastActiveAt: Timestamp;
+  revision?: Revision;
+}
+/**
  * Uma ação que o tipo de mod expõe via mod.invoke.
  *
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
@@ -752,6 +807,7 @@ export interface NavigationState {
   camera: Camera;
   focus: Focus;
   lastOverview?: Camera;
+  activeLayerId?: LayerId2;
   /**
    * @maxItems 20
    */
@@ -1212,6 +1268,7 @@ export interface DomainEvent {
     | "workspace.revision_changed"
     | "canvas.object_moved"
     | "region.changed"
+    | "layer.changed"
     | "mod.created"
     | "mod.configured"
     | "mod.lifecycle_changed"
@@ -1454,4 +1511,8 @@ export interface WorkspaceSnapshot {
   diagrams: DiagramModel[];
   canvas: Canvas;
   navigation: NavigationState;
+  /**
+   * Camadas de assunto (docs/funcionalidades/11-camadas.md). Ausente em workspaces antigos: vale lista vazia.
+   */
+  layers?: Layer[];
 }

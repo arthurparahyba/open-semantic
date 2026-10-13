@@ -4,6 +4,7 @@ import type {
   CanvasObject,
   DiagramModel,
   Evidence,
+  Layer,
   ModInstance,
   NavigationState,
   Project,
@@ -46,6 +47,7 @@ export function emptySnapshot({ id, name, now = () => new Date() }: CreateWorksp
     mods: [],
     diagrams: [],
     canvas: { objects: [], regions: [] },
+    layers: [],
     navigation: {
       camera: { center: { x: 0, y: 0 }, zoom: 1 },
       focus: {},
@@ -81,6 +83,7 @@ export class WorkspaceStore {
     this.now = options.now ?? (() => new Date());
     // Estado transitório não sobrevive a reabrir (V0.1 §2.4).
     this.doc.navigation.motion = { status: "idle" };
+    this.doc.layers ??= [];
     freezeDocument(this.doc);
   }
 
@@ -263,6 +266,7 @@ export class WorkspaceStore {
   deleteMod(id: string): boolean {
     if (!this.remove("mods", id)) return false;
     this.removeCanvasObject(id);
+    this.forgetInLayers(new Set([id]));
     return true;
   }
 
@@ -314,9 +318,55 @@ export class WorkspaceStore {
   }
 
   deleteDiagram(id: string): boolean {
+    const nodeIds = this.diagram(id)?.nodes.map((n) => n.id) ?? [];
     if (!this.remove("diagrams", id)) return false;
     this.removeCanvasObject(id);
+    this.forgetInLayers(new Set([id, ...nodeIds]));
     return true;
+  }
+
+  // ---------- camadas de assunto (docs/funcionalidades/11-camadas.md) ----------
+  layers(): readonly Layer[] {
+    return this.doc.layers ?? [];
+  }
+
+  layer(id: string): Layer | undefined {
+    return this.layers().find((l) => l.id === id);
+  }
+
+  /** Grava a camada incrementando a revisão dela. */
+  putLayer(layer: Layer): Layer {
+    const next = { ...structuredClone(layer), revision: (this.layer(layer.id)?.revision ?? 0) + 1 };
+    this.put("layers", next);
+    return next;
+  }
+
+  /** Tira só o recorte: os elementos continuam onde estão. */
+  deleteLayer(id: string): boolean {
+    if (!this.remove("layers", id)) return false;
+    if (this.doc.navigation.activeLayerId === id) this.setActiveLayer(undefined);
+    return true;
+  }
+
+  activeLayer(): Layer | undefined {
+    const id = this.doc.navigation.activeLayerId;
+    return id ? this.layer(id) : undefined;
+  }
+
+  /** Muda a camada ativa (estado de visualização); undefined volta para a base. */
+  setActiveLayer(id: string | undefined) {
+    this.touch("navigation");
+    const { activeLayerId: _old, ...navigation } = this.doc.navigation;
+    this.doc.navigation = id ? { ...navigation, activeLayerId: id } : navigation;
+  }
+
+  /** Elementos que saíram do workspace deixam de ser membros e âncoras. */
+  private forgetInLayers(gone: Set<string>) {
+    for (const layer of this.layers()) {
+      const members = layer.members.filter((m) => !gone.has(m.id));
+      const anchors = layer.anchors.filter((a) => !gone.has(a));
+      if (members.length !== layer.members.length || anchors.length !== layer.anchors.length) this.put("layers", { ...layer, members, anchors });
+    }
   }
 
   // ---------- Open Semantic (armazenamento no snapshot; ver decisão D2) ----------
@@ -380,6 +430,7 @@ export class WorkspaceStore {
       this.project(id) ??
       this.diagram(id) ??
       this.region(id) ??
+      this.layer(id) ??
       this.entity(id) ??
       this.relation(id) ??
       this.canvasObject(id);

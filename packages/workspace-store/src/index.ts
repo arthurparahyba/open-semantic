@@ -48,3 +48,4 @@ export {
   type AnchorDoc,
   type ContextGroup,
 } from "./anchoring.js";
+export { layerHandlers, elementExists, inLayer, mergeMembers, type LayerHandlerDeps } from "./layerHandlers.js";

@@ -6,7 +6,7 @@
   "$defs": {
     "OperationName": {
       "type": "string",
-      "pattern": "^(workspace|canvas|region|mod|diagram|semantic|navigation|project)\\.[a-z_]+$"
+      "pattern": "^(workspace|canvas|region|mod|diagram|semantic|navigation|project|layer)\\.[a-z_]+$"
     },
 
     "Precondition": {
@@ -216,7 +216,7 @@
         "type": {
           "enum": [
             "workspace.opened", "workspace.revision_changed",
-            "canvas.object_moved", "region.changed",
+            "canvas.object_moved", "region.changed", "layer.changed",
             "mod.created", "mod.configured", "mod.lifecycle_changed", "mod.deleted", "mod.runtime_state_changed",
             "diagram.created", "diagram.changed", "diagram.deleted",
             "semantic.entity_upserted", "semantic.relation_upserted", "semantic.status_changed",
