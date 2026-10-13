@@ -28,6 +28,7 @@ import {
   WorkspaceStore,
   autosave,
   commitEvents,
+  keepNewDiagramsInActiveLayer,
   layerHandlers,
   workspaceHandlers,
   workspacePreconditions,
@@ -207,6 +208,7 @@ export async function createCore(options: CoreOptions) {
     debounceMs: options.debounceMs ?? 300,
     ...(options.onPersist ? { onStatus: options.onPersist } : {}),
   });
+  keepNewDiagramsInActiveLayer(store);
   if (options.onCommit) store.onCommit(options.onCommit);
   if (options.onEvent) publishDomainEvents(store, options.onEvent);
 

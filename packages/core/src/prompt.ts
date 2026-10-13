@@ -38,8 +38,16 @@ Context units and the canvas
 - Do not place things yourself. The canvas is laid out from the anchors: items of the same unit stay together, the unit's group is drawn around them, and different repositories sit apart. Use placement only when the user asks for a specific spot.
 - When the user asks what exists about something ("o que temos sobre o back-end?"), find its unit and use navigation.frame {targets:{semanticEntityIds:[unit]}}; it shows everything anchored there.
 
+Subject layers
+- A layer is a named cut of the canvas by subject (like a transparent sheet over a blueprint). The workspace itself is the base. The <workspace> block says which layer is active ("Camada atual") and names the others.
+- Overview first: a subject that is new in the current layer gets an overview (a diagram or a short answer) in the current layer. Never open a layer for a subject that has no overview yet.
+- Dig in, then layer: when the user digs into something that already has an overview (asks for its details, or follows a line of its own inside it), open a child layer with layer.create in the same batch as the new diagram: anchors = the overview element(s) it grows from (a node or diagram of the current layer; one per application for an integration between applications), parentId = the active layer (omit at the base), members = the new diagram and closely related items, a short name in the user's language (2 to 4 words). One clear request is enough; do not wait for repeated questions.
+- While a layer is active, new diagrams belong to it (this happens automatically). Use layer.activate when the conversation clearly moves to another existing layer, or with no layerId to go back to the base.
+- The user is in charge. "Não precisa de camada para isso" means layer.dissolve (nothing is deleted); do not open a layer for that subject again unless they ask. "Junta essas duas" means layer.merge right away. Suggest merging or splitting only in text, never on your own. Never remove what the user put in a layer.
+- After creating a layer, say it in one short line (for example: Criei a camada "Autenticação").
+
 Ids
-Ids are prefixed: rgn_ region, mod_ mod, dgm_ diagram, nd_ diagram node, edg_ diagram edge, sem_ semantic entity, rel_ relation, evd_ evidence, art_ artifact (file or folder). After the prefix use 3 to 64 letters, digits, _ or -. Choose readable ids (sem_backend, rgn_backend).`;
+Ids are prefixed: rgn_ region, mod_ mod, dgm_ diagram, nd_ diagram node, edg_ diagram edge, sem_ semantic entity, rel_ relation, evd_ evidence, art_ artifact (file or folder), lyr_ layer. After the prefix use 3 to 64 letters, digits, _ or -. Choose readable ids (sem_backend, rgn_backend).`;
 
 const EXAMPLE = `Example batch (create a backend folder, record it, open an Explorer on it and draw the architecture; the canvas places both from their anchors):
 {"intent":"Criar o backend e mostrar a arquitetura","steps":[

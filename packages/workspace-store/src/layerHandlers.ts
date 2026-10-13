@@ -58,6 +58,33 @@ function requireElements(store: WorkspaceStore, ids: string[], argumentPath: str
   });
 }
 
+/** Motivo dos membros que entram sozinhos: diagrama criado com a camada ativa. */
+export const BORN_IN_LAYER = "criado com a camada ativa";
+
+/**
+ * Diagrama novo nasce na camada ativa (docs/funcionalidades/11-camadas.md). Na base não há o que fazer.
+ * Devolve a função que para de acompanhar.
+ */
+export function keepNewDiagramsInActiveLayer(store: WorkspaceStore): () => void {
+  return store.onCommit((commit) => {
+    const created = commit.changes.filter((c) => c.collection === "diagrams" && c.kind === "created").map((c) => c.id);
+    const layer = store.activeLayer();
+    if (!created.length || !layer) return;
+    const members = mergeMembers(layer.members, created.map((id) => ({ id, weight: 1, addedBy: "agent" as const, reason: BORN_IN_LAYER })));
+    if (members.length !== layer.members.length) store.transact(() => store.putLayer({ ...layer, members }));
+  });
+}
+
+/**
+ * Quem a filha leva e que tinha acabado de nascer na mãe (o diagrama do aprofundamento) sai da mãe:
+ * é da filha. O que alguém pôs na mãe de propósito fica.
+ */
+function moveBornMembers(parent: Layer, taken: string[]): Layer | undefined {
+  const out = new Set(taken);
+  const members = parent.members.filter((m) => !(out.has(m.id) && m.addedBy === "agent" && m.reason === BORN_IN_LAYER));
+  return members.length === parent.members.length ? undefined : { ...parent, members };
+}
+
 export interface LayerHandlerDeps {
   store: WorkspaceStore;
 }
@@ -123,7 +150,10 @@ function createHandler({ store, toMembers, saved }: Kit): OperationHandler {
         createdAt: at,
         lastActiveAt: at,
       };
+      const parent = layer.parentId ? store.layer(layer.parentId) : undefined;
+      const lighter = parent && moveBornMembers(parent, layer.members.map((m) => m.id));
       const next = store.transact(() => {
+        if (lighter) store.putLayer(lighter);
         const put = store.putLayer(layer);
         if (args.activate !== false) store.setActiveLayer(id);
         return put;

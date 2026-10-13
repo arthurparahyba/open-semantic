@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Dispatcher, contractValidator, type DiagramModel } from "@open-semantic/protocol";
 
-import { WorkspaceStore, layerHandlers } from "../src/index.js";
+import { WorkspaceStore, keepNewDiagramsInActiveLayer, layerHandlers } from "../src/index.js";
 
 const validSnapshot = contractValidator("workspace.schema.json");
 const agent = { kind: "agent" as const, id: "orchestrator" };
@@ -114,5 +114,18 @@ describe("camadas de assunto (doc 11)", () => {
     const doc = WorkspaceStore.create({ id: "ws_teste", name: "Teste" }).snapshot();
     delete doc.layers;
     expect(new WorkspaceStore(doc).layers()).toEqual([]);
+  });
+
+  it("diagrama novo nasce na camada ativa e passa para a filha aberta a partir dele", async () => {
+    const { store, op } = setup();
+    keepNewDiagramsInActiveLayer(store);
+    store.transact(() => store.putDiagram(diagram("dgm_antes", [])));
+    await op("layer.create", { layerId: "lyr_infra", name: "Infra", anchors: ["dgm_infra"], members: [{ id: "dgm_infra" }] });
+    expect(store.layer("lyr_infra")?.members.map((m) => m.id)).toEqual(["dgm_infra"]);
+    store.transact(() => store.putDiagram(diagram("dgm_login", ["nd_login"])));
+    expect(store.layer("lyr_infra")?.members.map((m) => m.id)).toEqual(["dgm_infra", "dgm_login"]);
+    await op("layer.create", { layerId: "lyr_auth", name: "Autenticação", parentId: "lyr_infra", anchors: ["dgm_infra"], members: [{ id: "dgm_login" }] });
+    expect(store.layer("lyr_infra")?.members.map((m) => m.id)).toEqual(["dgm_infra"]);
+    expect(store.layer("lyr_auth")?.members.map((m) => m.id)).toEqual(["dgm_login"]);
   });
 });
