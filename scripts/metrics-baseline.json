@@ -15,7 +15,6 @@
     "packages/core/src/index.ts#createCore": ["lines","complexity"],
     "packages/core/src/scripts.ts#scriptedPlan": ["lines"],
     "packages/diagram-engine/src/handlers.ts#diagramHandlers": ["lines"],
-    "packages/diagram-engine/src/layout.ts#computeLayout": ["complexity"],
     "packages/diagram-engine/src/model.ts#applyPatch": ["lines","complexity"],
     "packages/mod-runtime/src/index.ts#modHandlers": ["lines"],
     "packages/navigator/src/handlers.ts#frame": ["complexity"],

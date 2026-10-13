@@ -157,7 +157,13 @@ class DiagramPlanner {
         existing: this.existing,
         projectId: this.projectId,
         caption,
-        nodes: this.nodes.map((n) => ({ id: n.id, label: n.label, kind: n.kind?.trim() || "component", semanticEntityId: this.unitOf.get(n.id)! })),
+        nodes: this.nodes.map((n) => ({
+          id: n.id,
+          label: n.label,
+          kind: n.kind?.trim() || "component",
+          semanticEntityId: this.unitOf.get(n.id)!,
+          ...(n.layer ? { attributes: { layer: n.layer } } : {}),
+        })),
         edges,
         nodeIdOf: (ref) => this.nodeIdOf.get(ref),
         unitOf: (nodeId) => this.unitOf.get(nodeId),
@@ -181,6 +187,7 @@ class DiagramPlanner {
 
   /** Ligações viram relações (verificadas quando vistas no código da origem) e arestas do diagrama. */
   private linkEdges(): PlannedEdge[] {
+    if (this.input.kind === "sequence") return this.messages();
     const drawn = new Set<string>();
     return (this.input.edges ?? []).flatMap((e, i) => {
       const source = this.endpoint(e.from, `edges[${i}].from`);
@@ -190,6 +197,27 @@ class DiagramPlanner {
       const relation = this.relate(e, source, target);
       const id = this.existing?.edges.find((x) => x.sourceNodeId === source && x.targetNodeId === target)?.id ?? idOf("edg", source.slice(3), target.slice(3));
       return [{ id, sourceNodeId: source, targetNodeId: target, ...(e.label ? { label: e.label } : {}), semanticRelationId: relation.id }];
+    });
+  }
+
+  /**
+   * Num diagrama de sequência cada mensagem é uma aresta, mesmo repetindo o par, na ordem dada.
+   * O retorno não vira relação: ele só responde a uma chamada que já tem a sua.
+   */
+  private messages(): PlannedEdge[] {
+    return (this.input.edges ?? []).map((e, i) => {
+      const source = this.endpoint(e.from, `edges[${i}].from`);
+      const target = this.endpoint(e.to, `edges[${i}].to`);
+      const order = e.order ?? i + 1;
+      const relation = e.reply ? undefined : this.relate(e, source, target);
+      return {
+        id: idOf("edg", `m${order}`, source.slice(3), target.slice(3)),
+        sourceNodeId: source,
+        targetNodeId: target,
+        ...(e.label ? { label: e.label } : {}),
+        ...(relation ? { semanticRelationId: relation.id } : {}),
+        attributes: { order, ...(e.reply ? { reply: true } : {}) },
+      };
     });
   }
 

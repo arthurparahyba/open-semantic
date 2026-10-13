@@ -47,6 +47,8 @@ export {
   DEFAULT_LIMITS,
   VISUAL_NUDGE,
   asksForExplanation,
+  kindHint,
+  suggestDiagramKind,
   cleanPath,
   compactHistory,
   planShowDiagram,

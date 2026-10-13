@@ -450,7 +450,10 @@ export interface DiagramEdge {
  * via the `definition` "DiagramLayout".
  */
 export interface DiagramLayout {
-  algorithm: "manual" | "layered" | "force" | "grid";
+  /**
+   * lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção.
+   */
+  algorithm: "manual" | "layered" | "force" | "grid" | "lanes" | "sequence" | "tree";
   direction?: "LR" | "RL" | "TB" | "BT";
   /**
    * Retângulo de cada nó, relativo ao canto superior esquerdo do diagrama.
@@ -474,7 +477,10 @@ export interface DiagramModel {
    * Legenda curta que explica o diagrama, mostrada junto dele no canvas e no chat. O diagrama é a resposta; a legenda o acompanha.
    */
   caption?: string;
-  kind: "architecture" | "flow" | "sequence" | "dependency" | "freeform";
+  /**
+   * Gramática visual (docs/funcionalidades/12-tipos-de-diagrama.md). layers desenha faixas; sequence, participantes com linha de vida; tree, árvore de contenção; os demais, caixas e setas.
+   */
+  kind: "architecture" | "flow" | "sequence" | "dependency" | "layers" | "tree" | "freeform";
   projectId?: ProjectId;
   /**
    * Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).
