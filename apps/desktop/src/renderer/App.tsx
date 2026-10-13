@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { childMarks, litObjects } from "@open-semantic/workspace-store/layers";
+import { childMarks, hiddenObjects, litObjects } from "@open-semantic/workspace-store/layers";
 import { REBALANCE_THRESHOLD, displacement, type Move } from "@open-semantic/workspace-store/layout";
 import { activeProject } from "@open-semantic/workspace-store/projects";
 
@@ -252,6 +252,10 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
     if (result.status !== "succeeded") notify(result.error?.message ?? "Não foi possível mudar a navegação automática.");
   };
 
+  // O que nasceu numa camada fora do caminho da ativa até a base não aparece (doc 11).
+  const hidden = hiddenObjects(snapshot);
+  const shown = hidden.size ? { ...snapshot, canvas: { ...snapshot.canvas, objects: snapshot.canvas.objects.filter((o) => !hidden.has(o.id)) } } : snapshot;
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -319,7 +323,7 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
       <div className={`workarea${agentOpen ? " with-panel" : ""}`}>
       <main className="stage">
         <Canvas
-          snapshot={snapshot}
+          snapshot={shown}
           handle={canvas}
           renderObject={renderObject}
           onZoomChange={setZoom}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Dispatcher, contractValidator, type DiagramModel } from "@open-semantic/protocol";
 
-import { WorkspaceStore, keepNewDiagramsInActiveLayer, layerHandlers } from "../src/index.js";
+import { WorkspaceStore, hiddenObjects, keepNewDiagramsInActiveLayer, layerHandlers } from "../src/index.js";
 
 const validSnapshot = contractValidator("workspace.schema.json");
 const agent = { kind: "agent" as const, id: "orchestrator" };
@@ -127,5 +127,20 @@ describe("camadas de assunto (doc 11)", () => {
     await op("layer.create", { layerId: "lyr_auth", name: "Autenticação", parentId: "lyr_infra", anchors: ["dgm_infra"], members: [{ id: "dgm_login" }] });
     expect(store.layer("lyr_infra")?.members.map((m) => m.id)).toEqual(["dgm_infra"]);
     expect(store.layer("lyr_auth")?.members.map((m) => m.id)).toEqual(["dgm_login"]);
+  });
+});
+
+describe("o que nasce numa camada é só dela (doc 11)", () => {
+  it("some na base e nas irmãs, aparece na própria e nas filhas dela", async () => {
+    const { store, op } = setup();
+    store.transact(() => {
+      for (const id of ["dgm_infra", "dgm_tokens", "dgm_outra"]) store.placeObject({ id, objectKind: "diagram", position: { x: 0, y: 0 }, size: { width: 100, height: 100 } });
+    });
+    await op("layer.create", { layerId: "lyr_auth", name: "Autenticação", anchors: ["nd_auth"], members: [{ id: "dgm_tokens" }] });
+    await op("layer.create", { layerId: "lyr_cache", name: "Cache", anchors: ["nd_cache"], members: [{ id: "dgm_outra" }] });
+    await op("layer.activate", { layerId: "lyr_auth" });
+    expect([...hiddenObjects(store.read())]).toEqual(["dgm_outra"]);
+    await op("layer.activate", {});
+    expect([...hiddenObjects(store.read())].sort()).toEqual(["dgm_outra", "dgm_tokens"]);
   });
 });

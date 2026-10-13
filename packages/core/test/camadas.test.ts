@@ -33,16 +33,16 @@ describe("camada ativa para o motor de contexto", () => {
     expect(layerView(WorkspaceStore.create({ id: "ws_teste", name: "Teste" }).snapshot())).toBeUndefined();
   });
 
-  it("na base lista só as camadas de primeiro nível", () => {
-    expect(layerView(snapshot())).toEqual({ name: "", path: [], members: [], hidden: [], others: ["Infraestrutura"] });
+  it("na base lista só as camadas de primeiro nível e deixa de fora o que é delas", () => {
+    expect(layerView(snapshot())).toEqual({ name: "", path: [], members: [], hidden: ["dgm_infra", "dgm_auth", "dgm_jwt", "dgm_cache"], others: ["Infraestrutura"] });
   });
 
-  it("na filha: caminho, membros, o que é só das filhas escondido, filhas e irmãs pelo nome", () => {
+  it("na filha: caminho, membros, o que é de filhas e irmãs escondido, elas só pelo nome", () => {
     expect(layerView(snapshot("lyr_auth"))).toEqual({
       name: "Autenticação",
       path: ["Infraestrutura"],
       members: [{ ref: "dgm_auth", weight: 1 }],
-      hidden: ["dgm_jwt"],
+      hidden: ["dgm_jwt", "dgm_cache"],
       others: ["Tokens", "Cache"],
     });
   });

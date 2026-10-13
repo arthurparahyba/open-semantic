@@ -87,17 +87,14 @@ export function layerView(snapshot: WorkspaceSnapshot): LayerView | undefined {
   const byId = new Map(layers.map((l) => [l.id, l]));
   const active = snapshot.navigation.activeLayerId ? byId.get(snapshot.navigation.activeLayerId) : undefined;
   const childrenOf = (id: string | undefined) => layers.filter((l) => l.parentId === id);
-  if (!active) return { name: "", path: [], members: [], hidden: [], others: childrenOf(undefined).map((l) => l.name) };
+  // O que é de camadas fora do caminho da ativa até a base fica fora do contexto, como some do canvas.
+  const chain = new Set<string>();
+  for (let l = active; l && !chain.has(l.id); l = l.parentId ? byId.get(l.parentId) : undefined) chain.add(l.id);
+  const inChain = new Set(layers.filter((l) => chain.has(l.id)).flatMap((l) => l.members.map((m) => m.id)));
+  const hidden = [...new Set(layers.filter((l) => !chain.has(l.id)).flatMap((l) => l.members.map((m) => m.id)))].filter((id) => !inChain.has(id));
+  if (!active) return { name: "", path: [], members: [], hidden, others: childrenOf(undefined).map((l) => l.name) };
   const path: string[] = [];
   for (let p = active.parentId ? byId.get(active.parentId) : undefined; p && path.length < 20; p = p.parentId ? byId.get(p.parentId) : undefined) path.unshift(p.name);
-  const own = new Set(active.members.map((m) => m.id));
-  const descendants: typeof layers = [];
-  for (let queue = childrenOf(active.id); queue.length; ) {
-    const next = queue.shift()!;
-    descendants.push(next);
-    queue.push(...childrenOf(next.id));
-  }
-  const hidden = [...new Set(descendants.flatMap((l) => l.members.map((m) => m.id)))].filter((id) => !own.has(id));
   const siblings = childrenOf(active.parentId).filter((l) => l.id !== active.id);
   return {
     name: active.name,
