@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { activeProject } from "@open-semantic/workspace-store/projects";
+
 import type { PersistState, WorkspaceInfo } from "../shared/api.js";
 import { AgentPanel } from "./AgentPanel.js";
 import { Canvas, type CanvasHandle, type ObjectRenderProps } from "./Canvas.js";
@@ -188,7 +190,7 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
         {snapshot.projects.length > 0 && (
           <span className="projects" data-testid="projects">
             {snapshot.projects.map((p) => {
-              const active = p.id === (snapshot.workspace.activeProjectId ?? snapshot.projects[snapshot.projects.length - 1]!.id);
+              const active = p.id === activeProject(snapshot)?.id;
               return (
                 <span key={p.id} className={`project-chip${active ? " is-active" : ""}`} data-project-id={p.id} data-active={active}>
                   <button

@@ -15,6 +15,7 @@ import type {
 
 import { capture, deepFreeze, diff, freezeDocument, restore, type Captured } from "./changes.js";
 import { COLLECTIONS, LISTS, type Collection, type CollectionItems, type Commit, type ListCollection, type StoreChange } from "./commits.js";
+import { activeProject } from "./projects.js";
 import { removeProjectFrom, type Removed } from "./removal.js";
 
 export type CommitListener = (commit: Commit) => void;
@@ -215,8 +216,7 @@ export class WorkspaceStore {
 
   /** Projeto em que o agente trabalha quando o pedido não diz outro. */
   activeProject(): Project | undefined {
-    const id = this.doc.workspace.activeProjectId;
-    return (id && this.project(id)) || this.doc.projects[this.doc.projects.length - 1];
+    return activeProject(this.doc);
   }
 
   setActiveProject(id: string) {

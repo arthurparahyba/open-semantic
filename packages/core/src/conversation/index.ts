@@ -1,0 +1,10 @@
+export { Conversation } from "./Conversation.js";
+export { DEFAULT_LIMITS, type TurnLimits } from "./budget.js";
+export { compactHistory } from "./history.js";
+export { CLAUDE_AGENT, ConversationBusyError, type ChatEntry, type ConversationSettings, type ConversationView } from "./types.js";
+export { summarizeWorkspace, workspaceHeader } from "./workspaceSummary.js";
+export { VISUAL_NUDGE, asksForExplanation } from "./visualFirst.js";
+export { slug } from "./text.js";
+export { cleanPath } from "./tools/project.js";
+export { planShowDiagram } from "./tools/showDiagram/plan.js";
+export type { ShowDiagramInput } from "./tools/showDiagram/types.js";

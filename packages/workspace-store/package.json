@@ -14,6 +14,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./anchoring": "./src/anchoring.ts",
-    "./commits": "./src/commits.ts"
+    "./commits": "./src/commits.ts",
+    "./projects": "./src/projects.ts"
   }
 }

@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { contractValidator } from "@open-semantic/protocol";
+import { activeProject } from "@open-semantic/workspace-store";
 
-import { activeProject, createCore, scriptedPlan, summarizeWorkspace, type Core } from "../src/index.js";
+import { createCore, scriptedPlan, summarizeWorkspace, type Core } from "../src/index.js";
 
 const validateSnapshot = contractValidator("workspace.schema.json");
 const user = { kind: "user" as const, id: "arthur" };

@@ -43,18 +43,22 @@ export {
   Conversation,
   ConversationBusyError,
   DEFAULT_LIMITS,
-  activeProject,
+  VISUAL_NUDGE,
+  asksForExplanation,
+  cleanPath,
   compactHistory,
+  planShowDiagram,
+  slug,
   summarizeWorkspace,
   workspaceHeader,
   type ChatEntry,
   type ConversationSettings,
   type ConversationView,
+  type ShowDiagramInput,
   type TurnLimits,
-} from "./conversation.js";
+} from "./conversation/index.js";
 export { WorkspaceContext, canvasAttention, workspaceIndex } from "./context.js";
 export { systemPrompt } from "./prompt.js";
-export { SHOW_DIAGRAM_TOOL, VISUAL_NUDGE, asksForExplanation, planShowDiagram, slug, type ShowDiagramInput } from "./visual.js";
 export { AGENT, SCRIPTS, ScriptError, scriptedPlan, type ScriptInfo } from "./scripts.js";
 
 export const DEFAULT_WORKSPACE_ID = "ws_default";

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, u
 
 import { computeFrame, pan, zoomAt, type FrameOptions, type Viewport } from "@open-semantic/navigator";
 import { contextGroups } from "@open-semantic/workspace-store/anchoring";
+import { activeProject } from "@open-semantic/workspace-store/projects";
 import type { Camera, CanvasObject, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
 import { api, run } from "./client.js";
@@ -265,7 +266,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
   // região própria não ganha um segundo desenho.
   const withRegion = new Set(snapshot.canvas.regions.flatMap((r) => r.semanticEntityIds ?? []));
   const groups = contextGroups(snapshot).filter((g) => !withRegion.has(g.unitId));
-  const activeRepo = snapshot.workspace.activeProjectId;
+  const activeRepo = activeProject(snapshot)?.id;
 
   return (
     <div

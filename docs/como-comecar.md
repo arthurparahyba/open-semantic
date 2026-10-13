@@ -106,7 +106,7 @@ Tarefas:
 - **Depois:** servidor MCP para agentes externos (Claude Code, Cursor) usarem as mesmas operações.
 
 Decisões tomadas na parte 2:
-- O laço é manual (`packages/core/src/conversation.ts`) e só conhece a interface de `packages/llm`. Trocar de provedor é escrever um adaptador.
+- O laço é manual (`packages/core/src/conversation/`, com o laço em `loop.ts` e uma ferramenta por arquivo em `tools/`) e só conhece a interface de `packages/llm`. Trocar de provedor é escrever um adaptador.
 - Ferramentas do modelo: `get_workspace`, `list_dir`, `read_file`, `describe_operation` e `run_batch`. Leituras passam pelo Dispatcher com o ator `agent:claude` e ficam no histórico de ações. Mudanças só por `run_batch`, que espera a resposta do usuário quando há confirmação.
 - O resumo do workspace vai junto de cada pedido; o prompt de sistema é fixo e há cache automático do histórico, o que barateia as voltas do laço.
 - Resposta cortada (`max_tokens`) ou recusada não executa ferramentas. Toda chamada de ferramenta sem resultado recebe um resultado de erro, para o histórico seguir válido.

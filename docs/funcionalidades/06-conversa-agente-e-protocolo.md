@@ -169,7 +169,7 @@ Da V0.1: E1 a E5, D1, D3. Mais:
 
 ## Estado da implementação (M2, parte 2)
 
-- Provedores em `packages/llm` (interface `LlmProvider`, adaptador `AnthropicProvider`, preços por modelo). O laço está em `packages/core/src/conversation.ts` e o prompt de sistema em `packages/core/src/prompt.ts`.
+- Provedores em `packages/llm` (interface `LlmProvider`, adaptador `AnthropicProvider`, preços por modelo). O laço está em `packages/core/src/conversation/` (`Conversation.ts` orquestra, `loop.ts` é o laço, `tools/` tem uma ferramenta por arquivo) e o prompt de sistema em `packages/core/src/prompt.ts`.
 - Tetos por pedido (`DEFAULT_LIMITS`): 12 chamadas ao modelo, 6 lotes, 60 passos, 600 mil tokens, 8 mil tokens por resposta, além do teto de custo configurável.
 - O resultado de `run_batch` devolvido ao modelo traz o status real de cada passo e a narração mostrada ao usuário.
 
