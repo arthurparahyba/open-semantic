@@ -117,4 +117,25 @@ export const PLANNING_MODE: ExecutionMode = {
     '"Próximos passos: <opção 1> | <opção 2> | <opção 3>" (ações curtas, como "Seguir para a interface" ou "Ajustar o processo").',
 };
 
-export const BUILTIN_MODES: ExecutionMode[] = [BRIEF_MODE, PLANNING_MODE];
+const BROAD = [
+  /\b(como funciona|me explique|me explica|explique|explica) (todo |toda )?(o|a) (sistema|aplicacao|app|projeto|plataforma|produto|processo) (inteir[oa]|todo|toda|como um todo|de ponta a ponta)\b/,
+  /\b(visao (geral|completa) (de tudo|do sistema|da aplicacao|do projeto)|explicacao (ampla|completa|geral)|tour (pelo|pela) (sistema|aplicacao|projeto|codigo))\b/,
+  /\b(quero|preciso|gostaria de) entender (o|a) (sistema|aplicacao|projeto|codigo|plataforma)( inteir[oa]| todo| toda| como um todo)?\b/,
+  /\bme (de|da) um panorama\b/,
+];
+
+/** Explicação ampla: visão geral primeiro e as partes principais embaixo, como um documento, de uma vez. */
+export const BROAD_MODE: ExecutionMode = {
+  id: "ampla",
+  name: "Explicação ampla",
+  activatesWhen: (message) => BROAD.some((re) => re.test(normalized(message))),
+  cadence: "once",
+  limits: (base) => ({ ...base, maxModelCalls: Math.round(base.maxModelCalls * 1.5), maxBatches: base.maxBatches + 3 }),
+  instructions:
+    "[app] Modo: explicação ampla. Responda como um documento curto que cresce para baixo, na camada atual (não abra camada nova): " +
+    "primeiro a visão geral (architecture ou layers) com heading e intro; depois 2 a 4 seções, uma por parte principal, cada uma com o diagrama do tipo certo " +
+    "(sequence para um fluxo importante, tree para a organização do código, er para os dados, bpmn para um processo de negócio), continuando a anterior. " +
+    "Leia o suficiente para cada parte, sem ler o repositório inteiro. A legenda final resume em duas frases e cita as seções.",
+};
+
+export const BUILTIN_MODES: ExecutionMode[] = [BRIEF_MODE, BROAD_MODE, PLANNING_MODE];

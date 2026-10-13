@@ -109,9 +109,9 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
     }
   };
 
-  const sendText = async (text: string, fromDraft: boolean) => {
+  const sendText = async (text: string, fromDraft: boolean, mode?: string) => {
     if (!text || (busy && !asking)) return;
-    const result = await api().sendChat(text);
+    const result = await api().sendChat(text, mode);
     if (result.ok) {
       if (fromDraft) setDraft("");
     } else onError(result.message);
@@ -193,16 +193,7 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
                       </button>
                     ))}
                   {entry.text && <span className="chat-caption">{entry.text}</span>}
-                  {entry.next?.length ? (
-                    <div className="chat-next" data-testid="chat-next">
-                      {entry.mode && <span className="chat-mode">{entry.mode}</span>}
-                      {entry.next.map((step) => (
-                        <button key={step} type="button" className="chat-next-step" disabled={busy && !asking} onClick={() => void sendText(step, false)}>
-                          {step}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+                  <NextSteps entry={entry} modes={conversation?.modes ?? []} disabled={busy && !asking} send={(text, mode) => void sendText(text, false, mode)} />
                 </li>
               );
             case "tool":
@@ -395,5 +386,49 @@ function ChoiceCard({ entry, onError }: { entry: ChoiceEntry; onError(message: s
         </span>
       )}
     </li>
+  );
+}
+
+/** O modo que conduziu a resposta; um clique abre os outros modos para refazer o mesmo pedido. */
+function ModeChip({ mode, modes, disabled, onRedo }: { mode: { id: string; name: string }; modes: { id: string; name: string }[]; disabled: boolean; onRedo: (modeId: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const others = modes.filter((m) => m.id !== mode.id);
+  return (
+    <span className="chat-mode-wrap">
+      <button type="button" className="chat-mode" data-testid="chat-mode" disabled={disabled || !others.length} onClick={() => setOpen(!open)} title="Refazer este pedido em outro modo">
+        {mode.name} ▾
+      </button>
+      {open &&
+        others.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            className="chat-next-step"
+            data-testid="chat-mode-option"
+            onClick={() => {
+              setOpen(false);
+              onRedo(m.id);
+            }}
+          >
+            Refazer como {m.name.toLowerCase()}
+          </button>
+        ))}
+    </span>
+  );
+}
+
+/** O chip do modo e os botões de próximo passo, embaixo da resposta: avançar sem digitar. */
+function NextSteps({ entry, modes, disabled, send }: { entry: Extract<ConversationView["entries"][number], { kind: "assistant" }>; modes: { id: string; name: string }[]; disabled: boolean; send: (text: string, mode?: string) => void }) {
+  const { mode, next = [] } = entry;
+  if (!mode && !next.length) return null;
+  return (
+    <div className="chat-next" data-testid="chat-next">
+      {mode && <ModeChip mode={mode} modes={modes} disabled={disabled} onRedo={(modeId) => send(mode.request, modeId)} />}
+      {next.map((step) => (
+        <button key={step} type="button" className="chat-next-step" disabled={disabled} onClick={() => send(step)}>
+          {step}
+        </button>
+      ))}
+    </div>
   );
 }

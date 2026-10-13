@@ -21,8 +21,9 @@ export type ChatEntry =
       kind: "assistant";
       text: string;
       diagramIds?: string[];
-      /** Num modo em etapas: o nome do modo e os botões de próximo passo (enviam o texto como mensagem). */
-      mode?: string;
+      /** O modo que conduziu o pedido (o chip da resposta) e o pedido, para refazê-lo em outro modo. */
+      mode?: { id: string; name: string; request: string };
+      /** Num modo em etapas: os botões de próximo passo (enviam o texto como mensagem). */
       next?: string[];
       at: string;
     }
@@ -66,6 +67,8 @@ export interface ConversationView {
   costUsd: number;
   /** Só do último pedido. */
   lastRequest?: { usage: Usage; costUsd: number; modelCalls: number };
+  /** Modos de execução disponíveis, para trocar o modo de uma resposta com um clique. */
+  modes: { id: string; name: string }[];
 }
 
 export interface ConversationOptions {

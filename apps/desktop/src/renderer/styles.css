@@ -279,6 +279,8 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 3px 8px; cursor: pointer;
 }
 .chat-next { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.chat-mode-wrap { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+button.chat-mode { background: none; cursor: pointer; }
 .chat-mode { font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
 .chat-next-step { background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 12px; }
 .chat-next-step:disabled { opacity: .5; cursor: default; }
