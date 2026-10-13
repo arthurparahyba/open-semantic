@@ -180,9 +180,14 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
     const current = doc.navigation.camera;
     const alreadyVisible = intent !== "detail" && resolved.rects.every((r) => isVisible(r, current, viewport));
     if (alreadyVisible && actor.kind !== "user") {
+      // A câmera fica onde está, mas o destaque muda: o assunto já está na tela e precisa aparecer.
+      const focus = { targetIds: resolved.framedIds, ...(args.highlight !== false ? { highlightIds: resolved.framedIds } : {}) };
+      const same = JSON.stringify(focus) === JSON.stringify(doc.navigation.focus);
+      if (!same) store.transact(() => store.updateNavigation({ focus }));
       return {
         output: { deferred: false, unchanged: true, camera: current, framedIds: resolved.framedIds },
-        changes: [{ id: store.id, change: "unchanged" as const }],
+        changes: [{ id: store.id, change: same ? ("unchanged" as const) : ("updated" as const) }],
+        ...(same ? {} : { workspaceRevision: store.revision }),
       };
     }
     const target = computeFrame(resolved.rects, viewport, { intent, padding: args.padding ?? FRAME_PADDING })!;

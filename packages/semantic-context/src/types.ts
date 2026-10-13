@@ -68,14 +68,17 @@ export interface Topic {
 }
 
 export interface Assumption {
-  /** O termo da mensagem que tinha mais de um candidato. */
+  /** O termo, normalizado: é a chave de `choices` para trocar a suposição. */
   term: string;
+  /** Como o termo apareceu na mensagem ("back-end"). */
+  said: string;
   chosen: TargetRef;
   alternatives: TargetRef[];
   why: "selection" | "recent" | "graph" | "margin";
 }
 
 export interface Clarification {
+  /** O termo, normalizado: a resposta entra em `choices` com esta chave. */
   term: string;
   text: string;
   options: { ref: TargetRef; label: string }[];
@@ -93,11 +96,11 @@ export interface Relevance {
   timings: { analyzeMs: number };
 }
 
-/** Como o motor pede reações visuais. Não sabe o que é câmera, nó ou canvas. */
+/** Como o motor pede reações visuais. Não sabe o que é câmera, nó ou canvas: o app decide como mostrar. */
 export interface AttentionPort {
-  focus(target: TargetRef, reason: string): void | Promise<void>;
-  emphasize(items: Relevance["emphasis"]): void | Promise<void>;
-  clear(): void | Promise<void>;
+  /** Leva a atenção ao alvo e destaca os itens (primary: o ponto principal; secondary: o que está em volta). */
+  focus(target: TargetRef, emphasis: Relevance["emphasis"], reason: string): void | Promise<void>;
+  /** Pergunta rápida; resolve com a opção escolhida, ou undefined se a pessoa não respondeu. */
   ask(question: Clarification): Promise<TargetRef | undefined>;
 }
 

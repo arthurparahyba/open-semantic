@@ -108,6 +108,9 @@ importers:
       '@open-semantic/semantic':
         specifier: workspace:*
         version: link:../semantic
+      '@open-semantic/semantic-context':
+        specifier: workspace:*
+        version: link:../semantic-context
       '@open-semantic/workspace-store':
         specifier: workspace:*
         version: link:../workspace-store

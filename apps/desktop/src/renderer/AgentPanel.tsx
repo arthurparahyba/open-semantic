@@ -190,11 +190,13 @@ export function AgentPanel({ hasProject, onError }: Props) {
               const a = byBatch.get(entry.batchId);
               return a ? <BatchCard key={entry.id} activity={a} onError={onError} /> : null;
             }
+            case "choice":
+              return <ChoiceCard key={entry.id} entry={entry} onError={onError} />;
           }
         })}
         {busy && (
           <li className="chat-progress" data-testid="chat-progress">
-            {CONVERSATION_STATUS[conversation!.status]}
+            {conversation!.entries.some((e) => e.kind === "choice" && e.mode === "question" && !e.chosen) ? "esperando sua resposta" : CONVERSATION_STATUS[conversation!.status]}
           </li>
         )}
         <li ref={feedEnd} aria-hidden className="feed-end" />
@@ -302,6 +304,51 @@ function BatchCard({ activity: a, onError }: { activity: AgentActivity; onError(
         <button type="button" className="suggestion" onClick={() => void acceptSuggestion(suggestion.output!.framedIds as string[])}>
           {String(suggestion.output!.reason ?? "Ver")} →
         </button>
+      )}
+    </li>
+  );
+}
+
+type ChoiceEntry = Extract<ConversationView["entries"][number], { kind: "choice" }>;
+
+/**
+ * Pergunta rápida do motor de contexto (o pedido espera a escolha) ou suposição feita por ele.
+ * Na suposição, as outras opções ficam a um clique ("Trocar") e valem para os próximos pedidos.
+ */
+function ChoiceCard({ entry, onError }: { entry: ChoiceEntry; onError(message: string): void }) {
+  const [open, setOpen] = useState(entry.mode === "question" && !entry.chosen);
+  const choose = async (ref: string) => {
+    const result = await api().chooseInChat(entry.id, ref);
+    if (!result.ok) onError(result.message);
+    else setOpen(false);
+  };
+  const pending = entry.mode === "question" && !entry.chosen;
+  return (
+    <li className={`chat-choice mode-${entry.mode}`} data-testid="chat-choice">
+      <span>
+        {entry.text}
+        {entry.mode === "question" && entry.chosen ? ` Resposta: ${entry.options.find((o) => o.ref === entry.chosen)?.label ?? ""}.` : ""}
+      </span>
+      {entry.mode === "assumption" && !open && (
+        <button type="button" className="link" onClick={() => setOpen(true)} data-testid="chat-choice-change">
+          Trocar
+        </button>
+      )}
+      {open && (
+        <span className="chat-choice-options">
+          {entry.options.map((o) => (
+            <button
+              type="button"
+              key={o.ref}
+              className={o.ref === entry.chosen ? "primary" : ""}
+              disabled={entry.mode === "question" && !pending}
+              onClick={() => void choose(o.ref)}
+              data-testid="chat-choice-option"
+            >
+              {o.label}
+            </button>
+          ))}
+        </span>
       )}
     </li>
   );

@@ -76,6 +76,8 @@ export interface OpenSemanticApi {
   onConversation(listener: (view: ConversationView) => void): () => void;
   sendChat(text: string): Promise<Outcome>;
   stopChat(): Promise<void>;
+  /** Escolha numa pergunta rápida ou troca de suposição do motor de contexto. */
+  chooseInChat(entryId: string, ref: string): Promise<Outcome>;
   resetChat(): Promise<Outcome>;
 }
 
@@ -103,4 +105,5 @@ export const CHANNELS = {
   chatSend: "os:chat-send",
   chatStop: "os:chat-stop",
   chatReset: "os:chat-reset",
+  chatChoose: "os:chat-choose",
 } as const;

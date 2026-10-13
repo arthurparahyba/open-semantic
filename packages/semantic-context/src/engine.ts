@@ -124,6 +124,11 @@ export class SemanticContextEngine {
       });
   }
 
+  /** Nome legível de um item, com o repositório quando ajuda a distinguir ("api-contas (banco-digital)"). */
+  describe(ref: TargetRef): string {
+    return this.label(ref, this.ensureGraph());
+  }
+
   /** Calibra a estimativa de tokens com o uso real que o provedor devolveu. */
   observe(estimatedTokens: number, realTokens: number) {
     if (estimatedTokens <= 0 || realTokens <= 0) return;
@@ -260,7 +265,7 @@ export class SemanticContextEngine {
           continue;
         }
         if (result.why !== "choice" && result.why !== "obvious") {
-          assumptions.push({ term: raws.get(term) ?? term, chosen: result.units[0]!, alternatives: candidates.filter((c) => !result.units.includes(c)), why: result.why });
+          assumptions.push({ term, said: raws.get(term) ?? term, chosen: result.units[0]!, alternatives: candidates.filter((c) => !result.units.includes(c)), why: result.why });
         }
         for (const u of result.units) strongUnits.add(u);
         const chosen = new Set(result.units);
@@ -288,16 +293,6 @@ export class SemanticContextEngine {
     for (const u of unresolved) {
       const inMain = main && u.candidates.some((c) => main.unitIds.includes(c) || main.unitIds.some((m) => this.isAncestor(g, c, m) || this.isAncestor(g, m, c)));
       if (!inMain || !main) continue;
-      // Só pergunta se a resposta muda para onde o foco vai.
-      const targets = new Set(
-        u.candidates.slice(0, 6).map((c) => {
-          const others = u.candidates.filter((o) => o !== c);
-          const owned = (ref: string) => others.includes(this.owner(ref) ?? "");
-          const narrowedTopic: Topic = { ...main, unitIds: [c, ...main.unitIds.filter((x) => x !== c && !others.includes(x))], refs: main.refs.filter((r) => !owned(r)) };
-          return this.primaryTarget(narrowedTopic, hits, g, interaction)?.ref;
-        }),
-      );
-      if (targets.size <= 1) continue;
       const raw = raws.get(u.term) ?? u.term;
       question = {
         term: u.term,
@@ -457,28 +452,34 @@ export class SemanticContextEngine {
     if (known.length) return { units: known, why: "obvious" };
     found = one(candidates.filter((c) => ctx.otherSets.some((set) => set.includes(c))));
     if (found) return { units: found, why: "obvious" };
-    for (const r of ctx.recent) {
-      found = one(candidates.filter((c) => c === r || this.isAncestor(g, c, r)));
-      if (found) return { units: found, why: "recent" };
-    }
-    found = one(candidates.filter((c) => covers(c, ctx.focus.visibleIds ?? [])));
-    if (found) return { units: found, why: "recent" };
     // Dentro de algo já identificado ("o back-end da loja") ou ligado a ele ("o back-end do app-web").
-    // Primeiro o que foi citado na mesma frase, depois o resto da mensagem.
     let pool = candidates;
-    for (const scope of [[...ctx.local], [...ctx.strongUnits]]) {
+    const byGraph = (scope: string[]): string[] | undefined => {
       const others = scope.filter((u) => !candidates.includes(u));
-      if (!others.length) continue;
+      if (!others.length) return undefined;
       const inside = candidates.filter((c) => others.some((o) => this.isAncestor(g, o, c)));
-      found = one(inside);
-      if (found) return { units: found, why: "graph" };
+      if (inside.length === 1) return inside;
       const base = inside.length > 1 ? inside : candidates;
       const linked = base.filter((c) => others.some((o) => g.neighbors.get(c)?.has(o)));
-      found = one(linked);
+      if (linked.length === 1) return linked;
+      if (pool === candidates) {
+        if (linked.length > 1) pool = linked;
+        else if (inside.length > 1) pool = inside;
+      }
+      return undefined;
+    };
+    // O que a mesma frase liga vale mais que a conversa recente: "o back-end do app mobile" é o dele.
+    found = byGraph([...ctx.local]);
+    if (found) return { units: found, why: "graph" };
+    for (const r of ctx.recent) {
+      found = one(pool.filter((c) => c === r || this.isAncestor(g, c, r)));
+      if (found) return { units: found, why: "recent" };
+    }
+    found = one(pool.filter((c) => covers(c, ctx.focus.visibleIds ?? [])));
+    if (found) return { units: found, why: "recent" };
+    if (pool === candidates) {
+      found = byGraph([...ctx.strongUnits]);
       if (found) return { units: found, why: "graph" };
-      if (linked.length > 1) pool = linked;
-      else if (inside.length > 1 && pool === candidates) pool = inside;
-      if (pool !== candidates) break;
     }
     for (const r of ctx.recent) {
       found = one(pool.filter((c) => g.neighbors.get(c)?.has(r)));

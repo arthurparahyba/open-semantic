@@ -16,6 +16,7 @@ import {
   type ToolSpec,
   type Usage,
 } from "@open-semantic/llm";
+import type { AttentionPort, Clarification, TargetRef } from "@open-semantic/semantic-context";
 import {
   OperationError,
   inlineContractRefs,
@@ -27,6 +28,7 @@ import {
 } from "@open-semantic/protocol";
 
 import type { AgentRunner } from "./agent.js";
+import { WorkspaceContext, canvasAttention, topicReason } from "./context.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 
 export const CLAUDE_AGENT = { kind: "agent" as const, id: "claude" };
@@ -45,7 +47,7 @@ export interface TurnLimits {
   maxOutputTokens: number;
   /**
    * Quando o prompt de uma chamada passa disto, os pedidos anteriores são compactados antes do próximo.
-   * Fica abaixo de 100 mil porque o Haiku cobra mais acima disso.
+   * A meta é 40 mil por chamada (spec 08); o Haiku cobra mais acima de 100 mil.
    */
   compactAboveTokens: number;
 }
@@ -56,7 +58,7 @@ export const DEFAULT_LIMITS: TurnLimits = {
   maxSteps: 60,
   maxTokens: 600_000,
   maxOutputTokens: 8_000,
-  compactAboveTokens: 80_000,
+  compactAboveTokens: 40_000,
 };
 
 export interface ConversationSettings {
@@ -72,7 +74,22 @@ export type ChatEntry =
   | { id: string; kind: "batch"; batchId: string; at: string }
   /** Leitura feita pelo agente (pasta, arquivo, workspace), para o usuário ver o que ele consultou. */
   | { id: string; kind: "tool"; text: string; at: string }
-  | { id: string; kind: "notice"; text: string; tone: "info" | "limit" | "error"; at: string };
+  | { id: string; kind: "notice"; text: string; tone: "info" | "limit" | "error"; at: string }
+  /**
+   * Do motor de contexto: a pergunta rápida quando a dúvida muda o foco (o pedido espera a resposta),
+   * ou a suposição feita, que a pessoa pode trocar. A interface mostra as opções como botões.
+   */
+  | {
+      id: string;
+      kind: "choice";
+      mode: "question" | "assumption";
+      /** Termo normalizado da mensagem; a escolha vale para ele nos próximos pedidos. */
+      term: string;
+      text: string;
+      options: { ref: string; label: string }[];
+      chosen?: string;
+      at: string;
+    };
 
 export interface ConversationView {
   id: string;
@@ -115,6 +132,11 @@ export class Conversation {
   private abort: AbortController | undefined;
   private waitingBatch: string | undefined;
   private lastPromptTokens = 0;
+  /** Unidades dos últimos assuntos, da mais recente para a mais antiga. */
+  private recent: string[] = [];
+  private asking: { entryId: string; resolve: (ref: TargetRef | undefined) => void } | undefined;
+  private readonly context: WorkspaceContext;
+  private readonly attention: AttentionPort;
   private readonly limits: TurnLimits;
   private readonly now: () => Date;
   private readonly newId: () => string;
@@ -124,6 +146,14 @@ export class Conversation {
     this.now = options.now ?? (() => new Date());
     this.newId = options.newId ?? (() => randomUUID().replaceAll("-", "").slice(0, 12));
     this.id = `conv_${this.newId()}`;
+    this.context = new WorkspaceContext(options.snapshot);
+    this.attention = canvasAttention({
+      dispatcher: options.dispatcher,
+      snapshot: options.snapshot,
+      actor: CLAUDE_AGENT,
+      newId: this.newId,
+      ask: (question) => this.ask(question),
+    });
   }
 
   view(): ConversationView {
@@ -148,13 +178,36 @@ export class Conversation {
     this.costUsd = 0;
     this.lastRequest = undefined;
     this.lastPromptTokens = 0;
+    this.recent = [];
     this.emit();
   }
 
   /** Interrompe o pedido em andamento. Um lote esperando confirmação é recusado. */
   stop() {
+    this.asking?.resolve(undefined);
     this.abort?.abort();
     if (this.waitingBatch) void this.options.agent.respond(this.waitingBatch, false);
+  }
+
+  /**
+   * Resposta a uma opção do motor de contexto. Na pergunta rápida, o pedido que esperava continua.
+   * Numa suposição, a escolha passa a ser o assunto mais recente (os próximos pedidos partem dela)
+   * e o foco vai para ela. Nenhuma das duas vira regra fixa: "o back-end" do portal não é o do app mobile.
+   */
+  choose(entryId: string, ref: string) {
+    const entry = this.entries.find((e): e is Extract<ChatEntry, { kind: "choice" }> => e.id === entryId && e.kind === "choice");
+    if (!entry || !entry.options.some((o) => o.ref === ref)) throw new Error("Opção desconhecida.");
+    if (entry.mode === "question" && this.asking?.entryId !== entryId) throw new Error("Essa pergunta já foi respondida.");
+    entry.chosen = ref;
+    if (entry.mode === "question") {
+      this.asking!.resolve(ref);
+      return;
+    }
+    const label = entry.options.find((o) => o.ref === ref)!.label;
+    entry.text = entry.text.replace(/ é .*\.$/, ` é ${label}.`);
+    this.recent = [ref, ...this.recent.filter((u) => u !== ref)];
+    this.emit();
+    void Promise.resolve(this.attention.focus(ref, [{ ref, level: "primary" }], `Assunto: ${label}`)).catch(() => {});
   }
 
   /** Um pedido do usuário: roda o laço do agente até ele responder, travar num limite ou ser parado. */
@@ -182,9 +235,6 @@ export class Conversation {
       );
     }
 
-    // O estado atual do workspace vai junto do pedido, para o modelo não precisar gastar uma chamada só para olhar.
-    this.history.push({ role: "user", text: `<workspace>\n${JSON.stringify(summarizeWorkspace(this.options.snapshot()))}\n</workspace>\n\n${message}` });
-
     const abort = new AbortController();
     this.abort = abort;
     const turn = { usage: ZERO_USAGE, costUsd: 0, modelCalls: 0, batches: 0, steps: 0 };
@@ -192,6 +242,15 @@ export class Conversation {
     this.setStatus("thinking");
 
     try {
+      // Antes do modelo: do que a mensagem fala. O foco vai para lá, e só isso (com um mapa enxuto do resto)
+      // vai junto do pedido, para o modelo não gastar uma chamada só para olhar nem ler o workspace inteiro.
+      const workspace = await this.understand(message);
+      if (!workspace) {
+        this.notice("Pedido parado antes de ir para o modelo.", "info");
+        return;
+      }
+      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}` });
+
       for (;;) {
         const stop = this.limitReached(turn, settings);
         if (stop) {
@@ -258,6 +317,59 @@ export class Conversation {
     }
   }
 
+  /** Analisa a mensagem, pergunta se precisar, leva o foco ao assunto e monta o bloco <workspace>. */
+  private async understand(message: string): Promise<string | undefined> {
+    const snapshot = this.context.sync();
+    const engine = this.context.engine;
+    const choices: Record<string, string> = {};
+    const input = () => ({ text: message, focus: { visibleIds: snapshot.navigation.focus.targetIds ?? [] }, recent: this.recent, choices });
+    let relevance = engine.analyze(input());
+    if (relevance.question) {
+      const answer = await this.attention.ask(relevance.question);
+      if (!answer) return undefined;
+      choices[relevance.question.term] = answer;
+      this.setStatus("thinking");
+      relevance = engine.analyze(input());
+    }
+    for (const a of relevance.assumptions.slice(0, 2)) {
+      this.push({
+        kind: "choice",
+        mode: "assumption",
+        term: a.term,
+        text: `Supus que ${a.said} é ${engine.describe(a.chosen)}.`,
+        options: [a.chosen, ...a.alternatives].slice(0, 6).map((ref) => ({ ref, label: engine.describe(ref) })),
+        chosen: a.chosen,
+      });
+    }
+    if (relevance.primaryTarget) {
+      try {
+        await this.attention.focus(relevance.primaryTarget, relevance.emphasis, topicReason(relevance, engine));
+      } catch {
+        // O foco ajuda, mas não pode derrubar o pedido.
+      }
+    }
+    const main = relevance.topics[0];
+    if (main) this.recent = [...main.unitIds, ...this.recent.filter((u) => !main.unitIds.includes(u))].slice(0, 8);
+    const pack = await engine.buildContext({ relevance, content: this.context.content(snapshot) });
+    return `${JSON.stringify(workspaceHeader(snapshot))}\n\n${pack.text}`;
+  }
+
+  /** Pergunta rápida no chat: o pedido espera a escolha (ou o Parar). */
+  private ask(question: Clarification): Promise<TargetRef | undefined> {
+    this.push({ kind: "choice", mode: "question", term: question.term, text: question.text, options: question.options });
+    const entryId = this.entries[this.entries.length - 1]!.id;
+    this.setStatus("waiting_user");
+    return new Promise((resolve) => {
+      this.asking = {
+        entryId,
+        resolve: (ref) => {
+          this.asking = undefined;
+          resolve(ref);
+        },
+      };
+    });
+  }
+
   private limitReached(turn: { usage: Usage; costUsd: number; modelCalls: number }, settings: ConversationSettings): string | undefined {
     const tokens = promptTokens(turn.usage) + turn.usage.outputTokens;
     if (turn.modelCalls >= this.limits.maxModelCalls)
@@ -279,6 +391,13 @@ export class Conversation {
         case "get_workspace":
           this.push({ kind: "tool", text: "Consultou o workspace" });
           return ok(summarizeWorkspace(this.options.snapshot()));
+        case "search_workspace": {
+          const query = String(call.input.query ?? "").trim();
+          if (!query) return fail("Informe o que buscar.");
+          this.push({ kind: "tool", text: `Buscou "${query.slice(0, 60)}" no workspace` });
+          this.context.sync();
+          return ok({ query, results: this.context.engine.search(query, 15) });
+        }
         case "describe_operation": {
           const operation = String(call.input.operation ?? "");
           const schema = this.options.dispatcher.argumentsSchema(operation);
@@ -533,6 +652,22 @@ export function activeProject(snapshot: WorkspaceSnapshot) {
   return (id ? snapshot.projects.find((p) => p.id === id) : undefined) ?? snapshot.projects[snapshot.projects.length - 1];
 }
 
+/** Cabeçalho do bloco <workspace>: o que o modelo precisa para agir em qualquer pedido. O resto vem do motor de contexto. */
+export function workspaceHeader(snapshot: WorkspaceSnapshot) {
+  const active = activeProject(snapshot);
+  return {
+    ...(active ? { activeProjectId: active.id } : {}),
+    projects: snapshot.projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      ...(p.location.kind === "local" ? { folder: p.location.rootPath } : {}),
+      roots: p.roots.map((r) => ({ id: r.id, path: r.path })),
+      rootArtifactId: p.rootRef,
+    })),
+    cameraControl: snapshot.navigation.control?.mode ?? "agent_allowed",
+  };
+}
+
 /** Resumo enxuto do workspace para o modelo (sem conteúdo de arquivos). */
 export function summarizeWorkspace(snapshot: WorkspaceSnapshot) {
   const regionOf = new Map(snapshot.canvas.objects.map((o) => [o.id, o.regionId]));
@@ -582,8 +717,19 @@ const TOOLS: ToolSpec[] = [
   {
     name: "get_workspace",
     description:
-      "Returns a compact summary of the current workspace: projects, canvas regions, mods, diagrams and semantic entities/relations with their knowledge status. The summary as of the start of the request is already in the user message; call this only to see the state after your own changes.",
+      "Returns a compact summary of the whole workspace: projects, canvas regions, mods, diagrams and semantic entities/relations with their knowledge status. The <workspace> block in the user message already has what matters for the request; call this only when you need everything, or the state after your own changes.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "search_workspace",
+    description:
+      "Searches the whole workspace (units, diagrams, nodes, edges, mods, regions) by words, in any language the user writes. Returns the best matches with ids and their context units. Use it when the <workspace> block does not show what the user mentions.",
+    inputSchema: {
+      type: "object",
+      properties: { query: { type: "string", description: "Words to look for, e.g. 'api de pagamentos antifraude'." } },
+      required: ["query"],
+      additionalProperties: false,
+    },
   },
   {
     name: "list_dir",

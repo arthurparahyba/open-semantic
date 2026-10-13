@@ -132,6 +132,15 @@ app.whenReady().then(async () => {
     return { ok: true };
   });
   ipcMain.handle(CHANNELS.chatStop, () => conversation?.stop());
+  ipcMain.handle(CHANNELS.chatChoose, (_event, entryId: unknown, ref: unknown) => {
+    if (!conversation) return noWorkspace;
+    try {
+      conversation.choose(String(entryId), String(ref));
+      return { ok: true };
+    } catch (err) {
+      return failure(err);
+    }
+  });
   ipcMain.handle(CHANNELS.chatReset, () => {
     try {
       conversation?.reset();

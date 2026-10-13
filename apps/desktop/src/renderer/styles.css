@@ -250,6 +250,11 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .chat-notice { font-size: 12px; padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--border); color: var(--text-2); }
 .chat-notice.tone-limit { border-color: var(--warn); color: var(--text); }
 .chat-notice.tone-error { border-color: var(--danger); color: var(--danger); }
+.chat-choice { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.chat-choice.mode-question { border-color: var(--accent); }
+.chat-choice.mode-assumption { color: var(--text-2); border-style: dashed; }
+.chat-choice-options { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.chat-choice button.link { background: none; border: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 12px; }
 .chat-progress { color: var(--text-2); font-size: 12px; font-style: italic; }
 .feed-end { height: 1px; }
 .chat-composer { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); align-items: flex-end; }

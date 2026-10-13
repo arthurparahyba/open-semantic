@@ -123,12 +123,14 @@ Decisões tomadas na parte 1:
 
 Pedido do Arthur (12/10). Spec em [08](funcionalidades/08-gestao-de-contexto.md).
 
-1. Pacote `packages/semantic-context`, sem importar nenhum outro pacote do app, com as entradas `feed`, `analyze` e `buildContext` e as saídas `AttentionPort` e `ContentPort`.
-2. Índice BM25 em memória alimentado por eventos; `analyze` com assunto principal (inclusive em textos longos), suposição visível e pergunta rápida só quando a dúvida muda o foco.
-3. Adaptadores de atenção e de conteúdo; operações novas `view.emphasize`, `view.clear_emphasis` e `conversation.clarify`.
-4. `buildContext` no laço do agente no lugar de `summarizeWorkspace` e `compactHistory`: orçamento de 40 mil tokens (teto de 80 mil checado antes de cada chamada), histórico curto e cache em camadas.
+1. Pacote `packages/semantic-context`, sem importar nenhum outro pacote do app, com as entradas `feed`, `analyze`, `buildContext` e `search` e as saídas `AttentionPort` e `ContentPort`. Feito.
+2. Índice BM25 em memória; `analyze` responde com unidades de contexto da ancoragem (doc 09): assunto principal (inclusive em textos longos), ponto principal, suposição visível e pergunta rápida só quando a dúvida está no assunto principal. Feito.
+3. Avaliação no CI: mensagens com o resultado esperado, sobre um workspace sintético de 30 repositórios, medindo precisão e latência. Feito (27 casos, 100%).
+4. Adaptadores de atenção (`navigation.frame`) e de conteúdo; pergunta e suposição como cartões no chat. Feito.
+5. Contexto do motor no `<workspace>` de cada pedido no lugar de `summarizeWorkspace`, compactação acima de 40 mil tokens e ferramenta `search_workspace`. Feito.
+6. Ainda falta: ênfase secundária visível no canvas, teto checado a cada volta do laço, histórico curto e cache em camadas.
 
-**Pronto quando:** passam os critérios 1 a 5, 7 e 8 do [08](funcionalidades/08-gestao-de-contexto.md#critérios-de-aceitação).
+**Pronto quando:** passam os critérios 1 a 5, 7, 8 e 9 do [08](funcionalidades/08-gestao-de-contexto.md#critérios-de-aceitação). Hoje passam 1 a 5, 8 e 9.
 
 ### M3 · Open Semantic integrado (incremento 3)
 

@@ -33,6 +33,7 @@ const api: OpenSemanticApi = {
   onConversation: (listener) => subscribe(CHANNELS.chatChanged, listener),
   sendChat: (text) => ipcRenderer.invoke(CHANNELS.chatSend, text),
   stopChat: () => ipcRenderer.invoke(CHANNELS.chatStop),
+  chooseInChat: (entryId, ref) => ipcRenderer.invoke(CHANNELS.chatChoose, entryId, ref),
   resetChat: () => ipcRenderer.invoke(CHANNELS.chatReset),
 };
 
