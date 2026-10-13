@@ -36,6 +36,7 @@ async function launch(): Promise<{ app: ElectronApplication; page: Page }> {
     env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir },
   });
   const page = await app.firstWindow();
+  await page.getByTestId("history-toggle").click();
   return { app, page };
 }
 

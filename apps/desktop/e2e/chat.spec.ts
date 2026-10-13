@@ -37,6 +37,7 @@ test("conversa: o agente lê o projeto, cria pelo executor, pede confirmação e
     env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
   });
   const page = await app.firstWindow();
+  await page.getByTestId("history-toggle").click();
   const shot = async (name: string) => {
     if (screenshots) await page.screenshot({ path: join(screenshots, name) });
   };

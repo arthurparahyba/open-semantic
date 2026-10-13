@@ -13,6 +13,8 @@ interface Props {
   diagrams: Pick<DiagramModel, "id" | "title">[];
   onShowDiagram(diagramId: string): void;
   onError(message: string): void;
+  /** O histórico completo fica num painel sob demanda, fechado por padrão. */
+  historyOpen: boolean;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -55,7 +57,7 @@ type FeedItem = { at: string; key: string } & (
  * Conversa com o agente de IA. Cada lote de mudanças aparece como um cartão com os passos,
  * a confirmação quando precisa e o resultado efetivo. Os roteiros de teste do M2 continuam disponíveis.
  */
-export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Props) {
+export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError, historyOpen }: Props) {
   const [scripts, setScripts] = useState<ScriptInfo[]>([]);
   const [activity, setActivity] = useState<AgentActivity[]>([]);
   const [conversation, setConversation] = useState<ConversationView | null>(null);
@@ -136,7 +138,113 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
   const model = settings?.models.find((m) => m.id === (conversation?.model ?? settings.model));
   const keyMissing = settings !== null && !settings.key.configured;
 
+  const entries = conversation?.entries ?? [];
+  const pendingQuestion = [...entries].reverse().find((e): e is ChoiceEntry => e.kind === "choice" && e.mode === "question" && !e.chosen && !e.dismissed);
+  const pendingConfirm = activity.find((a) => a.confirmation && a.status === "awaiting_confirmation");
+  const last = entries[entries.length - 1];
+  const lastAnswer = !busy && last?.kind === "assistant" && (last.mode || last.next?.length) ? last : undefined;
+  const lastNotice = !busy && last?.kind === "notice" && last.tone !== "info" ? last : undefined;
+  const status = useThrottled(busy ? liveStatus(conversation!, activity, asking) : "", 2500);
+
+  const dock = (
+    <div className="chat-dock" data-testid="chat-dock" hidden={!status && !pendingQuestion && !pendingConfirm && !lastAnswer && !lastNotice}>
+      {pendingConfirm && (
+        <div className={`dock-confirm risk-${pendingConfirm.confirmation!.risk}`} role="alertdialog" data-testid="dock-confirm">
+          <strong>Posso seguir? Nada foi executado ainda.</strong>
+          <ul>
+            {pendingConfirm.confirmation!.items.map((item) => (
+              <li key={item.stepId}>{item.summary}</li>
+            ))}
+          </ul>
+          <div className="confirm-actions">
+            <button type="button" className="primary" onClick={() => void api().respondToAgent(pendingConfirm.batchId, true)}>
+              Aprovar
+            </button>
+            <button type="button" onClick={() => void api().respondToAgent(pendingConfirm.batchId, false)}>
+              Recusar
+            </button>
+          </div>
+        </div>
+      )}
+      {pendingQuestion && !pendingConfirm && (
+        <div className="dock-question" data-testid="dock-question">
+          <span>{pendingQuestion.text}</span>
+          <span className="chat-choice-options">
+            {pendingQuestion.options.map((o) => (
+              <button
+                type="button"
+                key={o.ref}
+                onClick={() => void api().chooseInChat(pendingQuestion.id, o.ref).then((r) => (r.ok ? undefined : onError(r.message)))}
+                data-testid="dock-option"
+              >
+                {o.label}
+              </button>
+            ))}
+          </span>
+          <span className="dock-hint">ou responda com suas palavras abaixo</span>
+        </div>
+      )}
+      {lastAnswer && <NextSteps entry={lastAnswer} modes={conversation?.modes ?? []} disabled={false} send={(text, mode) => void sendText(text, false, mode)} />}
+      {lastNotice && <span className={`dock-notice tone-${lastNotice.tone}`}>{lastNotice.text}</span>}
+      {status && !pendingConfirm && !pendingQuestion && (
+        <span className="dock-status" data-testid="dock-status" aria-live="polite">
+          {status}
+        </span>
+      )}
+    </div>
+  );
+
+  const composer = (
+    <div className="chat-bottom">
+      {dock}
+      <form
+        className="chat-composer"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void sendChat();
+        }}
+      >
+        <textarea
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            grow(e.target);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void sendChat();
+            }
+          }}
+          placeholder={keyMissing ? "Configure a chave para conversar" : hasProject ? "Peça algo ao agente…" : "Cole o caminho de uma pasta ou o link de um repositório…"}
+          disabled={keyMissing}
+          rows={1}
+          ref={input}
+          data-testid="chat-input"
+        />
+        {keyMissing && (
+          <button type="button" onClick={() => setSettingsOpen(true)}>
+            Configurar chave
+          </button>
+        )}
+        {busy && !asking ? (
+          <button type="button" onClick={() => void api().stopChat()} data-testid="chat-stop">
+            Parar
+          </button>
+        ) : (
+          <button type="submit" className="primary" disabled={keyMissing || !draft.trim()} data-testid="chat-send" title={asking ? "A mensagem nova descarta as opções e segue no lugar delas" : undefined}>
+            Enviar
+          </button>
+        )}
+      </form>
+    </div>
+  );
+
   return (
+    <>
+      {createPortal(composer, document.body)}
+      {settingsOpen && settings && <AgentSettingsDialog settings={settings} onChange={setSettings} onClose={() => setSettingsOpen(false)} />}
+      {historyOpen && (
     <aside className="agent-panel" data-testid="agent-panel">
       <header className="agent-head">
         <div className="agent-head-row">
@@ -224,44 +332,6 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
         <li ref={feedEnd} aria-hidden className="feed-end" />
       </ol>
 
-      {createPortal(
-        <form
-          className="chat-composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void sendChat();
-          }}
-        >
-          <textarea
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              grow(e.target);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void sendChat();
-              }
-            }}
-            placeholder={keyMissing ? "Configure a chave para conversar" : hasProject ? "Peça algo ao agente…" : "Cole o caminho de uma pasta ou o link de um repositório…"}
-            disabled={keyMissing}
-            rows={1}
-            ref={input}
-            data-testid="chat-input"
-          />
-          {busy && !asking ? (
-            <button type="button" onClick={() => void api().stopChat()} data-testid="chat-stop">
-              Parar
-            </button>
-          ) : (
-            <button type="submit" className="primary" disabled={keyMissing || !draft.trim()} data-testid="chat-send" title={asking ? "A mensagem nova descarta as opções e segue no lugar delas" : undefined}>
-              Enviar
-            </button>
-          )}
-        </form>,
-        document.body,
-      )}
 
       <details className="agent-scripts">
         <summary>Roteiros de teste (sem IA, sem custo)</summary>
@@ -273,15 +343,38 @@ export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Pro
         {!hasProject && <p className="agent-note">Abra uma pasta para o agente ter onde trabalhar.</p>}
       </details>
 
-      {settingsOpen && settings && (
-        <AgentSettingsDialog
-          settings={settings}
-          onChange={setSettings}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
     </aside>
+      )}
+    </>
   );
+}
+
+/** Uma linha só sobre o que está acontecendo agora: o passo do lote em curso, a última ferramenta ou o estado da conversa. */
+function liveStatus(conversation: ConversationView, activity: AgentActivity[], asking: boolean): string {
+  if (asking) return "esperando sua resposta";
+  if (conversation.status === "waiting_user") return CONVERSATION_STATUS.waiting_user;
+  const running = activity.find((a) => a.status === "running");
+  const step = running?.steps.find((s) => s.status === "pending");
+  if (step) return `${step.label}…`;
+  const last = conversation.entries[conversation.entries.length - 1];
+  if (last?.kind === "tool") return last.text;
+  return CONVERSATION_STATUS[conversation.status];
+}
+
+/** Segura o texto por alguns segundos para a linha de status não virar uma enxurrada; mudanças para vazio passam na hora. */
+function useThrottled(value: string, ms: number): string {
+  const [shown, setShown] = useState(value);
+  const since = useRef(0);
+  useEffect(() => {
+    if (value === shown) return;
+    const wait = !value || !shown ? 0 : Math.max(0, since.current + ms - Date.now());
+    const t = setTimeout(() => {
+      since.current = Date.now();
+      setShown(value);
+    }, wait);
+    return () => clearTimeout(t);
+  }, [value, shown, ms]);
+  return shown;
 }
 
 /** Cartão de um lote: passos, confirmação (quando precisa), narração do resultado efetivo e sugestão de navegação. */
