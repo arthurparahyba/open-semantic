@@ -450,6 +450,10 @@ export interface DiagramLayout {
 export interface DiagramModel {
   id: DiagramId;
   title: string;
+  /**
+   * Legenda curta que explica o diagrama, mostrada junto dele no canvas e no chat. O diagrama é a resposta; a legenda o acompanha.
+   */
+  caption?: string;
   kind: "architecture" | "flow" | "sequence" | "dependency" | "freeform";
   projectId?: ProjectId;
   /**

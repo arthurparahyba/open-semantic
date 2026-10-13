@@ -153,10 +153,19 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           );
         })}
       </svg>
-      {hasInferred && (
-        <div className="diagram-legend" aria-hidden>
-          <span className="legend-solid" /> verificado <span className="legend-dashed" /> inferido
-        </div>
+      {(hasInferred || diagram.caption) && (
+        <footer className={`diagram-footer${diagram.caption ? " with-caption" : ""}`}>
+          {hasInferred && (
+            <div className="diagram-legend" aria-hidden>
+              <span className="legend-solid" /> verificado <span className="legend-dashed" /> inferido
+            </div>
+          )}
+          {diagram.caption && (
+            <p className="diagram-caption" data-testid="diagram-caption" title={diagram.caption}>
+              {diagram.caption}
+            </p>
+          )}
+        </footer>
       )}
       {object.placedBy === "agent" && <span className="mod-origin">criado pelo agente</span>}
       <div className="mod-resize" onPointerDown={onResizePointerDown} aria-hidden />

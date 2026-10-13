@@ -124,6 +124,8 @@ describe("Diagramas e conhecimento dentro do repositório", () => {
     const created = await op("diagram.create", {
       diagramId: "dgm_mini",
       title: "Mini",
+      // A legenda ocupa linhas embaixo dos nós: o tamanho lido do repositório também precisa contar com elas.
+      caption: "A API recebe os pedidos do aplicativo e grava tudo no banco; o resto do sistema só lê o que ela publica.",
       kind: "architecture",
       projectId: "prj_minhaapp",
       nodes: [{ id: "nd_api", label: "API", kind: "service" }],

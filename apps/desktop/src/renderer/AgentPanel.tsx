@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
+import type { DiagramModel } from "@open-semantic/protocol";
+
 import type { AgentActivity, AgentSettingsView, ConversationView, ScriptInfo } from "../shared/api.js";
 import { AgentSettingsDialog } from "./AgentSettingsDialog.js";
 import { api, run } from "./client.js";
 
 interface Props {
   hasProject: boolean;
+  /** Diagramas do workspace, para a resposta mostrar e abrir o que desenhou. */
+  diagrams: Pick<DiagramModel, "id" | "title">[];
+  onShowDiagram(diagramId: string): void;
   onError(message: string): void;
 }
 
@@ -49,7 +54,7 @@ type FeedItem = { at: string; key: string } & (
  * Conversa com o agente de IA. Cada lote de mudanças aparece como um cartão com os passos,
  * a confirmação quando precisa e o resultado efetivo. Os roteiros de teste do M2 continuam disponíveis.
  */
-export function AgentPanel({ hasProject, onError }: Props) {
+export function AgentPanel({ hasProject, diagrams, onShowDiagram, onError }: Props) {
   const [scripts, setScripts] = useState<ScriptInfo[]>([]);
   const [activity, setActivity] = useState<AgentActivity[]>([]);
   const [conversation, setConversation] = useState<ConversationView | null>(null);
@@ -170,8 +175,16 @@ export function AgentPanel({ hasProject, onError }: Props) {
               );
             case "assistant":
               return (
-                <li key={entry.id} className="chat-msg chat-assistant" data-testid="chat-assistant">
-                  {entry.text}
+                <li key={entry.id} className={`chat-msg chat-assistant${entry.diagramIds?.length ? " is-visual" : ""}`} data-testid="chat-assistant">
+                  {entry.diagramIds
+                    ?.map((id) => diagrams.find((d) => d.id === id))
+                    .filter((d) => d !== undefined)
+                    .map((d) => (
+                      <button key={d.id} type="button" className="chat-diagram" data-testid="chat-diagram" onClick={() => onShowDiagram(d.id)} title="Mostrar no canvas">
+                        <span aria-hidden>◇</span> {d.title}
+                      </button>
+                    ))}
+                  {entry.text && <span className="chat-caption">{entry.text}</span>}
                 </li>
               );
             case "tool":

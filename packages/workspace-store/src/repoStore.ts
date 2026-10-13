@@ -19,7 +19,7 @@ import type {
   WorkspaceSnapshot,
 } from "@open-semantic/protocol";
 
-import { contentSize } from "./diagramSize.js";
+import { diagramSize } from "./diagramSize.js";
 import { placeNew } from "./placement.js";
 
 export const REPO_DIR = ".open-semantic";
@@ -244,7 +244,7 @@ export function mergeRepoContent(
 
   for (const d of content.diagrams) {
     if (doc.canvas.objects.some((o) => o.id === d.id)) continue;
-    const size = contentSize(d.layout);
+    const size = diagramSize(d.layout, d.caption);
     const { rect, regionId } = placeNew(doc, size, {});
     const object: CanvasObject = { id: d.id, objectKind: "diagram", position: rect.position, size: rect.size, placedBy: "agent", ...(regionId ? { regionId } : {}) };
     doc.canvas.objects.push(object);

@@ -12,7 +12,7 @@ import {
 } from "@open-semantic/protocol";
 import { placeNew, placedBy, repositoryUnit, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
 
-import { computeLayout, contentSize, type LayoutAlgorithm, type LayoutDirection } from "./layout.js";
+import { computeLayout, diagramSize, type LayoutAlgorithm, type LayoutDirection } from "./layout.js";
 import { applyPatch, checkModel, type DiagramOp } from "./model.js";
 
 const ref = (path: string) => ({ $ref: SCHEMA_BASE_URI + path });
@@ -30,6 +30,8 @@ const placementSchema = {
 };
 
 const anchorIdsSchema = { type: "array", items: ref("common.schema.json#/$defs/SemanticEntityId"), uniqueItems: true, minItems: 1 };
+
+const captionSchema = { type: "string", maxLength: 600 };
 
 const layoutRequestSchema = {
   type: "object",
@@ -109,7 +111,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
   const fitObject = (diagram: DiagramModel) => {
     const object = store.canvasObject(diagram.id);
     if (!object) return;
-    const need = contentSize(diagram.layout);
+    const need = diagramSize(diagram.layout, diagram.caption);
     if (need.width <= object.size.width && need.height <= object.size.height) return;
     store.placeObject({
       ...object,
@@ -133,6 +135,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         properties: {
           diagramId,
           title: { type: "string", minLength: 1 },
+          caption: captionSchema,
           kind: { enum: ["architecture", "flow", "sequence", "dependency", "freeform"] },
           projectId: ref("common.schema.json#/$defs/ProjectId"),
           anchorIds: anchorIdsSchema,
@@ -178,6 +181,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         const model: DiagramModel = {
           id,
           title: args.title as string,
+          ...(args.caption ? { caption: args.caption as string } : {}),
           kind: args.kind as DiagramModel["kind"],
           ...(projectId ? { projectId } : {}),
           ...(anchorIds.length ? { anchorIds: anchorIds as NonNullable<DiagramModel["anchorIds"]> } : {}),
@@ -186,7 +190,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           layout,
           revision: 0,
         };
-        const size = contentSize(layout);
+        const size = diagramSize(layout, model.caption);
         const saved = store.transact(() => {
           const { rect, regionId, grownRegion } = placeNew(store.read(), size, {
             ...((args.placement ?? {}) as PlacementRequest),
@@ -227,23 +231,32 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
       operation: "diagram.apply_patch",
       argumentsSchema: {
         type: "object",
-        required: ["diagramId", "ops"],
+        required: ["diagramId"],
         properties: {
           diagramId,
           ops: ref("diagram.schema.json#/$defs/DiagramPatch/properties/ops"),
           relayout: { type: "boolean", default: true },
+          caption: captionSchema,
         },
         additionalProperties: false,
       },
       check(args) {
         const diagram = requireDiagram(args.diagramId as string);
-        const { model } = applyPatch(diagram, args.ops as DiagramOp[]);
+        if (!args.ops && args.caption === undefined) {
+          throw new OperationError("INVALID_ARGUMENTS", "Informe ops ou caption.", { argumentPath: "/ops" });
+        }
+        const { model } = applyPatch(diagram, (args.ops ?? []) as DiagramOp[]);
         checkLinks(model.nodes, model.edges, "/result");
       },
       async handle(args) {
         const diagram = requireDiagram(args.diagramId as string);
-        const { model, summary } = applyPatch(diagram, args.ops as DiagramOp[]);
-        const changed = Object.values(summary).some((list) => list.length > 0);
+        const { model, summary } = applyPatch(diagram, (args.ops ?? []) as DiagramOp[]);
+        const captionChanged = typeof args.caption === "string" && args.caption !== (diagram.caption ?? "");
+        if (captionChanged) {
+          if (args.caption) model.caption = args.caption as string;
+          else delete model.caption;
+        }
+        const changed = captionChanged || Object.values(summary).some((list) => list.length > 0);
         if (!changed) return { output: { ...output(diagram), ...summary }, changes: [{ id: diagram.id, change: "unchanged", revision: diagram.revision }] };
         if (args.relayout !== false) {
           model.layout = await computeLayout(model, {
@@ -373,6 +386,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
 function sameModel(existing: DiagramModel, args: Record<string, unknown>): boolean {
   return (
     existing.title === args.title &&
+    (existing.caption ?? "") === ((args.caption as string | undefined) ?? "") &&
     existing.kind === args.kind &&
     sameValue(existing.nodes, args.nodes) &&
     sameValue(existing.edges, args.edges)

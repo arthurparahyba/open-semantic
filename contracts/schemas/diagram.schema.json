@@ -56,6 +56,7 @@
       "properties": {
         "id": { "$ref": "common.schema.json#/$defs/DiagramId" },
         "title": { "type": "string" },
+        "caption": { "description": "Legenda curta que explica o diagrama, mostrada junto dele no canvas e no chat. O diagrama é a resposta; a legenda o acompanha.", "type": "string", "maxLength": 600 },
         "kind": { "enum": ["architecture", "flow", "sequence", "dependency", "freeform"] },
         "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
         "anchorIds": { "description": "Unidades de contexto (entidades semânticas) sobre as quais o diagrama fala. O lugar dele no canvas sai daqui (ver docs/funcionalidades/09).", "type": "array", "items": { "$ref": "common.schema.json#/$defs/SemanticEntityId" }, "uniqueItems": true, "minItems": 1 },

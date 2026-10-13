@@ -181,9 +181,13 @@ export function describeStep(operation: string, args: Record<string, unknown>, s
     case "semantic.upsert_inference": {
       const declared = new Map<string, string>((a.entities ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
       const nameOf = (id: string) => declared.get(id) ?? snapshot?.semantic.entities.find((e) => e.id === id)?.name ?? id;
+      const relations: { sourceId: string; targetId: string }[] = a.relations ?? [];
+      // Ligações entre entidades que ainda não existem (criadas no mesmo lote) aparecem pela quantidade, não por ids.
+      const known = (id: string) => declared.has(id) || Boolean(snapshot?.semantic.entities.some((e) => e.id === id));
+      const named = relations.every((r) => known(r.sourceId) && known(r.targetId));
       const names = [
         ...(a.entities ?? []).map((e: { name: string }) => e.name),
-        ...(a.relations ?? []).map((r: { sourceId: string; targetId: string }) => `${nameOf(r.sourceId)} → ${nameOf(r.targetId)}`),
+        ...(named || relations.length <= 1 ? relations.map((r) => `${nameOf(r.sourceId)} → ${nameOf(r.targetId)}`) : [`${relations.length} ligações`]),
       ];
       return `registrar como suposição: ${names.join(", ") || "inferência"}`;
     }
@@ -249,7 +253,7 @@ export function summarizeBatch(plan: BatchPlan, result: BatchResult, activity?: 
   if (result.status === "cancelled" && done.length === 0) lines.push("Não executei nada.");
   if (done.length) lines.push(`Feito: ${done.join("; ")}.`);
   if (notDone.length) lines.push(`Não feito: ${notDone.join("; ")}.`);
-  lines.push(...notes);
+  lines.push(...new Set(notes));
   return lines.join("\n");
 }
 

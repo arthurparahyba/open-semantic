@@ -4,7 +4,7 @@ import type { ELK as ElkInstance, ELKConstructorArguments } from "elkjs/lib/elk-
 import type { DiagramLayout, DiagramModel, Rect, Size } from "@open-semantic/protocol";
 import { DIAGRAM_HEADER, DIAGRAM_PADDING } from "@open-semantic/workspace-store";
 
-export { DIAGRAM_HEADER, DIAGRAM_PADDING, contentSize } from "@open-semantic/workspace-store";
+export { CAPTION_LINE, DIAGRAM_HEADER, DIAGRAM_PADDING, captionLines, contentSize, diagramSize } from "@open-semantic/workspace-store";
 const NODE_HEIGHT = 56;
 
 export type LayoutAlgorithm = DiagramLayout["algorithm"];

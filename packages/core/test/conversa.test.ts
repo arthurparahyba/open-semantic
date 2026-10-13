@@ -154,7 +154,9 @@ describe("Conversa com o agente de IA", () => {
 
     const view = conv.view();
     expect(view.status).toBe("idle");
-    expect(view.entries.map((e) => e.kind)).toEqual(["user", "assistant", "tool", "tool", "batch", "assistant"]);
+    // Visual first: o texto que acompanha as ferramentas não vira resposta; a resposta final é a legenda do diagrama.
+    expect(view.entries.map((e) => e.kind)).toEqual(["user", "tool", "tool", "batch", "assistant"]);
+    expect(view.entries.at(-1)).toMatchObject({ text: "Criei a pasta backend/ e desenhei a arquitetura.", diagramIds: ["dgm_arch"] });
     expect(view.lastRequest!.modelCalls).toBe(4);
     // 4 chamadas × (2000 × 0,10 + 300 × 0,50) / 1e6
     expect(view.costUsd).toBeCloseTo(4 * 0.00035, 8);

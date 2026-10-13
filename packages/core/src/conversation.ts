@@ -30,6 +30,16 @@ import {
 import type { AgentRunner } from "./agent.js";
 import { WorkspaceContext, canvasAttention, topicReason } from "./context.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
+import {
+  SHOW_DIAGRAM_TOOL,
+  VISUAL_NUDGE,
+  asksForExplanation,
+  changedDiagrams,
+  diagramRevisions,
+  isAppNote,
+  planShowDiagram,
+  type ShowDiagramInput,
+} from "./visual.js";
 
 export const CLAUDE_AGENT = { kind: "agent" as const, id: "claude" };
 
@@ -69,7 +79,8 @@ export interface ConversationSettings {
 
 export type ChatEntry =
   | { id: string; kind: "user"; text: string; at: string }
-  | { id: string; kind: "assistant"; text: string; at: string }
+  /** Resposta do agente. Quando o pedido desenhou ou mudou diagramas, o texto é a legenda deles. */
+  | { id: string; kind: "assistant"; text: string; diagramIds?: string[]; at: string }
   /** Um lote de mudanças; a interface mostra o cartão do lote (passos, confirmação, resultado). */
   | { id: string; kind: "batch"; batchId: string; at: string }
   /** Leitura feita pelo agente (pasta, arquivo, workspace), para o usuário ver o que ele consultou. */
@@ -238,6 +249,11 @@ export class Conversation {
     const abort = new AbortController();
     this.abort = abort;
     const turn = { usage: ZERO_USAGE, costUsd: 0, modelCalls: 0, batches: 0, steps: 0 };
+    // Visual first: o texto do modelo só aparece no fim, como legenda do que foi desenhado.
+    const diagramsBefore = diagramRevisions(this.options.snapshot());
+    const explanation = asksForExplanation(message);
+    let nudged = false;
+    let answer = "";
     this.lastRequest = { usage: turn.usage, costUsd: 0, modelCalls: 0 };
     this.setStatus("thinking");
 
@@ -275,7 +291,8 @@ export class Conversation {
         this.lastRequest = { usage: turn.usage, costUsd: turn.costUsd, modelCalls: turn.modelCalls };
 
         this.history.push({ role: "assistant", text: completion.text, toolCalls: completion.toolCalls, raw: completion.raw, provider: provider.id });
-        if (completion.text) this.push({ kind: "assistant", text: completion.text });
+        // Texto que acompanha chamadas de ferramenta ("vou olhar o repositório") não vira resposta.
+        if (completion.text && (!completion.toolCalls.length || completion.stop === "refusal")) answer = completion.text;
 
         if (completion.stop === "refusal") {
           this.closePendingCalls(completion.toolCalls, "O modelo recusou o pedido; nada foi executado.");
@@ -288,7 +305,16 @@ export class Conversation {
           this.notice("A resposta do modelo passou do tamanho máximo e foi cortada. Nada daquela resposta foi executado.", "limit");
           break;
         }
-        if (!completion.toolCalls.length) break;
+        if (!completion.toolCalls.length) {
+          // Uma vez por pedido: explicação de estrutura ou fluxo respondida só com texto (nenhum lote rodou)
+          // volta ao modelo para ser desenhada. Quem já mexeu no canvas (abriu um arquivo, apagou algo) não é cobrado.
+          if (explanation && turn.batches === 0 && !nudged && !abort.signal.aborted) {
+            nudged = true;
+            this.history.push({ role: "user", text: VISUAL_NUDGE });
+            continue;
+          }
+          break;
+        }
 
         this.setStatus("working");
         const results: ToolResult[] = [];
@@ -313,7 +339,25 @@ export class Conversation {
     } finally {
       this.abort = undefined;
       this.waitingBatch = undefined;
+      this.answer(answer, changedDiagrams(diagramsBefore, this.options.snapshot()));
       this.setStatus("idle");
+    }
+  }
+
+  /** A resposta do pedido, no fim: a legenda dos diagramas desenhados, ou a linha de texto de uma pergunta pontual. */
+  private answer(text: string, diagramIds: string[]) {
+    if (!text && !diagramIds.length) return;
+    const diagrams = this.options.snapshot().diagrams;
+    const caption = diagramIds.map((id) => diagrams.find((d) => d.id === id)?.caption).find(Boolean);
+    const body = text || caption || "";
+    if (!body && !diagramIds.length) return;
+    // Os avisos do pedido (limite, interrupção) ficam depois da resposta, como o usuário leu antes.
+    const trailing: ChatEntry[] = [];
+    while (this.entries.length && this.entries[this.entries.length - 1]!.kind === "notice") trailing.unshift(this.entries.pop()!);
+    this.push({ kind: "assistant", text: body, ...(diagramIds.length ? { diagramIds } : {}) });
+    if (trailing.length) {
+      this.entries.push(...trailing);
+      this.emit();
     }
   }
 
@@ -433,6 +477,8 @@ export class Conversation {
         }
         case "run_batch":
           return ok(await this.runBatch(call.input, turn));
+        case "show_diagram":
+          return ok(await this.showDiagram(call.input as unknown as ShowDiagramInput, turn));
         default:
           return fail(`Ferramenta desconhecida: ${call.name}`);
       }
@@ -472,6 +518,23 @@ export class Conversation {
     });
     if (result.status !== "succeeded") throw new Error(result.error?.message ?? `${operation} falhou`);
     return result;
+  }
+
+  /** Resposta visual: monta o lote do diagrama (unidades, desenho e enquadramento) e o roda como qualquer lote. */
+  private async showDiagram(input: ShowDiagramInput, turn: { batches: number; steps: number }) {
+    const snapshot = this.options.snapshot();
+    const { projectId, rootId } = this.locate({ ...(input.projectId ? { projectId: input.projectId } : {}) });
+    const plan = await planShowDiagram(input, snapshot, { id: projectId }, async (path) => {
+      try {
+        const result = await this.read("project.resolve", { projectId, rootId, path });
+        const artifact = result.output?.artifact as { id: string; kind: "directory" | "file" | "process" };
+        return { artifactId: artifact.id, kind: artifact.kind };
+      } catch {
+        return undefined;
+      }
+    });
+    const result = await this.runBatch({ intent: plan.intent, steps: plan.steps }, turn);
+    return { ...result, nodes: plan.nodes, ...(plan.notes.length ? { notes: plan.notes } : {}) };
   }
 
   private async runBatch(input: Record<string, unknown>, turn: { batches: number; steps: number }) {
@@ -573,6 +636,7 @@ export function compactHistory(history: ChatMessage[]): ChatMessage[] {
     out.push({ role: "assistant", text: parts.join("\n\n") || "(sem resposta)", toolCalls: [] });
   };
   for (const m of history) {
+    if (m.role === "user" && isAppNote(m.text)) continue;
     if (m.role === "user") {
       flush();
       user = m.text.replace(/^<workspace>[\s\S]*?<\/workspace>\s*/, "");
@@ -583,7 +647,7 @@ export function compactHistory(history: ChatMessage[]): ChatMessage[] {
       for (const c of m.toolCalls) toolNames.set(c.id, c.name);
     } else {
       for (const r of m.results) {
-        if (toolNames.get(r.callId) !== "run_batch") continue;
+        if (toolNames.get(r.callId) !== "run_batch" && toolNames.get(r.callId) !== "show_diagram") continue;
         try {
           const parsed = JSON.parse(r.content) as { status?: string; summaryShownToUser?: string; error?: string; intent?: string };
           facts.push(parsed.summaryShownToUser ?? `Lote ${parsed.status ?? "?"}${parsed.error ? `: ${parsed.error}` : ""}`);
@@ -715,6 +779,7 @@ export function summarizeWorkspace(snapshot: WorkspaceSnapshot) {
 }
 
 const TOOLS: ToolSpec[] = [
+  SHOW_DIAGRAM_TOOL as ToolSpec,
   {
     name: "get_workspace",
     description:
