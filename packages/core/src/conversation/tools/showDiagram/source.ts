@@ -22,78 +22,96 @@ export class SourceError extends Error {}
 
 /** Nós e ligações descritos pelo texto, com as evidências por id de nó. */
 export function parseSource(kind: ShowDiagramInput["kind"], source: string, evidence: Record<string, NodeEvidence> = {}): { nodes: ShowDiagramNode[]; edges: ShowDiagramEdge[] } {
-  const nodes = new Map<string, ShowDiagramNode>();
-  const edges: ShowDiagramEdge[] = [];
-  const parents: { indent: number; id: string }[] = [];
-  let layer: string | undefined;
+  const reader = new SourceReader(kind, evidence);
+  source.split("\n").forEach((raw, i) => reader.line(raw.replace(/%%.*$/, "").trimEnd(), i + 1));
+  return reader.result();
+}
 
-  const node = (text: string, line: number): string => {
+class SourceReader {
+  private readonly nodes = new Map<string, ShowDiagramNode>();
+  private readonly edges: ShowDiagramEdge[] = [];
+  private readonly parents: { indent: number; id: string }[] = [];
+  private layer: string | undefined;
+
+  constructor(
+    private readonly kind: ShowDiagramInput["kind"],
+    private readonly evidence: Record<string, NodeEvidence>,
+  ) {}
+
+  line(text: string, line: number) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const layerHead = /^layer\s+(.+)$/i.exec(trimmed);
+    if (layerHead) return this.openLayer(layerHead[1]!.trim(), line);
+    const participant = /^(?:participant|actor)\s+(.+)$/i.exec(trimmed);
+    if (participant) return void this.node(participant[1]!, line);
+    const link = LINK.exec(trimmed);
+    if (link) return this.link(link as unknown as [string, string, string, string, string | undefined], line);
+    const id = this.node(trimmed, line);
+    if (this.kind === "tree") this.nest(id, text.length - text.trimStart().length);
+  }
+
+  private openLayer(name: string, line: number) {
+    if (this.kind !== "layers") throw new SourceError(`linha ${line}: 'layer' só vale em diagramas layers.`);
+    this.layer = name;
+  }
+
+  /** Um nó novo, ou o mesmo nó citado de novo (o rótulo e o tipo novos valem). */
+  private node(text: string, line: number): string {
     const m = NODE.exec(text.trim());
     if (!m) throw new SourceError(`linha ${line}: '${text.trim()}' não é um nó (use id[Rótulo]).`);
     const [, id, label, nodeKind] = m as unknown as [string, string, string | undefined, string | undefined];
-    const old = nodes.get(id);
-    const found = evidence[id] ?? {};
-    const next: ShowDiagramNode = {
+    const old = this.nodes.get(id);
+    const found = this.evidence[id] ?? {};
+    const kind = nodeKind ?? old?.kind ?? found.kind;
+    const layer = old?.layer ?? this.layer;
+    this.nodes.set(id, {
       ...old,
       id,
       label: label?.trim() ?? old?.label ?? id,
-      ...(nodeKind ?? old?.kind ?? found.kind ? { kind: nodeKind ?? old?.kind ?? found.kind } : {}),
-      ...(found.unit ? { unit: found.unit } : {}),
-      ...(found.path ? { path: found.path } : {}),
-      ...(found.seen ? { seen: found.seen } : {}),
-      ...(old?.layer ?? layer ? { layer: old?.layer ?? layer } : {}),
-    };
-    nodes.set(id, next);
+      ...(kind ? { kind } : {}),
+      ...pick(found, ["unit", "path", "seen"]),
+      ...(layer ? { layer } : {}),
+    });
     return id;
-  };
+  }
 
-  source.split("\n").forEach((raw, i) => {
-    const line = i + 1;
-    const text = raw.replace(/%%.*$/, "").trimEnd();
-    if (!text.trim()) return;
-    const trimmed = text.trim();
-    const layerHead = /^layer\s+(.+)$/i.exec(trimmed);
-    if (layerHead) {
-      if (kind !== "layers") throw new SourceError(`linha ${line}: 'layer' só vale em diagramas layers.`);
-      layer = layerHead[1]!.trim();
-      return;
-    }
-    const participant = /^(?:participant|actor)\s+(.+)$/i.exec(trimmed);
-    if (participant) {
-      node(participant[1]!, line);
-      return;
-    }
-    const link = LINK.exec(trimmed);
-    if (link) {
-      const [, a, arrow, b, label] = link as unknown as [string, string, string, string, string | undefined];
-      const from = node(a, line);
-      const to = node(b, line);
-      const ev = evidence[`${from}->${to}`] as { seen?: unknown; type?: unknown } | undefined;
-      edges.push({
-        from,
-        to,
-        ...(label?.trim() ? { label: label.trim() } : {}),
-        ...(typeof ev?.type === "string" ? { type: ev.type } : {}),
-        ...(arrow !== "-.->" && ev?.seen === true ? { seen: true } : {}),
-        ...(kind === "sequence" ? { order: edges.length + 1 } : {}),
-        ...(arrow === "-->>" ? { reply: true } : {}),
-      });
-      return;
-    }
-    const id = node(trimmed, line);
-    if (kind === "tree") {
-      const indent = text.length - text.trimStart().length;
-      while (parents.length && parents.at(-1)!.indent >= indent) parents.pop();
-      const parent = parents.at(-1);
-      if (parent) edges.push({ from: parent.id, to: id, type: "contains" });
-      parents.push({ indent, id });
-    }
-  });
+  private link([, a, arrow, b, label]: [string, string, string, string, string | undefined], line: number) {
+    const from = this.node(a, line);
+    const to = this.node(b, line);
+    const ev = this.evidence[`${from}->${to}`] as { seen?: unknown; type?: unknown } | undefined;
+    this.edges.push({
+      from,
+      to,
+      ...(label?.trim() ? { label: label.trim() } : {}),
+      ...(typeof ev?.type === "string" ? { type: ev.type } : {}),
+      ...(arrow !== "-.->" && ev?.seen === true ? { seen: true } : {}),
+      ...(this.kind === "sequence" ? { order: this.edges.length + 1 } : {}),
+      ...(arrow === "-->>" ? { reply: true } : {}),
+    });
+  }
 
-  if (!nodes.size) throw new SourceError("o texto não tem nenhum nó.");
-  const missing = Object.keys(evidence).filter((k) => !k.includes("->") && !nodes.has(k));
-  if (missing.length) throw new SourceError(`evidence cita nós que não estão no texto: ${missing.join(", ")}.`);
-  if (kind === "sequence" && !edges.length) throw new SourceError("um diagrama sequence precisa de mensagens (a ->> b : mensagem).");
-  if (kind === "layers" && [...nodes.values()].some((n) => !n.layer)) throw new SourceError("em layers, todo nó fica dentro de uma faixa: escreva 'layer Nome' antes dos nós.");
-  return { nodes: [...nodes.values()], edges };
+  /** Na árvore, o recuo diz quem contém quem. */
+  private nest(id: string, indent: number) {
+    while (this.parents.length && this.parents.at(-1)!.indent >= indent) this.parents.pop();
+    const parent = this.parents.at(-1);
+    if (parent) this.edges.push({ from: parent.id, to: id, type: "contains" });
+    this.parents.push({ indent, id });
+  }
+
+  result(): { nodes: ShowDiagramNode[]; edges: ShowDiagramEdge[] } {
+    if (!this.nodes.size) throw new SourceError("o texto não tem nenhum nó.");
+    const missing = Object.keys(this.evidence).filter((k) => !k.includes("->") && !this.nodes.has(k));
+    if (missing.length) throw new SourceError(`evidence cita nós que não estão no texto: ${missing.join(", ")}.`);
+    if (this.kind === "sequence" && !this.edges.length) throw new SourceError("um diagrama sequence precisa de mensagens (a ->> b : mensagem).");
+    if (this.kind === "layers" && [...this.nodes.values()].some((n) => !n.layer)) {
+      throw new SourceError("em layers, todo nó fica dentro de uma faixa: escreva 'layer Nome' antes dos nós.");
+    }
+    return { nodes: [...this.nodes.values()], edges: this.edges };
+  }
+}
+
+/** Só os campos de texto preenchidos. */
+function pick(from: NodeEvidence, keys: (keyof NodeEvidence)[]): Partial<NodeEvidence> {
+  return Object.fromEntries(keys.filter((k) => typeof from[k] === "string" && from[k]).map((k) => [k, from[k]]));
 }
