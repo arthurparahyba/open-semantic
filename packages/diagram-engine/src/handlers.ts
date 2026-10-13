@@ -1,6 +1,7 @@
 import {
   OperationError,
   SCHEMA_BASE_URI,
+  sameValue,
   type CanvasObject,
   type DiagramEdge,
   type DiagramModel,
@@ -214,6 +215,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
 
     {
       operation: "diagram.get",
+      readOnly: true,
       argumentsSchema: { type: "object", required: ["diagramId"], properties: { diagramId }, additionalProperties: false },
       handle(args) {
         const diagram = requireDiagram(args.diagramId as string);
@@ -245,7 +247,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         if (!changed) return { output: { ...output(diagram), ...summary }, changes: [{ id: diagram.id, change: "unchanged", revision: diagram.revision }] };
         if (args.relayout !== false) {
           model.layout = await computeLayout(model, {
-            algorithm: model.layout.algorithm === "manual" ? "manual" : model.layout.algorithm,
+            algorithm: model.layout.algorithm,
             ...(model.layout.direction ? { direction: model.layout.direction } : {}),
           });
         } else {
@@ -285,7 +287,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
           ...(args.direction || diagram.layout.direction ? { direction: (args.direction ?? diagram.layout.direction) as LayoutDirection } : {}),
           respectPinned: args.respectPinned !== false,
         });
-        if (JSON.stringify(layout) === JSON.stringify(diagram.layout)) {
+        if (sameValue(layout, diagram.layout)) {
           return { output: { layout }, changes: [{ id: diagram.id, change: "unchanged", revision: diagram.revision }] };
         }
         const saved = store.transact(() => {
@@ -346,7 +348,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
       handle(args) {
         const diagram = requireDiagram(args.diagramId as string);
         const anchorIds = args.anchorIds as NonNullable<DiagramModel["anchorIds"]>;
-        if (JSON.stringify(diagram.anchorIds ?? []) === JSON.stringify(anchorIds)) {
+        if (sameValue(diagram.anchorIds ?? [], anchorIds)) {
           return { output: output(diagram), changes: [{ id: diagram.id, change: "unchanged", revision: diagram.revision }] };
         }
         const saved = store.transact(() => store.putDiagram({ ...diagram, anchorIds }));
@@ -372,7 +374,7 @@ function sameModel(existing: DiagramModel, args: Record<string, unknown>): boole
   return (
     existing.title === args.title &&
     existing.kind === args.kind &&
-    JSON.stringify(existing.nodes) === JSON.stringify(args.nodes) &&
-    JSON.stringify(existing.edges) === JSON.stringify(args.edges)
+    sameValue(existing.nodes, args.nodes) &&
+    sameValue(existing.edges, args.edges)
   );
 }

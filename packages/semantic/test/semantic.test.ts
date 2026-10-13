@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { Dispatcher } from "@open-semantic/protocol";
+import { Dispatcher, contractSchemas } from "@open-semantic/protocol";
 import { WorkspaceStore } from "@open-semantic/workspace-store";
 
-import { semanticHandlers } from "../src/index.js";
+import { OBSERVATION_EVIDENCE_KINDS, semanticHandlers } from "../src/index.js";
 
 const agent = { kind: "agent" as const, id: "orchestrator" };
 
@@ -97,5 +97,16 @@ describe("Open Semantic (parte do M2)", () => {
     await op("semantic.upsert_observation", observation);
     const r = await op("semantic.query", { text: "ap" });
     expect((r.output as { entities: { id: string }[] }).entities.map((e) => e.id)).toEqual(["sem_app"]);
+  });
+});
+
+describe("evidências de uma observação", () => {
+  it("são um subconjunto do contrato, sem o raciocínio do agente (B4)", () => {
+    const semantic = contractSchemas.find((s) => (s as { $id: string }).$id.endsWith("/semantic.schema.json")) as {
+      $defs: { Evidence: { properties: { kind: { enum: string[] } } } };
+    };
+    const contract = semantic.$defs.Evidence.properties.kind.enum;
+    for (const kind of OBSERVATION_EVIDENCE_KINDS) expect(contract).toContain(kind);
+    expect(OBSERVATION_EVIDENCE_KINDS).not.toContain("agent_reasoning");
   });
 });

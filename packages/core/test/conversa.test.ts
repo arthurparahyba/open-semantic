@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ANTHROPIC_MODELS, type ChatMessage, type Completion, type CompletionRequest, type LlmProvider } from "@open-semantic/llm";
+import { inlineContractRefs } from "@open-semantic/protocol";
 
 import { AGENT_OPERATIONS, Conversation, SYSTEM_PROMPT, createCore, type ConversationView, type Core, type TurnLimits } from "../src/index.js";
 
@@ -64,6 +65,14 @@ const safeJson = (text: string) => {
   }
 };
 
+/** Todos os valores de `enum` e `const` de um schema. */
+function enumValues(schema: unknown): unknown[] {
+  if (Array.isArray(schema)) return schema.flatMap(enumValues);
+  if (!schema || typeof schema !== "object") return [];
+  const node = schema as Record<string, unknown>;
+  return [...(Array.isArray(node.enum) ? node.enum : []), ...("const" in node ? [node.const] : []), ...Object.values(node).flatMap(enumValues)];
+}
+
 /** O lote de exemplo do prompt de sistema, com os ids do projeto aberto. Garante que o exemplo continua válido. */
 function promptExample() {
   const snapshot = core.store.snapshot();
@@ -98,6 +107,18 @@ afterEach(async () => {
 describe("Conversa com o agente de IA", () => {
   it("todas as operações oferecidas ao modelo existem no núcleo", () => {
     for (const operation of AGENT_OPERATIONS) expect(core.dispatcher.operations()).toContain(operation);
+  });
+
+  it("todo valor de enum citado nas operações do prompt existe no schema da operação (B4)", () => {
+    const lines = SYSTEM_PROMPT.split("\n").filter((l) => /^- [a-z]+\.[a-z_]+ /.test(l));
+    expect(lines.length).toBeGreaterThan(10);
+    for (const line of lines) {
+      const operation = line.slice(2, line.indexOf(" ", 2));
+      const known = enumValues(inlineContractRefs(core.dispatcher.argumentsSchema(operation)));
+      for (const [, alternatives] of line.matchAll(/\w+:((?:"[^"]*"\|?)+)/g)) {
+        for (const [, value] of alternatives!.matchAll(/"([^"]*)"/g)) expect(known, `${operation}: ${value}`).toContain(value);
+      }
+    }
   });
 
   it("lê o projeto, executa o lote de exemplo do prompt e devolve ao modelo o status real de cada passo", async () => {
@@ -160,6 +181,56 @@ describe("Conversa com o agente de IA", () => {
     expect(JSON.stringify(result)).toContain("rootId");
     expect(existsSync(join(projectDir, "x"))).toBe(false);
     expect(core.store.snapshot().canvas.regions).toHaveLength(0);
+  });
+
+  it("o agente não usa operações fora da lista dele, nem dentro de um lote (B2)", async () => {
+    const user = { kind: "user" as const, id: "arthur" };
+    await core.dispatcher.dispatch({ operationId: "act_lock_001", operation: "navigation.set_control", arguments: { mode: "user_locked" }, authorization: { actor: user } });
+    const camera = structuredClone(core.store.snapshot().navigation.camera);
+    const provider = new FakeProvider([
+      () => ({
+        toolCalls: [
+          call("run_batch", {
+            intent: "Mover a câmera",
+            steps: [{ id: "cam", operation: "navigation.set_camera", arguments: { camera: { center: { x: 5000, y: 5000 }, zoom: 3 } } }],
+          }),
+        ],
+      }),
+      () => ({ toolCalls: [call("list_dir", { path: "" })] }),
+      () => ({ text: "Não consegui mover a câmera." }),
+    ]);
+    await conversation(provider).send("mova a câmera");
+
+    const batch = lastToolResults(provider.requests[1]!)[0]!.parsed;
+    expect(batch.status).toBe("rejected");
+    expect(batch.steps[0].error.code).toBe("UNAUTHORIZED");
+    expect(core.store.snapshot().navigation.camera).toEqual(camera);
+    // Consultas continuam liberadas ao agente.
+    const listed = lastToolResults(provider.requests[2]!)[0]!.parsed;
+    expect(listed.entries.map((e: { path: string }) => e.path)).toEqual(["frontend", "README.md"]);
+  });
+
+  it("caminhos que começam com ponto chegam inteiros; \"./\" e \".\" são a raiz (B3)", async () => {
+    await mkdir(join(projectDir, ".github/workflows"), { recursive: true });
+    await writeFile(join(projectDir, ".env"), "SEGREDO=1\n");
+    const provider = new FakeProvider([
+      () => ({
+        toolCalls: [
+          call("list_dir", { path: ".github" }),
+          call("read_file", { path: ".env" }),
+          call("read_file", { path: "././README.md" }),
+          call("list_dir", { path: "./" }),
+          call("list_dir", { path: "." }),
+        ],
+      }),
+      () => ({ text: "ok" }),
+    ]);
+    await conversation(provider).send("olhe os arquivos de configuração");
+    const [github, env, readme, dotSlash, dot] = lastToolResults(provider.requests[1]!);
+    expect(github!.parsed).toMatchObject({ path: ".github", entries: [{ path: ".github/workflows", kind: "directory" }] });
+    expect(env!.parsed).toMatchObject({ path: ".env", content: "SEGREDO=1\n" });
+    expect(readme!.parsed).toMatchObject({ path: "README.md", content: "# minha app\n" });
+    for (const root of [dotSlash!, dot!]) expect(root.parsed.entries.map((e: { path: string }) => e.path)).toContain("README.md");
   });
 
   it("espera a confirmação do usuário; a recusa chega ao modelo como cancelada", async () => {

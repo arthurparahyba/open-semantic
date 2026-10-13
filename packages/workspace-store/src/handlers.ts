@@ -1,6 +1,7 @@
 import {
   OperationError,
   SCHEMA_BASE_URI,
+  sameValue,
   type Actor,
   type Camera,
   type OperationHandler,
@@ -100,6 +101,7 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
   return [
     {
       operation: "workspace.get_snapshot",
+      readOnly: true,
       argumentsSchema: { type: "object", additionalProperties: false },
       handle: () => ({ output: { snapshot: store.snapshot() }, changes: [] }),
     },
@@ -400,7 +402,7 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
         const current = requireRegion(store, args.regionId as string);
         const { regionId: _id, ...patch } = args;
         const next = { ...current, ...(patch as Partial<Region>) };
-        if (JSON.stringify(next) === JSON.stringify(current)) {
+        if (sameValue(next, current)) {
           return { changes: [{ id: current.id, change: "unchanged", revision: current.revision ?? 1 }] };
         }
         const saved = store.transact(() => store.putRegion(next));

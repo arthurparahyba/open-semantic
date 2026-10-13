@@ -445,9 +445,10 @@ export class Conversation {
     const snapshot = this.options.snapshot();
     const project = input.projectId ? snapshot.projects.find((p) => p.id === input.projectId) : activeProject(snapshot);
     if (!project) throw new Error(input.projectId ? `Projeto ${String(input.projectId)} não existe.` : "Nenhuma pasta de projeto aberta.");
+    // Tira só "./" e "." sozinho: ".github" e ".env" são nomes, não "pasta atual".
     const path = String(input.path ?? "")
       .trim()
-      .replace(/^\.\/?/, "")
+      .replace(/^(?:\.(?:\/|$))+/, "")
       .replace(/\/+$/, "");
     return { projectId: project.id, rootId: project.roots[0].id, path, rootRef: project.rootRef };
   }

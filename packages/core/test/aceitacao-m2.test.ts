@@ -210,6 +210,23 @@ describe("D. Diagramas e navegação", () => {
     expect(snap().diagrams[0]!.layout.nodes.nd_backend!.position).toEqual({ x: 600, y: 300 });
   });
 
+  it("repetir diagram.create com o mesmo conteúdo em outra ordem de chaves não muda nada (B8)", async () => {
+    await openProject();
+    const args = {
+      diagramId: "dgm_mini",
+      title: "Mini",
+      kind: "architecture",
+      projectId: "prj_minhaapp",
+      nodes: [{ id: "nd_api", label: "API", kind: "service" }],
+      edges: [],
+    };
+    expect((await op("diagram.create", args)).status).toBe("succeeded");
+    const revision = snap().diagrams[0]!.revision;
+    const again = await op("diagram.create", { ...args, nodes: [{ kind: "service", label: "API", id: "nd_api" }] });
+    expect(again, JSON.stringify(again.error)).toMatchObject({ status: "succeeded", changes: [{ id: "dgm_mini", change: "unchanged" }] });
+    expect(snap().diagrams[0]!.revision).toBe(revision);
+  });
+
   it("D3: enquadrar por entidade semântica resolve para os objetos ligados a ela", async () => {
     await core.agent.run(plan("arquitetura"));
     await op("navigation.set_camera", { camera: { center: { x: -5000, y: -5000 }, zoom: 1 } });

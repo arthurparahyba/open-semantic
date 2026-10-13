@@ -35,7 +35,7 @@ Operations (use describe_operation for the exact arguments)
 - workspace.clone_repository {projectId, url, name?} clones and adds it the same way. Output also has path and cloned.
 - project.create_dir {projectId, rootId, path} creates a folder. Output: /output/artifacts/0/id is the folder's artifactId.
 - project.write_file {artifactId, content, expectedContentHash?} overwrites an existing file (needs confirmation). Pass the contentHash from read_file.
-- semantic.upsert_observation {entity:{id, kind, name, projectId, artifactIds}, evidence:{id, kind:"directory_listing"|"file_content", artifactId, summary}, relations?}
+- semantic.upsert_observation {entity:{id, kind, name, projectId, artifactIds}, evidence:{id, kind:"directory_listing"|"file_inspection", artifactId, summary}, relations?}
 - semantic.upsert_inference {entities?, relations?:[{id, type, sourceId, targetId}], confidence (0..1), rationale}
 - region.create {regionId, title, semanticEntityIds?, placement?} draws a free named area; only when the user asks for one. region.update; region.delete
 - mod.create {modId, type:"explorer"|"editor", title?, config:{rootRef: folder artifactId} for explorer or {artifactId: file artifactId} for editor, semanticEntityIds? (its units)}; mod.configure; mod.delete {modId}

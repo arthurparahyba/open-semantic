@@ -214,7 +214,7 @@ export type Precondition =
       lifecycle: "active" | "closed";
     };
 /**
- * Gerado pelo solicitante. Também é a chave de idempotência: reenviar o mesmo operationId com os mesmos argumentos devolve o resultado original com replayed=true.
+ * Gerado pelo solicitante. Também é a chave de idempotência: reenviar o mesmo operationId com os mesmos argumentos devolve o resultado original com replayed=true (uma leitura consulta de novo); com outros argumentos, IDEMPOTENCY_MISMATCH.
  */
 export type OperationId1 = string;
 /**
@@ -385,7 +385,7 @@ export interface Error {
   message: string;
   retryable: boolean;
   /**
-   * JSON Pointer para o argumento inválido, quando houver.
+   * JSON Pointer para o argumento inválido, quando houver, relativo a arguments ("/" é o objeto inteiro). Num lote fora do contrato, relativo ao plano. Um ponteiro fora dos argumentos vai em details.requestPath.
    */
   argumentPath?: string;
   targetId?: string;

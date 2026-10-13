@@ -6,7 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createCore, type Core } from "../src/index.js";
+import type { ActionRecord } from "@open-semantic/protocol";
+import type { PersistStatus } from "@open-semantic/workspace-store";
+
+import { JsonlActionLog, createCore, type Core } from "../src/index.js";
 
 let dataDir: string;
 let projectDir: string;
@@ -122,6 +125,27 @@ describe("A · workspace e persistência", () => {
     expect(JSON.parse(lines[0]!)).toMatchObject({ operation: "workspace.add_project", status: "succeeded", actor: user });
     core = await createCore({ workspaceDir: dataDir, debounceMs: 5 });
   });
+
+  it("o histórico guarda na memória só os registros mais recentes, e no disco todos (B6)", async () => {
+    const file = join(dataDir, "outro.jsonl");
+    const log = new JsonlActionLog(file, { limit: 2 });
+    for (const id of ["act_h01", "act_h02", "act_h03"]) log.append({ id } as ActionRecord);
+    expect(log.records.map((r) => r.id)).toEqual(["act_h02", "act_h03"]);
+    await log.flush();
+    expect((await readFile(file, "utf8")).trim().split("\n")).toHaveLength(3);
+  });
+
+  it("falha ao gravar o histórico aparece no indicador de salvamento (B6)", async () => {
+    await core.close();
+    const history = join(dataDir, ".open-semantic/history.jsonl");
+    await rm(history, { force: true });
+    await mkdir(history); // gravar num diretório falha, como num disco cheio
+    const statuses: PersistStatus[] = [];
+    core = await createCore({ workspaceDir: dataDir, debounceMs: 5, onPersist: (s) => statuses.push(s) });
+    await openProject();
+    await core.log.flush();
+    expect(statuses).toContainEqual(expect.objectContaining({ state: "error", message: expect.stringMatching(/^O histórico de ações não foi gravado/) }));
+  });
 });
 
 describe("B · mods funcionais", () => {
@@ -144,6 +168,28 @@ describe("B · mods funcionais", () => {
     expect(viaLink.error?.code).toBe("PATH_OUTSIDE_ROOT");
     const listed = (await op("project.list_dir", { artifactId: rootArtifactId })).output as { entries: { name: string }[] };
     expect(listed.entries.map((e) => e.name)).not.toContain("atalho");
+  });
+
+  it("B1: criar pasta por um link para fora é recusado sem criar nada lá fora, em qualquer profundidade", async () => {
+    await openProject();
+    await symlink(outsideDir, join(projectDir, "atalho"));
+    for (const path of ["atalho/x", "atalho/a/b", "atalho/a/b/c"]) {
+      const r = await op("project.create_dir", { projectId: "prj_app", rootId: "root_app", path });
+      expect(r.error?.code, path).toBe("PATH_OUTSIDE_ROOT");
+    }
+    expect(existsSync(join(outsideDir, "x"))).toBe(false);
+    expect(existsSync(join(outsideDir, "a"))).toBe(false);
+  });
+
+  it("create_dir cria os intermediários dentro da raiz e repete sem erro", async () => {
+    await openProject();
+    const first = await op("project.create_dir", { projectId: "prj_app", rootId: "root_app", path: "./docs/adr/2026/" });
+    expect(first.status, JSON.stringify(first.error)).toBe("succeeded");
+    expect(first.output).toMatchObject({ artifacts: [{ path: "docs/adr/2026", kind: "directory" }] });
+    expect(first.changes?.[0]?.change).toBe("created");
+    expect(existsSync(join(projectDir, "docs/adr/2026"))).toBe(true);
+    const again = await op("project.create_dir", { projectId: "prj_app", rootId: "root_app", path: "docs/adr/2026" });
+    expect(again.changes?.[0]?.change).toBe("unchanged");
   });
 
   it("B4: o Editor salva com a impressão lida e detecta mudança externa em vez de sobrescrever", async () => {

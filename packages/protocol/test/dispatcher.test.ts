@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   Dispatcher,
   MemoryActionLog,
+  MemoryIdempotencyStore,
   OperationError,
+  sameValue,
   type AuthorizationPolicy,
   type DomainEvent,
   type OperationHandler,
@@ -59,9 +61,19 @@ describe("Dispatcher · validação (E1)", () => {
     const { dispatcher, handle } = setup();
     const result = await dispatcher.dispatch(request({ authorization: {} }));
     expect(result.status).toBe("rejected");
-    expect(result.error?.code).toBe("INVALID_ARGUMENTS");
-    expect(result.error?.argumentPath).toBe("/authorization");
+    expect(result.error).toMatchObject({ code: "INVALID_ARGUMENTS", details: { requestPath: "/authorization" } });
+    expect(result.error?.argumentPath).toBeUndefined();
     expect(handle).not.toHaveBeenCalled();
+  });
+
+  it("argumentPath é relativo a arguments em todas as etapas (B5)", async () => {
+    const { dispatcher } = setup();
+    const notObject = await dispatcher.dispatch(request({ arguments: [] }));
+    expect(notObject.error).toMatchObject({ code: "INVALID_ARGUMENTS", argumentPath: "/" });
+
+    const bad = request({ arguments: { regionId: "backend", title: "Backend" } });
+    expect((await dispatcher.inspect(bad)).error).toMatchObject({ code: "INVALID_ARGUMENTS", argumentPath: "/regionId" });
+    expect((await dispatcher.dispatch(bad)).error).toMatchObject({ code: "INVALID_ARGUMENTS", argumentPath: "/regionId" });
   });
 
   it("gera um operationId válido quando a requisição não tem um", async () => {
@@ -207,6 +219,37 @@ describe("Dispatcher · idempotência (E3)", () => {
     expect(store.size).toBe(1);
   });
 
+  it("uma leitura não guarda a saída: o reenvio consulta de novo, e outros argumentos ainda são recusados (B6)", async () => {
+    const { dispatcher } = setup();
+    let content = "v1";
+    const read = vi.fn(() => ({ output: { content }, changes: [] }));
+    dispatcher.register({ operation: "project.read_file", readOnly: true, handle: read });
+    const req = request({ operationId: "act_read_01", operation: "project.read_file", arguments: { artifactId: "art_a" } });
+
+    expect((await dispatcher.dispatch(req)).output).toEqual({ content: "v1" });
+    expect(dispatcher.recorded("act_read_01")).toBe(false);
+    content = "v2";
+    const again = await dispatcher.dispatch(req);
+    expect(again).toMatchObject({ status: "succeeded", output: { content: "v2" } });
+    expect(again.replayed).toBeUndefined();
+    expect(read).toHaveBeenCalledTimes(2);
+
+    const other = await dispatcher.dispatch({ ...req, arguments: { artifactId: "art_b" } });
+    expect(other.error?.code).toBe("IDEMPOTENCY_MISMATCH");
+  });
+
+  it("o store em memória guarda só os resultados mais recentes (B6)", () => {
+    const store = new MemoryIdempotencyStore(2);
+    const entry = { fingerprint: "sha256:x" };
+    store.set("act_a01", entry);
+    store.set("act_b01", entry);
+    store.set("act_a01", entry); // regravar conta como recente
+    store.set("act_c01", entry);
+    expect(store.get("act_b01")).toBeUndefined();
+    expect(store.get("act_a01")).toBe(entry);
+    expect(store.get("act_c01")).toBe(entry);
+  });
+
   it("rejeições não ficam gravadas: o mesmo id pode ser tentado de novo quando o estado mudar", async () => {
     let ready = false;
     const { dispatcher } = setup({
@@ -292,6 +335,23 @@ describe("Dispatcher · autorização e confirmação (E5)", () => {
     expect(handle).not.toHaveBeenCalled();
   });
 
+  it("tokens vencidos há mais de um prazo saem quando outro token é emitido (B6)", async () => {
+    let now = new Date("2026-10-12T20:00:00Z");
+    const { dispatcher } = setup({ policy: confirmAll, now: () => now, confirmationTtlMs: 1000 });
+    const old = (await dispatcher.dispatch(request())).confirmation!.token;
+    const recent = (await dispatcher.dispatch(request({ operationId: "act_test_002" }))).confirmation!.token;
+
+    now = new Date("2026-10-12T20:00:01.500Z"); // vencidos há meio prazo: continuam guardados
+    await dispatcher.dispatch(request({ operationId: "act_test_003" }));
+    const expired = await dispatcher.dispatch(request({ operationId: "act_test_002", authorization: { actor: agent, confirmationToken: recent } }));
+    expect(expired.error?.code).toBe("CONFIRMATION_EXPIRED");
+
+    now = new Date("2026-10-12T20:00:05Z"); // vencido há mais de um prazo: sai na próxima emissão
+    await dispatcher.dispatch(request({ operationId: "act_test_004" }));
+    const gone = await dispatcher.dispatch(request({ authorization: { actor: agent, confirmationToken: old } }));
+    expect(gone.error?.code).toBe("UNAUTHORIZED");
+  });
+
   it("política pode negar", async () => {
     const { dispatcher } = setup({ policy: () => ({ decision: "deny", reason: "raiz sem permissão de escrita" }) });
     const result = await dispatcher.dispatch(request());
@@ -312,5 +372,14 @@ describe("Dispatcher · registro", () => {
     const { dispatcher, handler } = setup();
     expect(() => dispatcher.register({ ...handler, operation: "foo.bar" })).toThrow();
     expect(() => dispatcher.register(handler)).toThrow(/já registrada/);
+  });
+});
+
+describe("sameValue", () => {
+  it("compara valores JSON sem depender da ordem das chaves; a ordem das listas conta (B8)", () => {
+    expect(sameValue({ a: 1, b: [{ x: 1, y: 2 }] }, { b: [{ y: 2, x: 1 }], a: 1 })).toBe(true);
+    expect(sameValue({ a: 1, b: undefined }, { a: 1 })).toBe(true);
+    expect(sameValue([1, 2], [2, 1])).toBe(false);
+    expect(sameValue({ a: 1 }, { a: "1" })).toBe(false);
   });
 });

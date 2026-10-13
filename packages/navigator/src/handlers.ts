@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import {
   OperationError,
   SCHEMA_BASE_URI,
+  sameValue,
   type Camera,
   type DomainEvent,
   type FrameRequest,
@@ -182,7 +183,7 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
     if (alreadyVisible && actor.kind !== "user") {
       // A câmera fica onde está, mas o destaque muda: o assunto já está na tela e precisa aparecer.
       const focus = { targetIds: resolved.framedIds, ...(args.highlight !== false ? { highlightIds: resolved.framedIds } : {}) };
-      const same = JSON.stringify(focus) === JSON.stringify(doc.navigation.focus);
+      const same = sameValue(focus, doc.navigation.focus);
       if (!same) store.transact(() => store.updateNavigation({ focus }));
       return {
         output: { deferred: false, unchanged: true, camera: current, framedIds: resolved.framedIds },

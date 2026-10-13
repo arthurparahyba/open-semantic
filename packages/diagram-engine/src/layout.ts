@@ -2,10 +2,9 @@ import elkBundled from "elkjs/lib/elk.bundled.js";
 import type { ELK as ElkInstance, ELKConstructorArguments } from "elkjs/lib/elk-api.js";
 
 import type { DiagramLayout, DiagramModel, Rect, Size } from "@open-semantic/protocol";
+import { DIAGRAM_HEADER, DIAGRAM_PADDING } from "@open-semantic/workspace-store";
 
-/** Altura do cabeçalho do diagrama no canvas; as posições dos nós ficam abaixo dele. */
-export const DIAGRAM_HEADER = 36;
-export const DIAGRAM_PADDING = 24;
+export { DIAGRAM_HEADER, DIAGRAM_PADDING, contentSize } from "@open-semantic/workspace-store";
 const NODE_HEIGHT = 56;
 
 export type LayoutAlgorithm = DiagramLayout["algorithm"];
@@ -82,13 +81,4 @@ export async function computeLayout(
   const layout: DiagramLayout = { algorithm: options.algorithm, nodes: placed, pinned: [...pinned].filter((id) => placed[id]) };
   if (options.direction ?? model.layout.direction) layout.direction = options.direction ?? model.layout.direction!;
   return layout;
-}
-
-/** Tamanho que o objeto do diagrama precisa no canvas para mostrar todos os nós. */
-export function contentSize(layout: DiagramLayout): Size {
-  const rects = Object.values(layout.nodes).filter((r) => r !== undefined);
-  if (rects.length === 0) return { width: 320, height: DIAGRAM_HEADER + 160 };
-  const maxX = Math.max(...rects.map((r) => r.position.x + r.size.width));
-  const maxY = Math.max(...rects.map((r) => r.position.y + r.size.height));
-  return { width: Math.max(320, maxX + DIAGRAM_PADDING), height: Math.max(DIAGRAM_HEADER + 120, maxY + DIAGRAM_PADDING) };
 }

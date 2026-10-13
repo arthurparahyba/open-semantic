@@ -16,6 +16,7 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
   return [
     {
       operation: "project.resolve",
+      readOnly: true,
       argumentsSchema: {
         type: "object",
         required: ["projectId", "rootId", "path"],
@@ -67,6 +68,7 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
     },
     {
       operation: "project.stat",
+      readOnly: true,
       argumentsSchema: { ...artifactArg, additionalProperties: false },
       async handle(args) {
         const validity = await runtime.stat(args.artifactId as string);
@@ -75,6 +77,7 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
     },
     {
       operation: "project.list_dir",
+      readOnly: true,
       argumentsSchema: {
         ...artifactArg,
         properties: { ...artifactArg.properties, exclude: { type: "array", items: { type: "string" } } },
@@ -91,6 +94,7 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
     },
     {
       operation: "project.read_file",
+      readOnly: true,
       argumentsSchema: { ...artifactArg, additionalProperties: false },
       async handle(args) {
         const { content, fingerprint } = await runtime.readFile(args.artifactId as string);
