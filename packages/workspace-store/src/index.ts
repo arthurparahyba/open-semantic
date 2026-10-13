@@ -49,3 +49,4 @@ export {
   type ContextGroup,
 } from "./anchoring.js";
 export { layerHandlers, keepNewDiagramsInActiveLayer, BORN_IN_LAYER, elementExists, inLayer, mergeMembers, type LayerHandlerDeps } from "./layerHandlers.js";
+export { activeLayerOf, childMarks, layerTree, litObjects, type LayerMark, type LayerNode } from "./layerView.js";

@@ -29,6 +29,11 @@ interface Props {
   handle: Ref<CanvasHandle>;
   renderObject(props: ObjectRenderProps): ReactNode;
   onZoomChange?(zoom: number): void;
+  /** Objetos em cor plena com a camada ativa (doc 11); ausente: todos. */
+  litObjectIds?: ReadonlySet<string>;
+  /** Filhas da camada ativa ancoradas em cada objeto, com o caminho até elas. */
+  layerMarks?: ReadonlyMap<string, { layerId: string; name: string }[]>;
+  onOpenLayer?(layerId: string): void;
 }
 
 type Gesture =
@@ -46,7 +51,7 @@ const sameCamera = (a: Camera, b: Camera) =>
  * Movimentos pedidos pelo agente chegam pelo snapshot (navigation.motion) e são animados aqui;
  * qualquer gesto do usuário durante a animação a interrompe e avisa o núcleo (navigation.cancel).
  */
-export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) {
+export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObjectIds, layerMarks, onOpenLayer }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ width: 1, height: 1 });
   const [camera, setCameraState] = useState<Camera>(snapshot.navigation.camera);
@@ -316,7 +321,8 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
           .map((object) => (
             <div
               key={object.id}
-              className="mod-slot"
+              className={`mod-slot${litObjectIds && !litObjectIds.has(object.id) ? " is-dimmed" : ""}`}
+              data-in-layer={litObjectIds ? litObjectIds.has(object.id) : undefined}
               style={{
                 left: object.position.x,
                 top: object.position.y,
@@ -333,6 +339,19 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange }: Props) 
                 onHeaderPointerDown: objectGesture(object, "move"),
                 onResizePointerDown: objectGesture(object, "resize"),
               })}
+              {layerMarks?.get(object.id)?.map((mark) => (
+                <button
+                  key={mark.layerId}
+                  type="button"
+                  className="layer-mark"
+                  data-testid="layer-mark"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={() => onOpenLayer?.(mark.layerId)}
+                  title={`Aprofundado na camada “${mark.name}”`}
+                >
+                  ↳ {mark.name}
+                </button>
+              ))}
             </div>
           ))}
       </div>
