@@ -9,7 +9,7 @@ import { DIAGRAM_KINDS, type ResolvedPath, type ShowDiagramInput } from "./types
 export const showDiagram: ConversationTool = {
   name: "show_diagram",
   description:
-    "Your main way to answer. Draws (or completes) a diagram on the canvas, anchored to its subject, and frames it for the user. Pick the kind that shows the shape of the answer (see kind), write the picture in source (short text, Mermaid-like) and put what you saw in the project for each box in evidence. The app records each box as a context unit (verified when its evidence path exists in the project, inferred otherwise; inferred boxes are drawn dashed), creates or patches the diagram and moves the camera to it, in one batch. Calling it again with the same diagramId completes that diagram: new boxes and links are added, existing ones updated, nothing is removed unless listed in remove (in a sequence, the messages you send replace the old ones). Returns the batch result and, for each node, its unit and knowledge status.",
+    "Your main way to answer. Draws (or completes) a diagram on the canvas, anchored to its subject, and frames it for the user. Pick the kind that shows the shape of the answer (see kind), write the picture in source (short text, Mermaid-like) and put what you saw in the project for each box in evidence. The app records each box as a context unit (verified when its evidence path exists in the project, inferred otherwise; inferred boxes are drawn dashed), creates or patches the diagram and moves the camera to it, in one batch. Build explanations top to bottom like a document: give each diagram a heading and a short intro, add notes (text, list, table) when they help, and say with continues/details how it relates to what is already on the canvas; the app places it (below for the next step, to the right for a detail). Calling it again with the same diagramId completes that diagram: new boxes and links are added, existing ones updated, nothing is removed unless listed in remove (in a sequence, the messages you send replace the old ones). Returns the batch result and, for each node, its unit and knowledge status.",
   runsBatch: true,
   inputSchema: () => ({
     type: "object",
@@ -40,6 +40,29 @@ export const showDiagram: ConversationTool = {
       about: { type: "string", description: "The context unit the diagram is about: an existing sem_ id, or the id of one of this call's nodes (for a detail diagram of a part). Omit for the whole repository." },
       direction: { enum: ["LR", "TB"], description: "Only for architecture, flow and dependency. Default: TB for architecture and dependency, LR for flow." },
       remove: { type: "array", items: { type: "string" }, description: "Node ids to take out of an existing diagram (their links go too)." },
+      heading: { type: "string", maxLength: 120, description: "Section title shown above the diagram, in Portuguese (e.g. 'Infraestrutura e cache'). Give one for every new step of an explanation." },
+      intro: { type: "string", maxLength: 600, description: "One to three sentences in Portuguese shown above the diagram, under the heading: what this part of the explanation is about." },
+      notes: {
+        type: "array",
+        maxItems: 4,
+        description: "Blocks shown under the diagram that add to it: text (a paragraph), list (items, ordered for steps) or table (columns and rows, e.g. a comparison).",
+        items: {
+          type: "object",
+          required: ["kind"],
+          properties: {
+            kind: { enum: ["text", "list", "table"] },
+            title: { type: "string", maxLength: 120 },
+            text: { type: "string", maxLength: 1200 },
+            items: { type: "array", maxItems: 20, items: { type: "string", maxLength: 300 } },
+            ordered: { type: "boolean" },
+            columns: { type: "array", maxItems: 6, items: { type: "string", maxLength: 80 } },
+            rows: { type: "array", maxItems: 20, items: { type: "array", maxItems: 6, items: { type: "string", maxLength: 200 } } },
+          },
+          additionalProperties: false,
+        },
+      },
+      continues: { type: "string", description: "Id (dgm_ or blk_) of what this diagram follows in the explanation; it goes below it. Default for a new diagram: below the last diagram of the project." },
+      details: { type: "string", description: "Id (dgm_ or blk_) of what this diagram zooms into (e.g. a sequence detailing one box of an overview); it goes to its right." },
     },
     additionalProperties: false,
   }),

@@ -6,7 +6,7 @@
   "$defs": {
     "OperationName": {
       "type": "string",
-      "pattern": "^(workspace|canvas|region|mod|diagram|semantic|navigation|project|layer)\\.[a-z_]+$"
+      "pattern": "^(workspace|canvas|region|mod|diagram|block|semantic|navigation|project|layer)\\.[a-z_]+$"
     },
 
     "Precondition": {

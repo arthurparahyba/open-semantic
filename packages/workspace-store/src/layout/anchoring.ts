@@ -3,9 +3,10 @@
 // desenhados em volta saem dessas âncoras. Nada aqui é gravado: tudo é recalculado do documento.
 import type { Rect, SemanticEntity, Size, WorkspaceSnapshot } from "@open-semantic/protocol";
 
+import { flowRoot } from "./flow.js";
 import { GAP, boundsOfRects, findFreeSpot, overlaps } from "./placement.js";
 
-export type AnchorDoc = Pick<WorkspaceSnapshot, "canvas"> & Partial<Pick<WorkspaceSnapshot, "diagrams" | "mods" | "semantic">>;
+export type AnchorDoc = Pick<WorkspaceSnapshot, "canvas"> & Partial<Pick<WorkspaceSnapshot, "diagrams" | "mods" | "semantic" | "blocks">>;
 
 /** Margem do grupo em volta do conteúdo; em cima fica o título. O repositório tem margem maior. */
 export const GROUP_PADDING = { top: 56, side: 28 } as const;
@@ -100,9 +101,19 @@ export function anchorsOf(doc: AnchorDoc): Map<string, string[]> {
     const anchors = (m.semanticEntityIds ?? []).filter((id) => known.has(id));
     byObject.set(m.id, anchors.length ? anchors : fallback(m.projectId));
   }
+  anchorBlocks(doc, byObject);
   const onCanvas = new Set(doc.canvas.objects.map((o) => o.id));
   for (const id of [...byObject.keys()]) if (!onCanvas.has(id) || !byObject.get(id)!.length) byObject.delete(id);
   return byObject;
+}
+
+/** Um bloco fica no grupo de onde a explicação dele parte (doc 13). */
+function anchorBlocks(doc: AnchorDoc, byObject: Map<string, string[]>) {
+  const flow = { canvas: doc.canvas, diagrams: doc.diagrams ?? [], blocks: doc.blocks ?? [] };
+  for (const b of flow.blocks) {
+    const anchors = byObject.get(flowRoot(flow, b.id));
+    if (anchors) byObject.set(b.id, anchors);
+  }
 }
 
 /** Objetos do canvas ancorados à unidade ou a unidades dentro dela (qualquer âncora, não só a principal). */

@@ -13,10 +13,11 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./anchoring": "./src/anchoring.ts",
+    "./anchoring": "./src/layout/anchoring.ts",
     "./commits": "./src/commits.ts",
     "./projects": "./src/projects.ts",
     "./layers": "./src/layerView.ts",
-    "./diagramShapes": "./src/diagramShapes.ts"
+    "./diagramShapes": "./src/diagramShapes.ts",
+    "./layout": "./src/layout/index.ts"
   }
 }

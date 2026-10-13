@@ -10,8 +10,9 @@ import {
   type Region,
 } from "@open-semantic/protocol";
 
-import { repositoryUnit } from "./anchoring.js";
-import { placeNew, regionAt } from "./placement.js";
+import { repositoryUnit } from "./layout/anchoring.js";
+import { sectionIds } from "./layout/flow.js";
+import { placeNew, regionAt } from "./layout/placement.js";
 import { REPO_DIR } from "./repoStore.js";
 import type { WorkspaceStore } from "./store.js";
 
@@ -333,7 +334,16 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
         const region = regionAt(store.read().canvas.regions, next);
         if (region) next.regionId = region.id;
         else delete next.regionId;
-        const placed = store.transact(() => store.placeObject(next));
+        const placed = store.transact(() => {
+          // Os textos colados ao objeto (doc 13) vão junto.
+          const dx = next.position.x - current.position.x;
+          const dy = next.position.y - current.position.y;
+          for (const id of sectionIds(store.read(), current.id).slice(1)) {
+            const o = store.canvasObject(id);
+            if (o) store.placeObject({ ...o, position: { x: o.position.x + dx, y: o.position.y + dy }, placedBy: next.placedBy });
+          }
+          return store.placeObject(next);
+        });
         return {
           output: { position: placed.position, size: placed.size },
           changes: [{ id: placed.id, change: "updated", revision: placed.revision ?? 0 }],

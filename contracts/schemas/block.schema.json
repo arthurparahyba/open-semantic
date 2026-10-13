@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.open-semantic.invalid/v0.2/block.schema.json",
+  "title": "Open Semantic V0.2 — blocos de explicação",
+  "description": "Títulos, textos, listas e tabelas que acompanham os diagramas no canvas (docs/funcionalidades/13-layout-semantico.md).",
+  "$defs": {
+    "Block": {
+      "type": "object",
+      "required": ["id", "kind", "revision"],
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/BlockId" },
+        "kind": {
+          "enum": ["heading", "text", "list", "table"],
+          "description": "heading: título, com descrição opcional em text. text: parágrafo. list: itens, numerados ou não. table: colunas e linhas."
+        },
+        "projectId": { "$ref": "common.schema.json#/$defs/ProjectId" },
+        "title": { "type": "string", "maxLength": 200 },
+        "text": { "type": "string", "maxLength": 2000 },
+        "items": { "type": "array", "maxItems": 50, "items": { "type": "string", "maxLength": 500 } },
+        "ordered": { "type": "boolean" },
+        "columns": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 120 } },
+        "rows": { "type": "array", "maxItems": 50, "items": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 300 } } },
+        "arrangement": { "$ref": "common.schema.json#/$defs/Arrangement" },
+        "revision": { "$ref": "common.schema.json#/$defs/Revision" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

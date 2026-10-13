@@ -1,8 +1,10 @@
 // O que a interface precisa das camadas de assunto (docs/funcionalidades/11-camadas.md), sem dependências de Node.
 // Nada aqui é gravado: tudo sai do snapshot.
-import type { Layer, WorkspaceSnapshot } from "@open-semantic/protocol";
+import type { Block, Layer, WorkspaceSnapshot } from "@open-semantic/protocol";
 
-type LayerDoc = Pick<WorkspaceSnapshot, "diagrams" | "navigation"> & { layers?: Layer[] };
+import { flowRoot } from "./layout/flow.js";
+
+type LayerDoc = Pick<WorkspaceSnapshot, "diagrams" | "navigation"> & Partial<Pick<WorkspaceSnapshot, "canvas">> & { layers?: Layer[]; blocks?: Block[] };
 
 export interface LayerNode {
   layer: Layer;
@@ -50,7 +52,11 @@ function objectOf(doc: LayerDoc, id: string): string | undefined {
 export function litObjects(doc: LayerDoc): Set<string> | undefined {
   const active = activeLayerOf(doc);
   if (!active) return undefined;
-  return new Set(active.members.map((m) => objectOf(doc, m.id)).filter((id): id is string => !!id));
+  const lit = new Set(active.members.map((m) => objectOf(doc, m.id)).filter((id): id is string => !!id));
+  // Um bloco acompanha a explicação de onde ele parte (doc 13).
+  const canvas = doc.canvas;
+  if (canvas) for (const b of doc.blocks ?? []) if (lit.has(flowRoot({ canvas, diagrams: doc.diagrams, blocks: doc.blocks }, b.id))) lit.add(b.id);
+  return lit;
 }
 
 /** Marcadores das filhas da camada ativa (ou das de primeiro nível, na base), por objeto do canvas da âncora. */

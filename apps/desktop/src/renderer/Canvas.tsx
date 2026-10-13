@@ -12,6 +12,11 @@ export interface CanvasHandle {
   frame(ids?: string[], intent?: FrameOptions["intent"]): void;
   zoomBy(factor: number): void;
   viewportCenter(): Point;
+  /**
+   * Reorganização animada (doc 13): afasta a câmera até ver os lugares de antes e de depois, aplica
+   * (os objetos deslizam até o lugar novo) e volta para onde estava.
+   */
+  arrange(rects: Rect[], apply: () => Promise<void>): Promise<void>;
 }
 
 export interface ObjectRenderProps {
@@ -34,7 +39,12 @@ interface Props {
   /** Filhas da camada ativa ancoradas em cada objeto, com o caminho até elas. */
   layerMarks?: ReadonlyMap<string, { layerId: string; name: string }[]>;
   onOpenLayer?(layerId: string): void;
+  /** O usuário mexeu no canvas (arrasto, roda): a reorganização automática espera. */
+  onUserGesture?(): void;
 }
+
+const ARRANGE_MS = 560;
+const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
 type Gesture =
   | { kind: "pan"; last: Point }
@@ -51,7 +61,7 @@ const sameCamera = (a: Camera, b: Camera) =>
  * Movimentos pedidos pelo agente chegam pelo snapshot (navigation.motion) e são animados aqui;
  * qualquer gesto do usuário durante a animação a interrompe e avisa o núcleo (navigation.cancel).
  */
-export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObjectIds, layerMarks, onOpenLayer }: Props) {
+export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObjectIds, layerMarks, onOpenLayer, onUserGesture }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState<Viewport>({ width: 1, height: 1 });
   const [camera, setCameraState] = useState<Camera>(snapshot.navigation.camera);
@@ -63,6 +73,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
   const lastSent = useRef<Camera>(snapshot.navigation.camera);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
+  const [arranging, setArranging] = useState(false);
   // Posições locais durante arrasto, até o núcleo confirmar a nova revisão.
   const [overrides, setOverrides] = useState<Record<string, { rect: Rect; revision: number }>>({});
 
@@ -166,6 +177,21 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
         setCamera(zoomAt(cameraRef.current, viewport, { x: viewport.width / 2, y: viewport.height / 2 }, factor));
       },
       viewportCenter: () => cameraRef.current.center,
+      async arrange(rects, apply) {
+        userTakesOver();
+        const back = cameraRef.current;
+        const wide = rects.length ? computeFrame(rects, viewport, { intent: "overview", padding: 96 }) : undefined;
+        if (!wide || reducedMotion()) return apply();
+        const out = { ...wide, zoom: Math.min(wide.zoom, back.zoom) };
+        await new Promise<void>((done) => animateTo(out, { persist: false, duration: 260, onDone: done }));
+        setArranging(true);
+        // A transição precisa estar no lugar antes das posições novas chegarem.
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+        await apply();
+        await new Promise((done) => setTimeout(done, ARRANGE_MS));
+        setArranging(false);
+        animateTo(back, { persist: true, duration: 260 });
+      },
     }),
     [objects, viewport, animateTo, setCamera, snapshot],
   );
@@ -199,6 +225,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
       if ((event.target as HTMLElement).closest(".mod-body")) return;
       event.preventDefault();
       userTakesOver();
+      onUserGesture?.();
       const rect = el.getBoundingClientRect();
       const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       if (event.ctrlKey || event.metaKey) setCamera(zoomAt(cameraRef.current, viewport, point, Math.exp(-event.deltaY * 0.01)));
@@ -206,10 +233,11 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [viewport, setCamera]);
+  }, [viewport, setCamera, onUserGesture]);
 
   const startGesture = (event: React.PointerEvent, next: Gesture) => {
     userTakesOver();
+    onUserGesture?.();
     event.preventDefault();
     event.stopPropagation();
     viewportRef.current!.setPointerCapture(event.pointerId);
@@ -284,7 +312,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <div className="world" style={{ transform: `translate(${tx}px, ${ty}px) scale(${zoom})` }}>
+      <div className={`world${arranging ? " is-arranging" : ""}`} style={{ transform: `translate(${tx}px, ${ty}px) scale(${zoom})` }}>
         {groups.map((g) => {
           const repo = g.kind === "repository";
           const active = repo && snapshot.semantic.entities.find((e) => e.id === g.unitId)?.projectId === activeRepo;

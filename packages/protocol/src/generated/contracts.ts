@@ -2,14 +2,31 @@
 
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
- * via the `definition` "WorkspaceId".
+ * via the `definition` "BlockId".
  */
-export type WorkspaceId = string;
+export type BlockId = string;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "ProjectId".
  */
 export type ProjectId = string;
+/**
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "DiagramId".
+ */
+export type DiagramId = string;
+/**
+ * Contador monotônico por objeto, usado para concorrência otimista e pré-condições.
+ *
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "Revision".
+ */
+export type Revision = number;
+/**
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "WorkspaceId".
+ */
+export type WorkspaceId = string;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "RootId".
@@ -20,11 +37,6 @@ export type RootId = string;
  * via the `definition` "ModId".
  */
 export type ModId = string;
-/**
- * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
- * via the `definition` "DiagramId".
- */
-export type DiagramId = string;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "NodeId".
@@ -101,19 +113,19 @@ export type LayerId = string;
  */
 export type StepId = string;
 /**
- * Um objeto do canvas tem o mesmo id do mod ou diagrama que ele posiciona.
+ * Um objeto do canvas tem o mesmo id do mod, diagrama ou bloco que ele posiciona.
  *
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "CanvasObjectId".
  */
-export type CanvasObjectId = ModId | DiagramId;
+export type CanvasObjectId = ModId | DiagramId | BlockId;
 /**
  * Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar. Uma unidade de contexto (sem_) vale pelo grupo desenhado em volta dela.
  *
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "VisualTargetId".
  */
-export type VisualTargetId = ModId | DiagramId | NodeId | EdgeId | RegionId | SemanticEntityId;
+export type VisualTargetId = ModId | DiagramId | BlockId | NodeId | EdgeId | RegionId | SemanticEntityId;
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "AnyId".
@@ -124,13 +136,6 @@ export type AnyId = string;
  * via the `definition` "Timestamp".
  */
 export type Timestamp = string;
-/**
- * Contador monotônico por objeto, usado para concorrência otimista e pré-condições.
- *
- * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
- * via the `definition` "Revision".
- */
-export type Revision = number;
 /**
  * Caminho relativo à raiz autorizada, com '/' como separador. Nunca absoluto, nunca com segmentos '..'. String vazia significa a própria raiz.
  *
@@ -348,6 +353,78 @@ export type ProjectId1 = string;
 export interface OpenSemanticContracts {}
 /**
  * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "Block".
+ */
+export interface Block {
+  id: BlockId;
+  /**
+   * heading: título, com descrição opcional em text. text: parágrafo. list: itens, numerados ou não. table: colunas e linhas.
+   */
+  kind: "heading" | "text" | "list" | "table";
+  projectId?: ProjectId;
+  title?: string;
+  text?: string;
+  /**
+   * @maxItems 50
+   */
+  items?: string[];
+  ordered?: boolean;
+  /**
+   * @maxItems 12
+   */
+  columns?:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string, string];
+  /**
+   * @maxItems 50
+   */
+  rows?:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string, string][];
+  arrangement?: Arrangement;
+  revision: Revision;
+}
+/**
+ * Como um diagrama ou bloco se relaciona no canvas com outro (docs/funcionalidades/13-layout-semantico.md). Diz só a relação; o lugar sai do layout.
+ *
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
+ * via the `definition` "Arrangement".
+ */
+export interface Arrangement {
+  /**
+   * annotates: título, texto ou nota colado ao alvo, que se move junto. continues: próximo passo da explicação, embaixo. details: aprofunda o alvo, à direita.
+   */
+  relation: "annotates" | "continues" | "details";
+  targetId: DiagramId | BlockId;
+  /**
+   * Só para annotates: acima (título, introdução) ou abaixo (notas). Padrão: above.
+   */
+  side?: "above" | "below";
+}
+/**
+ * This interface was referenced by `OpenSemanticContracts`'s JSON-Schema
  * via the `definition` "Point".
  */
 export interface Point {
@@ -491,6 +568,7 @@ export interface DiagramModel {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   layout: DiagramLayout;
+  arrangement?: Arrangement;
   revision: Revision;
 }
 /**
@@ -1463,7 +1541,7 @@ export interface Workspace {
  */
 export interface CanvasObject {
   id: CanvasObjectId;
-  objectKind: "mod" | "diagram";
+  objectKind: "mod" | "diagram" | "block";
   position: Point;
   size: Size;
   zIndex?: number;
@@ -1517,6 +1595,10 @@ export interface WorkspaceSnapshot {
   diagrams: DiagramModel[];
   canvas: Canvas;
   navigation: NavigationState;
+  /**
+   * Blocos de explicação (títulos, textos, listas, tabelas) do canvas. Ausente em workspaces antigos: vale lista vazia.
+   */
+  blocks?: Block[];
   /**
    * Camadas de assunto (docs/funcionalidades/11-camadas.md). Ausente em workspaces antigos: vale lista vazia.
    */

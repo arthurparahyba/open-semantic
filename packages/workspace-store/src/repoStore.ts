@@ -20,7 +20,7 @@ import type {
 } from "@open-semantic/protocol";
 
 import { diagramSize } from "./diagramSize.js";
-import { placeNew } from "./placement.js";
+import { placeNew } from "./layout/placement.js";
 
 export const REPO_DIR = ".open-semantic";
 const KNOWLEDGE_FILE = "knowledge.json";

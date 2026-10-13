@@ -9,6 +9,7 @@
     "RootId": { "type": "string", "pattern": "^root_[A-Za-z0-9_-]{3,64}$" },
     "ModId": { "type": "string", "pattern": "^mod_[A-Za-z0-9_-]{3,64}$" },
     "DiagramId": { "type": "string", "pattern": "^dgm_[A-Za-z0-9_-]{3,64}$" },
+    "BlockId": { "type": "string", "pattern": "^blk_[A-Za-z0-9_-]{3,64}$" },
     "NodeId": { "type": "string", "pattern": "^nd_[A-Za-z0-9_-]{3,64}$" },
     "EdgeId": { "type": "string", "pattern": "^edg_[A-Za-z0-9_-]{3,64}$" },
     "SemanticEntityId": { "type": "string", "pattern": "^sem_[A-Za-z0-9_-]{3,64}$" },
@@ -26,14 +27,15 @@
     "StepId": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" },
 
     "CanvasObjectId": {
-      "description": "Um objeto do canvas tem o mesmo id do mod ou diagrama que ele posiciona.",
-      "anyOf": [ { "$ref": "#/$defs/ModId" }, { "$ref": "#/$defs/DiagramId" } ]
+      "description": "Um objeto do canvas tem o mesmo id do mod, diagrama ou bloco que ele posiciona.",
+      "anyOf": [ { "$ref": "#/$defs/ModId" }, { "$ref": "#/$defs/DiagramId" }, { "$ref": "#/$defs/BlockId" } ]
     },
     "VisualTargetId": {
       "description": "Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar. Uma unidade de contexto (sem_) vale pelo grupo desenhado em volta dela.",
       "anyOf": [
         { "$ref": "#/$defs/ModId" },
         { "$ref": "#/$defs/DiagramId" },
+        { "$ref": "#/$defs/BlockId" },
         { "$ref": "#/$defs/NodeId" },
         { "$ref": "#/$defs/EdgeId" },
         { "$ref": "#/$defs/RegionId" },
@@ -42,7 +44,7 @@
     },
     "AnyId": {
       "type": "string",
-      "pattern": "^(ws|prj|root|mod|dgm|nd|edg|sem|rel|evd|art|rgn|act|bat|evt|nav|turn|grt|lyr)_[A-Za-z0-9_-]{3,64}$"
+      "pattern": "^(ws|prj|root|mod|dgm|blk|nd|edg|sem|rel|evd|art|rgn|act|bat|evt|nav|turn|grt|lyr)_[A-Za-z0-9_-]{3,64}$"
     },
 
     "Timestamp": { "type": "string", "format": "date-time" },
@@ -155,6 +157,20 @@
         "argumentPath": { "description": "JSON Pointer para o argumento inválido, quando houver, relativo a arguments (\"/\" é o objeto inteiro). Num lote fora do contrato, relativo ao plano. Um ponteiro fora dos argumentos vai em details.requestPath.", "type": "string" },
         "targetId": { "type": "string" },
         "details": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "Arrangement": {
+      "description": "Como um diagrama ou bloco se relaciona no canvas com outro (docs/funcionalidades/13-layout-semantico.md). Diz só a relação; o lugar sai do layout.",
+      "type": "object",
+      "required": ["relation", "targetId"],
+      "properties": {
+        "relation": {
+          "enum": ["annotates", "continues", "details"],
+          "description": "annotates: título, texto ou nota colado ao alvo, que se move junto. continues: próximo passo da explicação, embaixo. details: aprofunda o alvo, à direita."
+        },
+        "targetId": { "anyOf": [ { "$ref": "#/$defs/DiagramId" }, { "$ref": "#/$defs/BlockId" } ] },
+        "side": { "enum": ["above", "below"], "description": "Só para annotates: acima (título, introdução) ou abaixo (notas). Padrão: above." }
       },
       "additionalProperties": false
     }

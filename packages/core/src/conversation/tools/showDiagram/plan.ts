@@ -5,6 +5,7 @@ import type { DiagramModel, SemanticEntity, WorkspaceSnapshot } from "@open-sema
 import { hash, normalized, slug } from "../../text.js";
 import { cleanPath } from "../project.js";
 import { drawStep, frameStep, semanticSteps } from "./draw.js";
+import { arrangementFor, sectionBlockIds, sectionSteps } from "./section.js";
 import { entityKind, idOf, relationType } from "./naming.js";
 import {
   DIAGRAM_KINDS,
@@ -169,11 +170,14 @@ class DiagramPlanner {
         unitOf: (nodeId) => this.unitOf.get(nodeId),
         isUnit: (id) => this.entityById.has(id) || units.has(id),
         notes: this.notes,
+        ...(this.existing ? {} : { arrangement: arrangementFor(this.input, this.snapshot, this.projectId) }),
       },
       steps.map((s) => s.id),
     );
     if (draw) steps.push(draw);
-    steps.push(frameStep(this.input, draw !== undefined));
+    const section = sectionSteps(this.input, this.snapshot, draw ? ["draw"] : []);
+    steps.push(...section);
+    steps.push(frameStep(this.input, sectionBlockIds(this.input), [...(draw ? ["draw"] : []), ...section.map((s) => s.id)]));
     return { intent: `${this.existing ? "Completar" : "Desenhar"} o diagrama ${this.input.title}`.slice(0, 200), steps, nodes: this.knowledge, notes: this.notes };
   }
 

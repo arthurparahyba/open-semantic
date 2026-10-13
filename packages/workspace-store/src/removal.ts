@@ -3,6 +3,8 @@
 // O que sobra perde só os vínculos com o que saiu, sempre em cópias novas (o store não altera objetos no lugar).
 import type { DiagramModel, ModInstance, Provenance, Region, SemanticEntity, WorkspaceSnapshot } from "@open-semantic/protocol";
 
+import { dropOrphanBlocks } from "./orphanBlocks.js";
+
 export interface Removed {
   artifacts: number;
   mods: number;
@@ -43,6 +45,7 @@ export function removeProjectFrom(doc: WorkspaceSnapshot, projectId: string): Re
   doc.semantic.evidence = doc.semantic.evidence.filter((ev) => !gone.evidence.has(ev.id));
   doc.canvas.objects = doc.canvas.objects.filter((o) => !gone.mods.has(o.id) && !gone.diagrams.has(o.id));
   doc.canvas.regions = doc.canvas.regions.map((r) => unlinkEntities(r, gone));
+  dropOrphanBlocks(doc);
   unlinkFocus(doc, gone);
   unlinkLayers(doc, gone);
   return { artifacts: gone.artifacts.size, mods: gone.mods.size, diagrams: gone.diagrams.size, entities: gone.entities.size };

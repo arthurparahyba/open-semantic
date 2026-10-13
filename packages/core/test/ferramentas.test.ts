@@ -16,6 +16,7 @@ describe("registro de ferramentas", () => {
     const registry = new ToolRegistry(TOOLS, ["diagram.create"]);
     expect(registry.specs.map((s) => s.name)).toEqual([
       "show_diagram",
+      "show_blocks",
       "get_workspace",
       "search_workspace",
       "list_dir",
@@ -25,6 +26,7 @@ describe("registro de ferramentas", () => {
     ]);
     expect([...registry.batchTools].sort()).toEqual([
       "run_batch",
+      "show_blocks",
       "show_diagram",
     ]);
   });

@@ -2,6 +2,7 @@
 // aplicar os commits na cópia dela do workspace (docs/funcionalidades/01-workspace-e-canvas.md, "Eventos").
 import type {
   ArtifactReference,
+  Block,
   CanvasObject,
   DiagramModel,
   Evidence,
@@ -25,6 +26,7 @@ export interface CollectionItems {
   evidence: Evidence;
   mods: ModInstance;
   diagrams: DiagramModel;
+  blocks: Block;
   regions: Region;
   canvas: CanvasObject;
   layers: Layer;
@@ -75,6 +77,8 @@ export const LISTS: Lists = {
   evidence: { get: (d) => d.semantic.evidence, set: (d, items) => void (d.semantic.evidence = items) },
   mods: { get: (d) => d.mods, set: (d, items) => void (d.mods = items) },
   diagrams: { get: (d) => d.diagrams, set: (d, items) => void (d.diagrams = items) },
+  // Workspaces antigos não têm blocos (doc 13): a lista nasce vazia na primeira leitura.
+  blocks: { get: (d) => (d.blocks ??= []), set: (d, items) => void (d.blocks = items) },
   regions: { get: (d) => d.canvas.regions, set: (d, items) => void (d.canvas.regions = items) },
   canvas: { get: (d) => d.canvas.objects, set: (d, items) => void (d.canvas.objects = items) },
   // Workspaces antigos não têm camadas: a lista nasce vazia na primeira leitura.
@@ -82,7 +86,7 @@ export const LISTS: Lists = {
 };
 
 /** As coleções na ordem do documento; as mudanças de um commit seguem esta ordem. */
-export const COLLECTIONS: Collection[] = ["workspace", "projects", "artifacts", "entities", "relations", "evidence", "mods", "diagrams", "regions", "canvas", "layers", "navigation"];
+export const COLLECTIONS: Collection[] = ["workspace", "projects", "artifacts", "entities", "relations", "evidence", "mods", "diagrams", "blocks", "regions", "canvas", "layers", "navigation"];
 
 export function isList(collection: Collection): collection is ListCollection {
   return collection !== "workspace" && collection !== "navigation";

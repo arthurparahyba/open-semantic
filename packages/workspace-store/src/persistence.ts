@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { contractValidator, describeErrors, type WorkspaceSnapshot } from "@open-semantic/protocol";
 
+import { dropOrphanBlocks } from "./orphanBlocks.js";
 import { REPO_DIR, RepoWriter, mergeRepoContent, readRepoContent, rootPathOfProject, splitSnapshot, statPaths, storesInRepo } from "./repoStore.js";
 import type { WorkspaceStore } from "./store.js";
 
@@ -78,6 +79,7 @@ export class WorkspaceFolderPersistence implements WorkspacePersistence {
     // Um diagrama que sumiu do repositório (apagado fora do app) sai também do canvas.
     const diagrams = new Set(doc.diagrams.map((d) => d.id));
     doc.canvas.objects = doc.canvas.objects.filter((o) => o.objectKind !== "diagram" || diagrams.has(o.id));
+    dropOrphanBlocks(doc);
     if (!validateSnapshot(doc)) {
       throw new Error(`workspace em ${this.workspaceDir} fora do contrato: ${describeErrors(validateSnapshot.errors)}`);
     }
