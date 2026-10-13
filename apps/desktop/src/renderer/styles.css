@@ -217,9 +217,15 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .diagram-edge.is-highlighted line { stroke-width: 2.6; }
 .diagram-edge-label { font-size: 11px; fill: var(--text-2); }
 .diagram-arrow { fill: var(--text-2); }
-.diagram-legend {
-  position: absolute; left: 10px; bottom: 6px; font-size: 11px; color: var(--text-2);
-  display: flex; align-items: center; gap: 6px; pointer-events: none;
+.diagram-footer {
+  position: absolute; left: 12px; right: 12px; bottom: 6px; pointer-events: none;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.diagram-footer.with-caption { bottom: 26px; }
+.diagram-legend { font-size: 11px; color: var(--text-2); display: flex; align-items: center; gap: 6px; }
+.diagram-caption {
+  margin: 0; font-size: 12px; line-height: 17px; color: var(--text); pointer-events: auto;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
 }
 .legend-solid, .legend-dashed { display: inline-block; width: 18px; border-top: 2px solid var(--text-2); }
 .legend-dashed { border-top-style: dashed; margin-left: 8px; }
@@ -245,6 +251,11 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .chat-msg { white-space: pre-wrap; line-height: 1.45; padding: 8px 10px; border-radius: 10px; max-width: 92%; }
 .chat-user { justify-self: end; background: var(--accent-soft); }
 .chat-assistant { justify-self: start; background: var(--surface-2); border: 1px solid var(--border); }
+.chat-assistant.is-visual { display: grid; gap: 6px; border-left: 3px solid var(--accent); }
+.chat-diagram {
+  justify-self: start; display: inline-flex; gap: 6px; align-items: center; font-weight: 600;
+  background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 6px; padding: 3px 8px; cursor: pointer;
+}
 .chat-tool { color: var(--text-2); font-size: 11.5px; padding-left: 4px; }
 .chat-tool::before { content: "↳ "; }
 .chat-notice { font-size: 12px; padding: 6px 10px; border-radius: 8px; border: 1px dashed var(--border); color: var(--text-2); }

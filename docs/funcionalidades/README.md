@@ -17,6 +17,7 @@ Documentos de origem: [visão do produto](../visao.md) e [Especificação V0.1](
 | 7 | [Project Runtime](07-project-runtime.md) | Project Runtime | arquivos, diretórios, processos |
 | 8 | [Motor de contexto semântico](08-gestao-de-contexto.md) | Agent Orchestrator (contexto) | índice de relevância, contexto enviado à IA |
 | 9 | [Ancoragem e projeção do canvas](09-ancoragem-e-projecao.md) | Open Semantic + Workspace Store | a que unidade de contexto cada diagrama pertence; o layout sai daí |
+| 10 | [Resposta visual](10-resposta-visual.md) | Agente + Diagram Engine | explicação de estrutura ou fluxo vira diagrama com legenda; o texto acompanha |
 
 ## Como as peças se ligam
 

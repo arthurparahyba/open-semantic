@@ -258,7 +258,14 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
         )}
         <footer className="hint">Arraste o fundo para mover · Ctrl/⌘ + roda para zoom · duplo clique no título para enquadrar · Esc interrompe o movimento</footer>
       </main>
-      {agentOpen && <AgentPanel hasProject={snapshot.projects.length > 0} onError={notify} />}
+      {agentOpen && (
+        <AgentPanel
+          hasProject={snapshot.projects.length > 0}
+          diagrams={snapshot.diagrams}
+          onShowDiagram={(id) => canvas.current?.frame([id])}
+          onError={notify}
+        />
+      )}
       </div>
 
       <div className="toasts" role="status">
