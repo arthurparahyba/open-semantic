@@ -167,6 +167,9 @@ describe("5. O que temos sobre X?", () => {
     const framed = (repo.output as { framedIds: string[] }).framedIds;
     expect(framed).toEqual(expect.arrayContaining(["dgm_loja_1", "dgm_checkout_1", "sem_loja_repo"]));
     expect(framed).not.toContain("dgm_pag_1");
+    // O grupo da unidade entra no foco, e o workspace salvo assim tem de reabrir (e a sugestão, de ser aceita).
+    expect(validateSnapshot(core.store.snapshot()), JSON.stringify(validateSnapshot.errors)).toBe(true);
+    await ok("navigation.frame", { targets: { visualIds: framed }, intent: "focus" }, user);
 
     const subject = await ok("navigation.frame", { targets: { semanticEntityIds: ["sem_checkout"] }, intent: "focus", reason: "Checkout" });
     expect((subject.output as { framedIds: string[] }).framedIds).toEqual(expect.arrayContaining(["dgm_checkout_1"]));

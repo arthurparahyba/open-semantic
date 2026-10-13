@@ -84,6 +84,11 @@ export function resolveTargets(store: WorkspaceStore, targets: FrameRequest["tar
         out.rects.push(a, b);
         out.framedIds.push(id);
       } else out.unresolved.push(id);
+    } else if (id.startsWith("sem_")) {
+      // O grupo desenhado em volta de uma unidade de contexto (é assim que ele aparece no foco).
+      const group = contextGroups(doc).find((g) => g.unitId === id);
+      if (group) add(id, group.bounds);
+      else out.unresolved.push(id);
     } else {
       const r = objectRect(id);
       if (r) add(id, r);

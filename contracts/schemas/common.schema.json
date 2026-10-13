@@ -29,13 +29,14 @@
       "anyOf": [ { "$ref": "#/$defs/ModId" }, { "$ref": "#/$defs/DiagramId" } ]
     },
     "VisualTargetId": {
-      "description": "Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar.",
+      "description": "Qualquer coisa que o Semantic Navigator pode enquadrar ou destacar. Uma unidade de contexto (sem_) vale pelo grupo desenhado em volta dela.",
       "anyOf": [
         { "$ref": "#/$defs/ModId" },
         { "$ref": "#/$defs/DiagramId" },
         { "$ref": "#/$defs/NodeId" },
         { "$ref": "#/$defs/EdgeId" },
-        { "$ref": "#/$defs/RegionId" }
+        { "$ref": "#/$defs/RegionId" },
+        { "$ref": "#/$defs/SemanticEntityId" }
       ]
     },
     "AnyId": {
