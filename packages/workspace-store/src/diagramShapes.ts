@@ -95,3 +95,19 @@ export function erTableSize(label: string, columns: string[]): { width: number; 
   const longest = Math.max(label.length * 8, ...columns.map((c) => c.length * 7));
   return { width: Math.min(320, Math.max(160, Math.round(longest + 32))), height: ER_TITLE + Math.max(1, columns.length) * ER_ROW + 8 };
 }
+
+// BPMN em raias: colunas pela ordem do processo, uma raia por ator (attributes.layer).
+
+/** Altura de uma linha da raia (o rótulo de eventos e decisões fica embaixo, dentro dela) e largura mínima da coluna. */
+export const BPMN_ROW = 112;
+export const BPMN_COL_GAP = 56;
+/** Espaço reservado embaixo do símbolo para o rótulo de eventos e decisões. */
+export const BPMN_LABEL = 22;
+
+/** O processo tem raias quando algum elemento diz o seu ator. */
+export const bpmnHasLanes = (nodes: Pick<DiagramNode, "attributes">[]) => nodes.some((n) => layerOf(n) !== "");
+
+/** Topo da célula de um elemento: o elemento fica centrado na célula, acima do espaço do rótulo. */
+export function bpmnCellTop(rect: { position: { y: number }; size: { height: number } }): number {
+  return rect.position.y - (BPMN_ROW - BPMN_LABEL - rect.size.height) / 2;
+}

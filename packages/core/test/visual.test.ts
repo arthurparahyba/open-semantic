@@ -370,6 +370,28 @@ describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
     expect(diagram.edges).toHaveLength(5);
   });
 
+  it("bpmn com raias: uma faixa por ator, colunas na ordem do fluxo e a volta não empurra ninguém", async () => {
+    const { diagram } = await draw("desenhe o processo de negócio do cadastro de produtos", {
+      diagramId: "dgm_minhaapp_processo_raias",
+      title: "Cadastro de produto",
+      kind: "bpmn",
+      why: "processo",
+      caption: "O lojista preenche e o sistema valida.",
+      source:
+        "lane Lojista\ni[Início]:start\nf[Preenche produto]:task\nlane Sistema\nv[Dados válidos?]:gateway\ns[Salva produto]:task\nfim[Cadastrado]:end\ni --> f\nf --> v\nv --> s : sim\nv --> f : não\ns --> fim",
+    });
+    expect(diagram.layout.algorithm).toBe("bpmn");
+    const node = (label: string) => diagram.nodes.find((n) => n.label === label)!;
+    const rect = (label: string) => diagram.layout.nodes[node(label).id]!;
+    expect(node("Preenche produto").attributes?.layer).toBe("Lojista");
+    expect(node("Salva produto").attributes?.layer).toBe("Sistema");
+    // Raias: tudo do Lojista acima de tudo do Sistema.
+    expect(rect("Preenche produto").position.y).toBeLessThan(rect("Dados válidos?").position.y);
+    // Colunas na ordem do fluxo, mesmo com a volta "não" do gateway para "Preenche produto".
+    const xs = ["Início", "Preenche produto", "Dados válidos?", "Salva produto", "Cadastrado"].map((l) => rect(l).position.x);
+    expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+  });
+
   it("er: as linhas recuadas viram colunas da tabela e a tabela cresce com elas", async () => {
     const { diagram } = await draw("mostre o modelo de dados dos produtos", {
       diagramId: "dgm_minhaapp_dados",

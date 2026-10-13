@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import type { CanvasObject, DiagramModel, KnowledgeStatus, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import { ER_ROW, ER_TITLE, FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, WIRE_TITLE, bpmnShape, columnsOf, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
+import { BPMN_ROW, ER_ROW, ER_TITLE, bpmnCellTop, bpmnHasLanes, FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, WIRE_TITLE, bpmnShape, columnsOf, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
 
 import { run } from "./client.js";
 
@@ -87,7 +87,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
 
   // Faixas e sequência têm posições fixas pela gramática; árvore e caixas e setas aceitam arraste.
   const wire = diagram.kind === "wireframe";
-  const fixed = diagram.kind === "layers" || diagram.kind === "sequence" || wire;
+  const fixed = FIXED_KINDS.has(diagram.kind);
   const sequence = diagram.kind === "sequence";
   const hasInferred =
     diagram.nodes.some((n) => nodeQuality(n.semanticEntityId) === "inferred") ||
@@ -116,6 +116,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           </marker>
         </defs>
         {diagram.kind === "layers" && <Lanes diagram={diagram} width={object.size.width} />}
+        {diagram.kind === "bpmn" && bpmnHasLanes(diagram.nodes) && <BpmnLanes diagram={diagram} width={object.size.width} />}
         {wire
           ? null
           : sequence
@@ -153,13 +154,15 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
               return (
                 <g key={edge.id} className={`diagram-edge q-${quality}${highlightIds.has(edge.id) ? " is-highlighted" : ""}`} data-edge-id={edge.id}>
                   <title>{`${edge.label ?? "relação"} · ${QUALITY_LABEL[quality]}`}</title>
-                  {tree ? (
+                  {diagram.kind === "bpmn" ? (
+                    <path d={bpmnRoute(a, b).d} fill="none" markerEnd={`url(#arrow-${diagram.id})`} />
+                  ) : tree ? (
                     <path d={elbow(a, b)} fill="none" />
                   ) : (
                     <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={`url(#arrow-${diagram.id})`} />
                   )}
                   {edge.label && (
-                    <text x={mid.x} y={mid.y - 6} textAnchor="middle" className="diagram-edge-label">
+                    <text x={diagram.kind === "bpmn" ? bpmnRoute(a, b).label.x : mid.x} y={diagram.kind === "bpmn" ? bpmnRoute(a, b).label.y : mid.y - 6} textAnchor="middle" className="diagram-edge-label">
                       {edge.label}
                     </text>
                   )}
@@ -346,6 +349,53 @@ function Lanes({ diagram, width }: { diagram: DiagramModel; width: number }) {
       })}
     </g>
   );
+}
+
+/** Tipos com posição dada pela gramática (sem arraste de nós). */
+const FIXED_KINDS = new Set<DiagramModel["kind"]>(["layers", "sequence", "bpmn", "wireframe"]);
+
+/** Raias do BPMN: uma faixa por ator, da primeira à última célula dos seus elementos, com o nome à esquerda. */
+function BpmnLanes({ diagram, width }: { diagram: DiagramModel; width: number }) {
+  return (
+    <g className="diagram-lanes">
+      {layerOrder(diagram.nodes).map((lane) => {
+        const rects = diagram.nodes.filter((n) => layerOf(n) === lane).flatMap((n) => diagram.layout.nodes[n.id] ?? []);
+        if (!rects.length) return null;
+        const top = Math.min(...rects.map(bpmnCellTop));
+        const bottom = Math.max(...rects.map((r) => bpmnCellTop(r) + BPMN_ROW));
+        return (
+          <g key={lane} className="diagram-lane bpmn-lane" data-layer={lane}>
+            <rect x={12} y={top} width={Math.max(0, width - 24)} height={bottom - top} rx={4} />
+            <text x={24} y={(top + bottom) / 2 + 4} className="diagram-lane-label">
+              {truncate(lane || "outros", Math.floor(LANE_GUTTER / 8))}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/**
+ * Seta do BPMN em ângulos retos: para a frente, sai pela direita e entra pela esquerda; voltando no fluxo,
+ * desce, passa por baixo das células e sobe até o elemento. O rótulo fica no primeiro trecho.
+ */
+function bpmnRoute(a: Rect, b: Rect): { d: string; label: Point } {
+  const ay = a.position.y + a.size.height / 2;
+  const by = b.position.y + b.size.height / 2;
+  const x1 = a.position.x + a.size.width;
+  const x2 = b.position.x;
+  if (x2 > x1) {
+    const mx = Math.round((x1 + x2) / 2);
+    return { d: `M ${x1} ${ay} H ${mx} V ${by} H ${x2 - 2}`, label: { x: (x1 + mx) / 2, y: ay - 6 } };
+  }
+  const acx = a.position.x + a.size.width / 2;
+  const bcx = b.position.x + b.size.width / 2;
+  const below = Math.max(bpmnCellTop(a), bpmnCellTop(b)) + BPMN_ROW - 6;
+  return {
+    d: `M ${acx} ${a.position.y + a.size.height} V ${below} H ${bcx} V ${b.position.y + b.size.height + 2}`,
+    label: { x: (acx + bcx) / 2, y: below - 4 },
+  };
 }
 
 const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);

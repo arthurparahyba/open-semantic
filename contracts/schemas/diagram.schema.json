@@ -35,7 +35,7 @@
       "type": "object",
       "required": ["algorithm", "nodes"],
       "properties": {
-        "algorithm": { "enum": ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe"], "description": "lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção; wireframe: caixas dentro de caixas por attributes.parent, como uma tela." },
+        "algorithm": { "enum": ["manual", "layered", "force", "grid", "lanes", "sequence", "tree", "wireframe", "bpmn"], "description": "bpmn: processo da esquerda para a direita em raias (attributes.layer), voltas por baixo; lanes: faixas por attributes.layer do nó; sequence: participantes em colunas e mensagens (arestas) em ordem; tree: árvore de contenção; wireframe: caixas dentro de caixas por attributes.parent, como uma tela." },
         "direction": { "enum": ["LR", "RL", "TB", "BT"] },
         "nodes": {
           "description": "Retângulo de cada nó, relativo ao canto superior esquerdo do diagrama.",
