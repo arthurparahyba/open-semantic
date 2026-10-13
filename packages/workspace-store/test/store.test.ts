@@ -5,7 +5,15 @@ import { describe, expect, it } from "vitest";
 
 import { contractValidator } from "@open-semantic/protocol";
 
-import { FileWorkspacePersistence, WorkspaceStore, autosave, findFreeSpot, overlaps, type PersistStatus } from "../src/index.js";
+import {
+  FileWorkspacePersistence,
+  WorkspaceStore,
+  autosave,
+  findFreeSpot,
+  overlaps,
+  type PersistStatus,
+  type WorkspacePersistence,
+} from "../src/index.js";
 
 const validSnapshot = contractValidator("workspace.schema.json");
 const rect = (x: number, y: number, width = 100, height = 100) => ({ position: { x, y }, size: { width, height } });
@@ -81,6 +89,27 @@ describe("persistência", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+
+  it("flush espera também a gravação que entrou na fila durante a espera", async () => {
+    const store = WorkspaceStore.create({ id: "ws_test", name: "Teste" });
+    const saved: number[] = [];
+    const persistence: WorkspacePersistence = {
+      load: async () => undefined,
+      save: async (snapshot) => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        saved.push(snapshot.workspace.revision);
+      },
+    };
+    const saver = autosave(store, persistence, { debounceMs: 1 });
+    store.transact(() => store.setCamera({ center: { x: 1, y: 1 }, zoom: 1 }));
+    const flushed = saver.flush();
+    // Enquanto a primeira gravação acontece, o store muda de novo (como no fim de uma animação).
+    store.transact(() => store.setCamera({ center: { x: 2, y: 2 }, zoom: 1 }));
+    await flushed;
+    saver.stop();
+    // Ao fechar o app, nada pode ficar gravando depois do flush.
+    expect(saved).toEqual([1, 2]);
   });
 
   it("recusa carregar um arquivo fora do contrato em vez de abrir estado corrompido", async () => {
