@@ -57,7 +57,13 @@ Diferença importante: **`rejected`** = falhou na validação, nada mudou. **`fa
 
 Fluxo: o runtime responde `confirmation_required` com `token` e `summary`; a interface mostra o cartão; ao aprovar, a mesma requisição é reenviada com `authorization.confirmationToken`. Tokens expiram e valem para uma requisição específica (hash dos argumentos). Isso cobre o critério E5.
 
-O agente só muda o que está na lista dele (`AGENT_OPERATIONS`); qualquer outra mudança é recusada com `UNAUTHORIZED`, inclusive dentro de um lote. Leituras ficam liberadas.
+Quem pode o quê fica no próprio handler, no catálogo de operações (`packages/protocol/src/catalog.ts`):
+
+- `readOnly` marca as consultas;
+- `actors` diz quem pode chamar (só o usuário escolhe o projeto ativo, tira uma pasta do workspace ou liga a navegação automática). Os outros são recusados com `UNAUTHORIZED` antes de qualquer validação dos argumentos;
+- `agent` abre a operação ao agente, com a linha dela no prompt (`guide`), a frase do passo no cartão do lote (`describe`) e, quando precisa, o pedido de confirmação (`confirm`).
+
+A política do app (`catalogPolicy`) sai daí: o usuário age livremente; o agente consulta livremente e só muda o que tem `agent`. Qualquer outra mudança é recusada com `UNAUTHORIZED`, inclusive dentro de um lote. A lista de operações das ferramentas do modelo e a seção de operações do prompt saem do mesmo catálogo (`Dispatcher.agentOperations`); o resto do prompt é escrito à mão. Uma operação nova pede só o handler (com o schema e esses campos) e o teste; um domínio novo também entra em `OperationName` (`operation.schema.json`).
 
 ## Lotes com dependências (decisão D3, confirmada em 12/10)
 

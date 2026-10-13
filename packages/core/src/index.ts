@@ -12,14 +12,7 @@ import { modHandlers } from "@open-semantic/mod-runtime";
 import type { Viewport } from "@open-semantic/navigator";
 import { navigationHandlers } from "@open-semantic/navigator/handlers";
 import { ProjectRuntime, artifactUnchanged, projectHandlers } from "@open-semantic/project-runtime";
-import {
-  BatchExecutor,
-  Dispatcher,
-  type ActionLog,
-  type ActionRecord,
-  type AuthorizationPolicy,
-  type DomainEvent,
-} from "@open-semantic/protocol";
+import { BatchExecutor, Dispatcher, catalogPolicy, type ActionLog, type ActionRecord, type DomainEvent } from "@open-semantic/protocol";
 import {
   REPO_DIR,
   WorkspaceFolderPersistence,
@@ -32,11 +25,9 @@ import {
 import { semanticHandlers } from "@open-semantic/semantic";
 
 import { AgentRunner, type AgentActivity } from "./agent.js";
-import { AGENT_OPERATIONS } from "./conversation.js";
 
-export { AgentRunner, describeStep, summarizeBatch, type ActivityStep, type AgentActivity } from "./agent.js";
+export { AgentRunner, summarizeBatch, type ActivityStep, type AgentActivity } from "./agent.js";
 export {
-  AGENT_OPERATIONS,
   CLAUDE_AGENT,
   Conversation,
   ConversationBusyError,
@@ -51,7 +42,7 @@ export {
   type TurnLimits,
 } from "./conversation.js";
 export { WorkspaceContext, canvasAttention, workspaceIndex } from "./context.js";
-export { SYSTEM_PROMPT } from "./prompt.js";
+export { systemPrompt } from "./prompt.js";
 export { SHOW_DIAGRAM_TOOL, VISUAL_NUDGE, asksForExplanation, planShowDiagram, slug, type ShowDiagramInput } from "./visual.js";
 export { AGENT, SCRIPTS, ScriptError, scriptedPlan, type ScriptInfo } from "./scripts.js";
 
@@ -76,58 +67,6 @@ export interface CoreOptions {
   onActivity?: (activity: AgentActivity) => void;
   /** Duração da animação de navegação no núcleo (testes usam 0). */
   animationMs?: number;
-}
-
-/**
- * Política de autorização. O usuário age livremente pela interface; pedidos do agente
- * que excluem ou escrevem conteúdo exigem confirmação (docs/funcionalidades/06, tabela de autorização).
- * O agente só muda o que está em AGENT_OPERATIONS; consultas ficam livres, porque as ferramentas dele leem pelo Dispatcher.
- */
-export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
-  return (request, handler) => {
-    const actor = request.authorization.actor.kind;
-    if (actor === "user") return { decision: "allow" };
-    if (actor === "agent" && !handler.readOnly && !AGENT_OPERATIONS.includes(request.operation)) {
-      return { decision: "deny", reason: `O agente não pode usar ${request.operation}; essa operação é só da interface.` };
-    }
-    switch (request.operation) {
-      case "mod.delete":
-        return store.read().workspace.settings.agentMayDeleteMods
-          ? { decision: "allow" }
-          : { decision: "confirm", risk: "medium", summary: "Remover um mod do canvas (os arquivos não são apagados).", reversible: false };
-      case "diagram.delete":
-        return { decision: "confirm", risk: "medium", summary: "Excluir um diagrama do canvas.", reversible: false };
-      case "region.delete": {
-        const regionId = (request.arguments as { regionId?: string }).regionId;
-        const occupied = store.read().canvas.objects.some((o) => o.regionId === regionId);
-        return occupied
-          ? { decision: "confirm", risk: "low", summary: "Remover a moldura de uma região que tem objetos (os objetos ficam).", reversible: true }
-          : { decision: "allow" };
-      }
-      case "workspace.add_project": {
-        const { rootPath, name } = request.arguments as { rootPath?: string; name?: string };
-        return {
-          decision: "confirm",
-          risk: "medium",
-          summary: `Adicionar a pasta ${rootPath ?? ""} ao workspace como "${name ?? ""}". Diagramas e conhecimento sobre ela ficam em ${REPO_DIR}/ dentro da pasta.`,
-          reversible: true,
-        };
-      }
-      case "workspace.clone_repository": {
-        const { url } = request.arguments as { url?: string };
-        return {
-          decision: "confirm",
-          risk: "medium",
-          summary: `Baixar ${url ?? "o repositório"} para a pasta repos/ do workspace e trabalhar nele. Diagramas e conhecimento sobre ele ficam em ${REPO_DIR}/ dentro do repositório.`,
-          reversible: true,
-        };
-      }
-      case "project.write_file":
-        return { decision: "confirm", risk: "high", summary: "Gravar alterações em um arquivo do projeto.", reversible: false };
-      default:
-        return { decision: "allow" };
-    }
-  };
 }
 
 /** Histórico persistente: uma linha JSON por ActionRecord. Na memória ficam só os registros mais recentes. */
@@ -192,7 +131,8 @@ export async function createCore(options: CoreOptions) {
   });
   const dispatcher = new Dispatcher({
     actionLog: log,
-    policy: defaultPolicy(store),
+    // Quem pode o quê sai do catálogo: cada handler diz se só consulta, quem chama e se o agente usa (com ou sem confirmação).
+    policy: catalogPolicy,
     evaluatePrecondition: workspacePreconditions(store, artifactUnchanged(runtime)),
     ...(options.onEvent ? { onEvent: options.onEvent } : {}),
   });
@@ -226,7 +166,7 @@ export async function createCore(options: CoreOptions) {
   const batches = new BatchExecutor({ dispatcher, ...(options.onEvent ? { onEvent: options.onEvent } : {}) });
   const agent = new AgentRunner({
     executor: batches,
-    snapshot: () => store.snapshot(),
+    describe: (operation, args) => dispatcher.describe(operation, args),
     ...(options.onActivity ? { onActivity: options.onActivity } : {}),
   });
 

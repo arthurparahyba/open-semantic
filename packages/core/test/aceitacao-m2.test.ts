@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { isVisible } from "@open-semantic/navigator";
 import { contractValidator, type WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import { AGENT, createCore, scriptedPlan, summarizeBatch, type AgentActivity, type Core } from "../src/index.js";
+import { AGENT, createCore, scriptedPlan, type AgentActivity, type Core } from "../src/index.js";
 
 const contracts = join(import.meta.dirname, "../../../contracts");
 const validateSnapshot = contractValidator("workspace.schema.json");
@@ -165,7 +165,7 @@ describe("E. Protocolo e confiabilidade", () => {
     const result = await core.agent.run(p);
     expect(result.steps.mk_backend?.status).toBe("failed");
     expect(result.steps.explorer?.status).toBe("skipped");
-    const summary = summarizeBatch(p, result);
+    const summary = core.agent.list().find((a) => a.batchId === p.batchId)!.summary;
     expect(summary).not.toMatch(/Feito: .*criar a pasta/);
     expect(summary).toMatch(/Não feito: criar a pasta backend\/: /);
     expect(summary).toMatch(/abrir um Explorer “Backend”: pulado/);

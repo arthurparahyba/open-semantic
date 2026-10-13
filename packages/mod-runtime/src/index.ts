@@ -52,6 +52,14 @@ const REQUIRED_ARTIFACT: Record<string, { key: string; kind: "directory" | "file
   editor: { key: "fileRef", kind: "file" },
 };
 
+/** Como o cartão do lote chama cada tipo de mod. */
+const TYPE_NAMES: Record<string, string> = { explorer: "um Explorer", editor: "um Editor" };
+
+/** A linha de mod.create no prompt, com as chaves de configuração que a validação exige. */
+const CREATE_GUIDE = `{modId, type:${MOD_TYPES.map((d) => `"${d.type}"`).join("|")}, title?, config:${Object.entries(REQUIRED_ARTIFACT)
+  .map(([type, { key, kind }]) => `{${key}: ${kind === "directory" ? "folder" : "file"} artifactId} for ${type}`)
+  .join(" or ")}, semanticEntityIds? (its units)}`;
+
 export interface ModHandlerDeps {
   store: WorkspaceStore;
 }
@@ -101,6 +109,8 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
     }
   };
 
+  const modTitle = (id: unknown) => (typeof id === "string" ? (store.mod(id)?.title ?? id) : "");
+
   const lifecycle = (operation: "mod.close" | "mod.reopen", target: "active" | "closed"): OperationHandler => ({
     operation,
     argumentsSchema: {
@@ -138,6 +148,13 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
 
     {
       operation: "mod.create",
+      agent: {
+        guide: CREATE_GUIDE,
+        describe: (args) => {
+          const type = String(args.type);
+          return `abrir ${TYPE_NAMES[type] ?? `um mod ${type}`}${args.title ? ` “${String(args.title)}”` : ""}`;
+        },
+      },
       argumentsSchema: {
         type: "object",
         required: ["modId", "type", "config"],
@@ -240,6 +257,10 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
 
     {
       operation: "mod.configure",
+      agent: {
+        guide: "{modId, title?, config?} renames a mod or changes its configuration.",
+        describe: (args) => `configurar “${modTitle(args.modId)}”`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["modId"],
@@ -282,6 +303,14 @@ export function modHandlers({ store }: ModHandlerDeps): OperationHandler[] {
     {
       // Remove a instância e sua posição. Nunca apaga arquivos (critério A4).
       operation: "mod.delete",
+      agent: {
+        guide: "{modId} removes a mod from the canvas; its files stay.",
+        describe: (args) => `remover “${modTitle(args.modId)}” do canvas`,
+        confirm: () =>
+          store.read().workspace.settings.agentMayDeleteMods
+            ? undefined
+            : { risk: "medium", summary: "Remover um mod do canvas (os arquivos não são apagados).", reversible: false },
+      },
       argumentsSchema: {
         type: "object",
         required: ["modId"],

@@ -12,6 +12,7 @@ import {
 
 import { repositoryUnit } from "./anchoring.js";
 import { placeNew, regionAt } from "./placement.js";
+import { REPO_DIR } from "./repoStore.js";
 import type { WorkspaceStore } from "./store.js";
 
 export const DEFAULT_REGION_SIZE = { width: 600, height: 720 } as const;
@@ -50,6 +51,7 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
   const findByRoot = (rootPath: string) =>
     store.read().projects.find((p) => p.location.kind === "local" && p.location.rootPath.replace(/\/+$/, "") === rootPath.replace(/\/+$/, ""));
   const expand = (path: string) => (homeDir && (path === "~" || path.startsWith("~/")) ? homeDir + path.slice(1) : path);
+  const regionTitle = (id: unknown) => (typeof id === "string" ? (store.region(id)?.title ?? id) : "");
 
   /** Coloca a pasta no workspace como projeto ativo e traz o que o repositório já sabe de si. */
   const addProject = async (projectId: string, name: string, rootPath: string, capabilities: Project["roots"][number]["capabilities"] | undefined, actor: Actor, operationId: string, now: () => Date) => {
@@ -107,8 +109,18 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
     },
 
     {
-      // O usuário abre pastas pela interface; o agente pode pedir pela conversa, e a política exige a confirmação.
+      // O usuário abre pastas pela interface; o agente pode pedir pela conversa, com a confirmação do usuário.
       operation: "workspace.add_project",
+      actors: ["user", "agent"],
+      agent: {
+        guide: "{projectId, name, rootPath} brings a local folder in and makes it the active project. Output: projectId, rootId, rootArtifactId.",
+        describe: (args) => `trazer a pasta ${String(args.rootPath)} para o workspace`,
+        confirm: (args) => ({
+          risk: "medium",
+          summary: `Adicionar a pasta ${String(args.rootPath ?? "")} ao workspace como "${String(args.name ?? "")}". Diagramas e conhecimento sobre ela ficam em ${REPO_DIR}/ dentro da pasta.`,
+          reversible: true,
+        }),
+      },
       argumentsSchema: {
         type: "object",
         required: ["projectId", "name", "rootPath"],
@@ -125,11 +137,7 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
         },
         additionalProperties: false,
       },
-      async check(args, { request }) {
-        // O usuário abre pastas pela interface; o agente pode pedir, e a política exige a confirmação do usuário.
-        if (request.authorization.actor.kind !== "user" && request.authorization.actor.kind !== "agent") {
-          throw new OperationError("UNAUTHORIZED", "Somente o usuário ou o agente (com confirmação) adicionam pastas ao workspace.");
-        }
+      async check(args) {
         const rootPath = expand(args.rootPath as string);
         if (!rootPath.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(rootPath)) {
           throw new OperationError("INVALID_ARGUMENTS", "Use o caminho completo da pasta (por exemplo /Users/voce/projetos/xpto ou ~/projetos/xpto).", {
@@ -187,6 +195,17 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
     {
       // Clona um repositório para dentro do workspace (<workspace>/repos/<nome>) e o adiciona como projeto ativo.
       operation: "workspace.clone_repository",
+      actors: ["user", "agent"],
+      agent: {
+        guide:
+          "{projectId, url, name?} clones a Git repository into the workspace's repos/ folder and adds it like workspace.add_project. Output also has path and cloned.",
+        describe: (args) => `baixar o repositório ${String(args.url)}`,
+        confirm: (args) => ({
+          risk: "medium",
+          summary: `Baixar ${typeof args.url === "string" ? args.url : "o repositório"} para a pasta repos/ do workspace e trabalhar nele. Diagramas e conhecimento sobre ele ficam em ${REPO_DIR}/ dentro do repositório.`,
+          reversible: true,
+        }),
+      },
       argumentsSchema: {
         type: "object",
         required: ["projectId", "url"],
@@ -197,10 +216,7 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
         },
         additionalProperties: false,
       },
-      async check(args, { request }) {
-        if (request.authorization.actor.kind !== "user" && request.authorization.actor.kind !== "agent") {
-          throw new OperationError("UNAUTHORIZED", "Somente o usuário ou o agente (com confirmação) clonam repositórios.");
-        }
+      async check(args) {
         if (!reposDir || !cloneRepository) throw new OperationError("UNKNOWN_OPERATION", "Este workspace não clona repositórios.");
         if (!CLONE_URL.test(args.url as string)) {
           throw new OperationError("INVALID_ARGUMENTS", "Endereço de repositório inválido. Use https://… ou git@host:dono/repo.", { argumentPath: "/url" });
@@ -243,14 +259,14 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
     {
       // O usuário reabriu uma pasta que já estava no workspace: ela volta a ser o projeto ativo.
       operation: "workspace.set_active_project",
+      actors: ["user"],
       argumentsSchema: {
         type: "object",
         required: ["projectId"],
         properties: { projectId: ref("common.schema.json#/$defs/ProjectId") },
         additionalProperties: false,
       },
-      check(args, { request }) {
-        if (request.authorization.actor.kind !== "user") throw new OperationError("UNAUTHORIZED", "Somente o usuário escolhe o projeto ativo.");
+      check(args) {
         if (!store.project(args.projectId as string)) {
           throw new OperationError("REFERENCE_INVALID", "Esse projeto não está no workspace.", { argumentPath: "/projectId" });
         }
@@ -266,14 +282,14 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
     {
       // Tira o projeto do workspace. Os arquivos no disco não são tocados.
       operation: "workspace.remove_project",
+      actors: ["user"],
       argumentsSchema: {
         type: "object",
         required: ["projectId"],
         properties: { projectId: ref("common.schema.json#/$defs/ProjectId") },
         additionalProperties: false,
       },
-      check(args, { request }) {
-        if (request.authorization.actor.kind !== "user") throw new OperationError("UNAUTHORIZED", "Somente o usuário pode tirar pastas do workspace.");
+      check(args) {
         if (!store.project(args.projectId as string)) {
           throw new OperationError("REFERENCE_INVALID", "Esse projeto não está no workspace.", { argumentPath: "/projectId" });
         }
@@ -286,6 +302,10 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
     },
     {
       operation: "canvas.place",
+      agent: {
+        guide: "{objectId, position, size?} moves an object on the canvas; only when the user asks for a specific spot.",
+        describe: (args) => `mover ${String(args.objectId)} no canvas`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["objectId", "position"],
@@ -325,6 +345,10 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
 
     {
       operation: "region.create",
+      agent: {
+        guide: "{regionId, title, semanticEntityIds?, placement?} draws a free named area; only when the user asks for one.",
+        describe: (args) => `criar a região “${String(args.title)}”`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["regionId", "title"],
@@ -382,6 +406,10 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
 
     {
       operation: "region.update",
+      agent: {
+        guide: "{regionId, title?, bounds?, semanticEntityIds?, color?} renames, moves or relinks a region.",
+        describe: (args) => `alterar a região “${regionTitle(args.regionId)}”`,
+      },
       argumentsSchema: {
         type: "object",
         required: ["regionId"],
@@ -413,6 +441,14 @@ export function workspaceHandlers({ store, isDirectory, importRepo, reposDir, cl
     {
       // Remove só a moldura: os objetos de dentro continuam no canvas.
       operation: "region.delete",
+      agent: {
+        guide: "{regionId} removes the region's frame; the objects inside stay on the canvas.",
+        describe: (args) => `remover a região “${regionTitle(args.regionId)}”`,
+        confirm: (args) =>
+          store.read().canvas.objects.some((o) => o.regionId === args.regionId)
+            ? { risk: "low", summary: "Remover a moldura de uma região que tem objetos (os objetos ficam).", reversible: true }
+            : undefined,
+      },
       argumentsSchema: {
         type: "object",
         required: ["regionId"],

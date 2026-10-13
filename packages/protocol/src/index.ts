@@ -1,4 +1,5 @@
 export * from "./generated/contracts.js";
+export * from "./catalog.js";
 export * from "./dispatcher.js";
 export { OperationError, toContractError } from "./errors.js";
 export {

@@ -247,6 +247,10 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
   return [
     {
       operation: "navigation.frame",
+      agent: {
+        guide: '{targets:{visualIds:[...]} or {regionId} or {semanticEntityIds:[...]}, intent:"focus"|"compare"|"overview", highlight?, reason}',
+        describe: (args) => (args.reason ? `mostrar na tela: ${String(args.reason)}` : "enquadrar os objetos na tela"),
+      },
       argumentsSchema: ref("navigation.schema.json#/$defs/FrameRequest"),
       check: (args) => void checkTargets((args as unknown as FrameRequest).targets),
       handle(args, { request }) {
@@ -258,6 +262,10 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
     {
       // Volta a ver tudo: todos os objetos e regiões.
       operation: "navigation.overview",
+      agent: {
+        guide: "{reason?} shows the whole canvas.",
+        describe: () => "mostrar o canvas inteiro",
+      },
       argumentsSchema: { type: "object", properties: { reason: { type: "string", maxLength: 200 } }, additionalProperties: false },
       check() {
         const doc = store.read();
@@ -323,16 +331,12 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
     {
       // Só o usuário liga ou desliga a navegação automática (user_locked).
       operation: "navigation.set_control",
+      actors: ["user"],
       argumentsSchema: {
         type: "object",
         required: ["mode"],
         properties: { mode: { enum: ["shared", "user_locked"] } },
         additionalProperties: false,
-      },
-      check(_args, { request }) {
-        if (request.authorization.actor.kind !== "user") {
-          throw new OperationError("UNAUTHORIZED", "Só o usuário controla a navegação automática.");
-        }
       },
       handle(args) {
         const mode = args.mode as "shared" | "user_locked";
