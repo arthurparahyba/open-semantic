@@ -111,6 +111,22 @@ export interface ContentPort {
   read(ref: TargetRef, level: DetailLevel): Promise<string | undefined>;
 }
 
+/**
+ * A camada de assunto ativa (docs/funcionalidades/11-camadas.md), já traduzida pelo app.
+ * Os membros entram no contexto antes do resto; o que só é das filhas não entra (elas aparecem pelo nome).
+ */
+export interface LayerView {
+  name: string;
+  description?: string;
+  /** Nomes das camadas de cima para baixo até a ativa, sem ela ("Infraestrutura" para "Cache"). */
+  path: string[];
+  members: { ref: TargetRef; weight: number }[];
+  /** Itens que só pertencem às camadas filhas: ficam fora do mapa. */
+  hidden: TargetRef[];
+  /** Outras camadas que existem (filhas, irmãs), só pelo nome. */
+  others: string[];
+}
+
 export interface TokenBudget {
   /** Tokens para o pacote de contexto do pedido (sem histórico nem instruções). */
   context: number;

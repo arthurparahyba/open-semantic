@@ -9,6 +9,7 @@ import {
   type ContentPort,
   type IndexDoc,
   type IndexUpdate,
+  type LayerView,
   type Relevance,
   type TargetRef,
   type UnitLink,
@@ -74,6 +75,38 @@ export function workspaceIndex(snapshot: WorkspaceSnapshot): IndexUpdate {
     docs.push({ id: r.id, kind: "region", name: r.title, unitIds: r.semanticEntityIds?.filter((id) => entities.has(id)) ?? [] });
   }
   return { upsert: docs, links };
+}
+
+/**
+ * A camada ativa para o motor de contexto; nome vazio é a base (docs/funcionalidades/11-camadas.md). Na base (sem camada ativa) só os
+ * nomes das camadas de primeiro nível vão junto. O que é das filhas fica fora: elas entram só pelo nome.
+ */
+export function layerView(snapshot: WorkspaceSnapshot): LayerView | undefined {
+  const layers = snapshot.layers ?? [];
+  if (!layers.length) return undefined;
+  const byId = new Map(layers.map((l) => [l.id, l]));
+  const active = snapshot.navigation.activeLayerId ? byId.get(snapshot.navigation.activeLayerId) : undefined;
+  const childrenOf = (id: string | undefined) => layers.filter((l) => l.parentId === id);
+  if (!active) return { name: "", path: [], members: [], hidden: [], others: childrenOf(undefined).map((l) => l.name) };
+  const path: string[] = [];
+  for (let p = active.parentId ? byId.get(active.parentId) : undefined; p && path.length < 20; p = p.parentId ? byId.get(p.parentId) : undefined) path.unshift(p.name);
+  const own = new Set(active.members.map((m) => m.id));
+  const descendants: typeof layers = [];
+  for (let queue = childrenOf(active.id); queue.length; ) {
+    const next = queue.shift()!;
+    descendants.push(next);
+    queue.push(...childrenOf(next.id));
+  }
+  const hidden = [...new Set(descendants.flatMap((l) => l.members.map((m) => m.id)))].filter((id) => !own.has(id));
+  const siblings = childrenOf(active.parentId).filter((l) => l.id !== active.id);
+  return {
+    name: active.name,
+    ...(active.description ? { description: active.description } : {}),
+    path,
+    members: active.members.map((m) => ({ ref: m.id, weight: m.weight })),
+    hidden,
+    others: [...childrenOf(active.id), ...siblings].map((l) => l.name),
+  };
 }
 
 /** Motor de contexto ligado a um workspace: sincroniza o índice, lê evidências e leva o foco ao canvas. */

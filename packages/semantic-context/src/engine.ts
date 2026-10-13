@@ -12,6 +12,7 @@ import type {
   DetailLevel,
   IndexDoc,
   IndexUpdate,
+  LayerView,
   RecentTopics,
   Relevance,
   TargetRef,
@@ -43,6 +44,8 @@ export interface BuildContextInput {
   relevance: Relevance;
   budget?: Partial<TokenBudget>;
   content?: ContentPort;
+  /** Camada de assunto ativa; ausente é a base (o workspace inteiro). */
+  layer?: LayerView;
 }
 
 export interface SearchResult {
@@ -752,6 +755,9 @@ export class SemanticContextEngine {
     const mainUnits = new Set(main?.unitIds ?? []);
     const secondaryUnits = new Set(relevance.topics.slice(1, 4).flatMap((t) => t.unitIds));
 
+    if (input.layer) this.offerLayer(input.layer, g, { section, offer, has: (ref) => included.has(ref) });
+    const hidden = new Set(input.layer?.hidden ?? []);
+
     // Assunto principal: unidades com descrição, ligações e evidências; o diagrama principal inteiro.
     if (main) {
       section("Assunto principal");
@@ -775,7 +781,7 @@ export class SemanticContextEngine {
       }
       for (const dg of topicDiagrams) {
         const d = this.index.get(dg);
-        if (!d) continue;
+        if (!d || hidden.has(dg)) continue;
         offer(dg, dg === target ? "ponto principal" : "diagrama do assunto", [
           [2, this.diagramText(d, g, mainUnits)],
           [1, this.diagramText(d, g, mainUnits, true)],
@@ -796,7 +802,7 @@ export class SemanticContextEngine {
     // Mapa: unidades de primeiro nível sempre; as demais e os diagramas restantes conforme o orçamento.
     section("Mapa do workspace");
     for (const d of units.filter((u) => !g.parent.has(u.id))) offer(d.id, "mapa", [[0, this.unitLine(d, g, false)]]);
-    for (const d of diagrams) offer(d.id, "mapa", [[1, this.diagramText(d, g, new Set(), true)], [0, this.diagramLine(d)]]);
+    for (const d of diagrams.filter((x) => !hidden.has(x.id))) offer(d.id, "mapa", [[1, this.diagramText(d, g, new Set(), true)], [0, this.diagramLine(d)]]);
     for (const d of units.filter((u) => g.parent.has(u.id))) offer(d.id, "mapa", [[0, this.unitLine(d, g, false)]]);
     const others = [...this.index.docs()].filter((d) => d.kind === "mod" || d.kind === "region").sort(byId);
     for (const d of others) offer(d.id, "mapa", [[0, this.otherLine(d)]]);
@@ -804,6 +810,26 @@ export class SemanticContextEngine {
     if (dropped.length) lines.push(`(${dropped.length} itens fora do contexto por tamanho; use search_workspace para achar outros)`);
     const text = lines.join("\n");
     return { text, items, dropped, tokens: this.estimate(text) };
+  }
+
+  /** A camada ativa vem primeiro: onde se está, os membros por peso e as outras camadas só pelo nome. */
+  private offerLayer(
+    layer: LayerView,
+    g: Graph,
+    { section, offer, has }: { section(title: string): void; offer(ref: string, why: string, variants: [DetailLevel, string][]): void; has(ref: string): boolean },
+  ) {
+    section(layer.name ? "Camada atual" : "Camadas");
+    const where = layer.path.length ? ` (dentro de ${layer.path.join(" › ")})` : "";
+    if (layer.name) offer(`layer:${layer.name}`, "camada atual", [[0, `Você está na camada "${layer.name}"${where}.${layer.description ? ` ${layer.description}` : ""}`]]);
+    const members = [...layer.members].sort((a, b) => b.weight - a.weight || a.ref.localeCompare(b.ref));
+    for (const { ref } of members) {
+      const d = this.index.get(ref);
+      if (!d || has(ref)) continue;
+      if (d.kind === "diagram") offer(ref, "camada atual", [[2, this.diagramText(d, g, new Set())], [1, this.diagramText(d, g, new Set(), true)], [0, this.diagramLine(d)]]);
+      else if (d.kind === "unit") offer(ref, "camada atual", [[0, this.unitLine(d, g, true)]]);
+      else offer(ref, "camada atual", [[0, this.otherLine(d)]]);
+    }
+    if (layer.others.length) offer("layer:outras", "outras camadas", [[0, `Outras camadas: ${layer.others.join(", ")}`]]);
   }
 
   private unitLine(d: IndexDoc, g: Graph, withDescription: boolean): string {
