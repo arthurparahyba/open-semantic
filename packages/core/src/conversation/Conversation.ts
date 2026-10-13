@@ -15,7 +15,8 @@ import { AgentTurn } from "./loop.js";
 import { TOOLS, ToolRegistry, type ToolContext } from "./tools/index.js";
 import { ConversationBusyError, type ConversationOptions, type ConversationView } from "./types.js";
 import { Understanding } from "./understand.js";
-import { ACCEPT_ALL_HINT, PLANNING_HINT, acceptsAll, asksForPlanning, planningLimits } from "./planning.js";
+import { BUILTIN_MODES, ModeRegistry, splitNextSteps, type ExecutionMode } from "../modes/index.js";
+import { ACCEPT_ALL_HINT, acceptsAll } from "./acceptAll.js";
 import { asksForExplanation, changedDiagrams, diagramRevisions, kindHint } from "./visualFirst.js";
 
 /** Um pedido em andamento: o laço e as revisões dos diagramas de quando começou (para achar o que ele desenhou). */
@@ -38,6 +39,10 @@ export class Conversation {
   private superseded = false;
   /** O último pedido que foi para o motor de contexto (para "todos" responder à pergunta rápida dele). */
   private asked: string | undefined;
+  /** Modos de execução; o do pedido é escolhido localmente, sem chamada ao modelo. */
+  readonly modes = new ModeRegistry(BUILTIN_MODES);
+  /** Modo do pedido atual (ou do último), para um modo em etapas continuar. */
+  private mode: ExecutionMode | undefined;
   private readonly batches: ConversationBatches;
   private readonly limits: TurnLimits;
   private readonly newId: () => string;
@@ -79,6 +84,7 @@ export class Conversation {
     this.costUsd = 0;
     this.lastRequest = undefined;
     this.lastPromptTokens = 0;
+    this.mode = undefined;
     this.understanding.reset();
     this.emit();
   }
@@ -117,27 +123,25 @@ export class Conversation {
     const provider = this.options.provider();
     if (!provider) return this.chat.notice("Configure a chave da API do Claude para conversar com o agente.", "error");
     this.compactIfLong();
-    const turn = this.startTurn(provider, message);
+    // "todos" respondendo à pergunta rápida: o pedido anterior continua, cobrindo todas as opções.
+    const all = previous !== undefined && acceptsAll(message);
+    const request = all ? previous! : message;
+    const mode = this.modes.pick(request, this.mode ? { previous: this.mode.id } : {});
+    this.mode = mode;
+    const turn = this.startTurn(provider, message, mode);
     let done!: () => void;
     this.running = new Promise((r) => (done = r));
     try {
       // Antes do modelo: do que a mensagem fala. O foco vai para lá, e só isso (com um mapa enxuto do resto)
       // vai junto do pedido, para o modelo não gastar uma chamada só para olhar nem ler o workspace inteiro.
-      // "todos" respondendo à pergunta rápida: o pedido anterior continua, cobrindo todas as opções.
-      const all = previous !== undefined && acceptsAll(message);
-      const request = all ? previous! : message;
-      const broad = all || asksForPlanning(request);
+      const broad = all || mode.cadence === "steps";
       this.asked = request;
       const workspace = await this.understanding.understand(request, { broad });
       if (!workspace) {
         if (!this.superseded) this.chat.notice("Pedido parado antes de ir para o modelo.", "info");
         return;
       }
-      const hints = [
-        all ? `${ACCEPT_ALL_HINT} Pedido anterior: "${previous}"` : undefined,
-        asksForPlanning(request) ? PLANNING_HINT : asksForExplanation(request) ? kindHint(request) : undefined,
-      ].filter(Boolean);
-      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${hints.map((h) => `\n\n${h}`).join("")}` });
+      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${requestHints(mode, request, all ? previous : undefined)}` });
       await turn.agent.run();
     } catch (err) {
       this.fail(err);
@@ -160,13 +164,12 @@ export class Conversation {
     );
   }
 
-  private startTurn(provider: LlmProvider, message: string): Turn {
+  private startTurn(provider: LlmProvider, message: string, mode: ExecutionMode): Turn {
     const settings = this.options.settings();
     const model = provider.models.find((m) => m.id === settings.model) ?? provider.models.find((m) => m.id === provider.defaultModel)!;
     const abort = new AbortController();
     this.abort = abort;
-    // Pedido amplo é um laço maior: plano, camada e um diagrama por seção.
-    const limits = asksForPlanning(message) ? planningLimits(this.limits) : this.limits;
+    const limits = mode.limits?.(this.limits) ?? this.limits;
     const budget = new TurnBudget(limits, settings.maxCostPerRequestUsd);
     const agent = new AgentTurn({
       provider,
@@ -216,17 +219,29 @@ export class Conversation {
     this.abort = undefined;
     this.batches.settle();
     const snapshot = this.options.snapshot();
-    this.answer(agent.answer, changedDiagrams(diagramsBefore, snapshot), snapshot);
+    this.answer(agent.answer, changedDiagrams(diagramsBefore, snapshot), snapshot, this.mode);
     this.chat.setStatus("idle");
   }
 
-  private answer(text: string, diagramIds: string[], snapshot: WorkspaceSnapshot) {
-    if (!text && !diagramIds.length) return;
+  private answer(raw: string, diagramIds: string[], snapshot: WorkspaceSnapshot, mode: ExecutionMode | undefined) {
+    if (!raw && !diagramIds.length) return;
+    // Num modo em etapas, a resposta termina com botões de próximo passo: avançar sem digitar.
+    const { text, next } = splitNextSteps(raw);
+    const steps = mode?.cadence === "steps" ? (next.length ? next : (mode.nextSteps ?? [])) : [];
     const caption = diagramIds.map((id) => snapshot.diagrams.find((d) => d.id === id)?.caption).find(Boolean);
-    this.chat.answer(text || caption || "", diagramIds);
+    this.chat.answer(text || caption || "", diagramIds, steps.length && mode ? { mode: mode.name, next: steps } : undefined);
   }
 
   private emit() {
     this.options.onChange?.(this.view());
   }
+}
+
+/** O que vai junto do pedido: só as instruções do modo ativo (ou a dica de forma do diagrama no modo breve). */
+function requestHints(mode: ExecutionMode, request: string, acceptedAllOf: string | undefined): string {
+  const hints = [
+    acceptedAllOf !== undefined ? `${ACCEPT_ALL_HINT} Pedido anterior: "${acceptedAllOf}"` : undefined,
+    mode.instructions ?? (asksForExplanation(request) ? kindHint(request) : undefined),
+  ];
+  return hints.filter(Boolean).map((h) => `\n\n${h}`).join("");
 }

@@ -246,3 +246,4 @@ export async function createCore(options: CoreOptions) {
 }
 
 export type Core = Awaited<ReturnType<typeof createCore>>;
+export { BRIEF_MODE, BUILTIN_MODES, ModeRegistry, PLANNING_MODE, asksForPlanning, splitNextSteps, type ExecutionMode, type ModeState } from "./modes/index.js";
