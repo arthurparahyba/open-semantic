@@ -35,6 +35,8 @@ export type ChatEntry =
       text: string;
       options: { ref: string; label: string }[];
       chosen?: string;
+      /** Pergunta descartada por uma mensagem nova: as opções deixam de valer. */
+      dismissed?: boolean;
       at: string;
     };
 

@@ -128,7 +128,7 @@ app.whenReady().then(async () => {
   ipcMain.handle(CHANNELS.chatSend, (_event, text: unknown) => {
     if (!conversation) return noWorkspace;
     if (typeof text !== "string" || !text.trim()) return { ok: false, message: "Escreva um pedido." };
-    if (conversation.view().status !== "idle") return failure(new ConversationBusyError("O agente ainda está trabalhando no pedido anterior."));
+    if (!conversation.accepts()) return failure(new ConversationBusyError("O agente ainda está trabalhando no pedido anterior."));
     // Não espera o pedido terminar: o progresso chega pelo canal de mudanças da conversa.
     void conversation.send(text).catch(() => {});
     return { ok: true };

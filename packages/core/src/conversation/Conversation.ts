@@ -33,6 +33,8 @@ export class Conversation {
   private abort: AbortController | undefined;
   private readonly chat: Chat;
   private readonly understanding: Understanding;
+  private running: Promise<void> = Promise.resolve();
+  private superseded = false;
   private readonly batches: ConversationBatches;
   private readonly limits: TurnLimits;
   private readonly newId: () => string;
@@ -91,27 +93,45 @@ export class Conversation {
   }
 
   /** Um pedido do usuário: roda o laço do agente até ele responder, travar num limite ou ser parado. */
+  /** Aceita mensagem nova: conversa livre, ou só esperando uma pergunta rápida (que a mensagem descarta). */
+  accepts(): boolean {
+    return this.chat.status === "idle" || this.understanding.waiting;
+  }
+
   async send(text: string): Promise<void> {
     const message = text.trim();
     if (!message) return;
+    if (this.chat.status !== "idle" && this.understanding.waiting) {
+      // A pergunta rápida não trava nada: a mensagem nova descarta as opções e segue no lugar do pedido anterior.
+      this.superseded = true;
+      this.understanding.cancel();
+      await this.running;
+    }
     if (this.chat.status !== "idle") throw new ConversationBusyError("O agente ainda está trabalhando no pedido anterior.");
     this.chat.push({ kind: "user", text: message });
     const provider = this.options.provider();
     if (!provider) return this.chat.notice("Configure a chave da API do Claude para conversar com o agente.", "error");
     this.compactIfLong();
     const turn = this.startTurn(provider, message);
+    let done!: () => void;
+    this.running = new Promise((r) => (done = r));
     try {
       // Antes do modelo: do que a mensagem fala. O foco vai para lá, e só isso (com um mapa enxuto do resto)
       // vai junto do pedido, para o modelo não gastar uma chamada só para olhar nem ler o workspace inteiro.
       const workspace = await this.understanding.understand(message);
-      if (!workspace) return this.chat.notice("Pedido parado antes de ir para o modelo.", "info");
+      if (!workspace) {
+        if (!this.superseded) this.chat.notice("Pedido parado antes de ir para o modelo.", "info");
+        return;
+      }
       const hint = asksForExplanation(message) ? kindHint(message) : undefined;
       this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${hint ? `\n\n${hint}` : ""}` });
       await turn.agent.run();
     } catch (err) {
       this.fail(err);
     } finally {
+      this.superseded = false;
       this.finish(turn);
+      done();
     }
   }
 

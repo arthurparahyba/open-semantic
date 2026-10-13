@@ -112,9 +112,18 @@ export class Understanding {
     void Promise.resolve(this.attention.focus(ref, [{ ref, level: "primary" }], `Assunto: ${label}`)).catch(() => {});
   }
 
+  /** Há uma pergunta rápida esperando escolha (uma mensagem nova a descarta). */
+  get waiting(): boolean {
+    return this.asking !== undefined;
+  }
+
   /** Parar: a pergunta rápida em aberto fica sem resposta, e o pedido termina antes do modelo. */
   cancel() {
-    this.asking?.resolve(undefined);
+    if (!this.asking) return;
+    const entry = this.options.chat.choice(this.asking.entryId);
+    if (entry) entry.dismissed = true;
+    this.asking.resolve(undefined);
+    this.options.chat.changed();
   }
 
   /** Conversa nova: nenhum assunto recente. */
