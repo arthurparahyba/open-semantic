@@ -22,7 +22,7 @@ O Semantic Navigator conduz a atenção do usuário no canvas. O agente diz **o 
 
 ## Modelo de dados
 
-`NavigationState` (persistido como estado recuperável):
+`NavigationState` (persistido como estado recuperável). É estado de visualização: mudá-lo não altera a revisão do documento (ver [Workspace e canvas](01-workspace-e-canvas.md#eventos)).
 
 | Campo | Significado |
 |---|---|
@@ -104,7 +104,7 @@ Da V0.1: A5, D3, D4, D5. Mais:
 - Um `frame` com alvos fora da área visível termina com todos eles dentro da viewport.
 - Pan do usuário durante uma animação a cancela em menos de um quadro e nenhum novo movimento automático acontece pelos próximos `userHoldMs`.
 - `frame` em entidade sem representação visual devolve `TARGET_NOT_FOUND`.
-- Nenhuma operação de navegação altera a revisão de mods, diagramas ou entidades.
+- Nenhuma operação de navegação altera a revisão do documento (`workspace.revision`) nem a de mods, diagramas ou entidades.
 
 ## Como começar
 

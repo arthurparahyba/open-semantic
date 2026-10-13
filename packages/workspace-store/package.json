@@ -13,6 +13,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./anchoring": "./src/anchoring.ts"
+    "./anchoring": "./src/anchoring.ts",
+    "./commits": "./src/commits.ts"
   }
 }

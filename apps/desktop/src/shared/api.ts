@@ -1,7 +1,8 @@
 import type { AgentActivity, ChatEntry, ConversationView, ScriptInfo } from "@open-semantic/core";
 import type { DomainEvent, OperationResult, WorkspaceSnapshot } from "@open-semantic/protocol";
+import type { CommitSummary } from "@open-semantic/workspace-store";
 
-export type { AgentActivity, ChatEntry, ConversationView, ScriptInfo };
+export type { AgentActivity, ChatEntry, CommitSummary, ConversationView, ScriptInfo };
 
 /** O que a interface sabe das configurações do agente de IA. A chave em si nunca chega aqui. */
 export interface AgentSettingsView {
@@ -36,6 +37,12 @@ export interface UiOperationRequest {
   targetId?: string;
 }
 
+/** O workspace inteiro e até qual commit ele chegou; daí em diante a interface aplica os commits (onCommit). */
+export interface WorkspaceState {
+  snapshot: WorkspaceSnapshot;
+  sequence: number;
+}
+
 /** Pasta do workspace aberta agora. */
 export interface WorkspaceInfo {
   path: string;
@@ -52,8 +59,11 @@ export interface OpenSemanticApi {
   chooseWorkspace(where: "default" | "pick"): Promise<Outcome | null>;
   dispatch(request: UiOperationRequest): Promise<OperationResult>;
   snapshot(): Promise<WorkspaceSnapshot>;
+  /** O workspace inteiro, para começar; depois disso os commits bastam. */
+  workspaceState(): Promise<WorkspaceState | null>;
   pickFolder(): Promise<{ path: string; name: string } | null>;
-  onRevision(listener: (revision: number) => void): () => void;
+  /** Cada commit do núcleo, na ordem, com o valor novo do que mudou. */
+  onCommit(listener: (commit: CommitSummary) => void): () => void;
   onPersist(listener: (state: PersistState) => void): () => void;
   onEvent(listener: (event: DomainEvent) => void): () => void;
   /** Tamanho da área do canvas, para o Navigator enquadrar no núcleo. */
@@ -87,8 +97,9 @@ export const CHANNELS = {
   workspaceChoose: "os:workspace-choose",
   dispatch: "os:dispatch",
   snapshot: "os:snapshot",
+  workspaceState: "os:workspace-state",
   pickFolder: "os:pick-folder",
-  revision: "os:revision",
+  commit: "os:commit",
   persist: "os:persist",
   event: "os:event",
   viewport: "os:viewport",

@@ -27,8 +27,9 @@ describe("WorkspaceStore", () => {
   it("uma transação gera uma única revisão e notifica uma vez", () => {
     const store = WorkspaceStore.create({ id: "ws_test", name: "Teste" });
     const seen: number[] = [];
-    store.onChange((r) => seen.push(r));
+    store.onCommit((c) => seen.push(c.revision));
     store.transact(() => {
+      store.putRegion({ id: "rgn_backend", title: "Backend", bounds: rect(0, 0) });
       store.setCamera({ center: { x: 1, y: 1 }, zoom: 1 });
       store.setCamera({ center: { x: 2, y: 2 }, zoom: 1 });
     });
@@ -98,7 +99,7 @@ describe("persistência", () => {
       load: async () => undefined,
       save: async (snapshot) => {
         await new Promise((resolve) => setTimeout(resolve, 20));
-        saved.push(snapshot.workspace.revision);
+        saved.push(snapshot.navigation.camera.center.x);
       },
     };
     const saver = autosave(store, persistence, { debounceMs: 1 });

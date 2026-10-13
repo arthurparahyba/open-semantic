@@ -34,7 +34,7 @@
         "id": { "$ref": "common.schema.json#/$defs/WorkspaceId" },
         "name": { "type": "string", "minLength": 1 },
         "revision": {
-          "description": "Incrementa a cada mudança persistida em qualquer objeto do workspace.",
+          "description": "Incrementa a cada mudança no documento: projetos, artefatos, conhecimento, mods, diagramas, canvas e configurações. A navegação (câmera, foco, histórico, movimento, controle) é estado de visualização: também é salva, mas não muda a revisão.",
           "$ref": "common.schema.json#/$defs/Revision"
         },
         "activeProjectId": {

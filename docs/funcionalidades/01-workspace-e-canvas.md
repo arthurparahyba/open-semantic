@@ -94,6 +94,14 @@ A interface deve mostrar quando há mudanças ainda não persistidas e quando a 
 Publica: `workspace.opened`, `workspace.revision_changed`, `canvas.object_moved`, `region.changed`.
 Consome: `mod.created`/`mod.deleted` e `diagram.created`/`diagram.deleted` (para criar ou remover o `CanvasObject` correspondente na mesma transação lógica).
 
+Cada `transact()` do store vira um **commit**: a lista do que mudou, por coleção, com o objeto antes e depois. Os objetos do store não mudam no lugar (ficam congelados; mudar é gravar uma cópia), então o commit guarda referências sem copiar, e um erro no meio da transação desfaz tudo antes de qualquer aviso. Dos commits saem:
+
+- os eventos de domínio de todos os módulos (`workspace-store/src/events.ts`), com o `operationId` da operação em execução;
+- a gravação automática;
+- a cópia do workspace na interface, que aplica só o que mudou em vez de reler tudo (um commit perdido faz a interface reler).
+
+A navegação é estado de visualização: mexer na câmera gera um commit só de visualização, que é salvo mas não muda `workspace.revision`. Assim, uma pré-condição `revision_equals` sobre o workspace não falha porque o usuário moveu a câmera.
+
 ## Critérios de aceitação
 
 Da V0.1: A1, A2, A3, A5. Mais:
