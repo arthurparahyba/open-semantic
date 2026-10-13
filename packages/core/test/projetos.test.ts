@@ -35,7 +35,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await core.close();
-  await Promise.all([dataDir, petclinic, tests].map((d) => rm(d, { recursive: true, force: true })));
+  await Promise.all([dataDir, petclinic, tests].map((d) => rm(d, { recursive: true, force: true, maxRetries: 3 })));
 });
 
 describe("Projeto ativo", () => {

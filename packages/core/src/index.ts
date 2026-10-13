@@ -133,6 +133,7 @@ export function defaultPolicy(store: WorkspaceStore): AuthorizationPolicy {
 /** Histórico persistente: uma linha JSON por ActionRecord. Na memória ficam só os registros mais recentes. */
 export class JsonlActionLog implements ActionLog {
   private chain: Promise<void> = Promise.resolve();
+  private closed = false;
   readonly records: ActionRecord[] = [];
   constructor(
     private readonly file: string,
@@ -142,11 +143,17 @@ export class JsonlActionLog implements ActionLog {
     this.records.push(record);
     const excess = this.records.length - (this.options.limit ?? 1_000);
     if (excess > 0) this.records.splice(0, excess);
+    if (this.closed) return;
     this.chain = this.chain
       .then(() => appendFile(this.file, JSON.stringify(record) + "\n", "utf8"))
       .catch((err: unknown) => this.options.onError?.(err));
   }
   flush() {
+    return this.chain;
+  }
+  /** Para de gravar no disco (o workspace foi fechado); o que já estava na fila termina. */
+  close() {
+    this.closed = true;
     return this.chain;
   }
 }
@@ -250,9 +257,10 @@ export async function createCore(options: CoreOptions) {
     flush: () => saver.flush(),
     /** Grava tudo que estiver pendente. Chamar antes de sair. */
     async close() {
+      await revalidated;
       await saver.flush();
       saver.stop();
-      await log.flush();
+      await log.close();
     },
   };
 }
