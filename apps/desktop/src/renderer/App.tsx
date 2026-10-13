@@ -29,7 +29,7 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [pendingFrame, setPendingFrame] = useState<{ ids: string[]; intent: "focus" | "compare" } | null>(null);
-  const [agentOpen, setAgentOpen] = useState(true);
+  const [agentOpen, setAgentOpen] = useState(false);
   const canvas = useRef<CanvasHandle>(null);
   const toastSeq = useRef(0);
 
@@ -310,8 +310,8 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
           <input type="checkbox" checked={autoNavigate} onChange={() => void toggleAutoNavigate()} data-testid="auto-navigate" />
           Navegação automática
         </label>
-        <button type="button" onClick={() => setAgentOpen((v) => !v)} aria-pressed={agentOpen}>
-          Agente
+        <button type="button" onClick={() => setAgentOpen((v) => !v)} aria-pressed={agentOpen} data-testid="history-toggle" title="Abre o histórico completo da conversa">
+          Histórico
         </button>
         <PersistIndicator state={persist} />
       </header>
@@ -348,8 +348,9 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
         )}
         <footer className="hint">Arraste o fundo para mover · Ctrl/⌘ + roda para zoom · duplo clique no título para enquadrar · Esc interrompe o movimento</footer>
       </main>
-      {agentOpen && (
+      {(
         <AgentPanel
+          historyOpen={agentOpen}
           hasProject={snapshot.projects.length > 0}
           diagrams={snapshot.diagrams}
           onShowDiagram={(id) => canvas.current?.frame([id])}

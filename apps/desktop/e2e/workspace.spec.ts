@@ -107,13 +107,15 @@ test("workspace como pasta: escolha, repositório pela conversa e diagrama dentr
   // Pela conversa: o agente pede para trazer a pasta e espera a confirmação.
   await page.getByTestId("chat-input").fill(`trabalhe com ${repoDir}`);
   await page.getByTestId("chat-send").click();
-  const card = page.getByTestId("confirm-card");
+  // A confirmação aparece na caixa flutuante acima da mensagem, sem precisar abrir o histórico.
+  const card = page.getByTestId("dock-confirm");
   await expect(card).toBeVisible();
   await expect(card).toContainText(repoDir);
   await expect(card).toContainText(".open-semantic/");
   await shot("ws-3-confirmacao.png");
   await card.getByRole("button", { name: "Aprovar" }).click();
-
+  await expect(card).toHaveCount(0);
+  await page.getByTestId("history-toggle").click();
   await expect(page.getByTestId("chat-assistant").last()).toContainText("desenhei a arquitetura");
   await expect(page.locator('[data-diagram-id="dgm_arch"]')).toBeVisible();
   await expect(page.locator('[data-project-id="prj_minhaapp"]')).toHaveAttribute("data-active", "true");
@@ -134,6 +136,7 @@ test("workspace como pasta: escolha, repositório pela conversa e diagrama dentr
   // Reabrir: o app lembra a pasta do workspace e traz o diagrama do repositório.
   app = await launch();
   page = await app.firstWindow();
+  await page.getByTestId("history-toggle").click();
   await expect(page.getByTestId("workspace-name")).toHaveText("Meu workspace");
   await expect(page.locator('[data-diagram-id="dgm_arch"]')).toBeVisible();
   await app.close();

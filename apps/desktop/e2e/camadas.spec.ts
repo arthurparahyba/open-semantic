@@ -75,6 +75,7 @@ test("camadas: aprofundar abre uma camada ancorada; desfazer não apaga nada", a
     env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
   });
   const page = await electronApp.firstWindow();
+  await page.getByTestId("history-toggle").click();
   const shot = async (name: string) => {
     if (screenshots) await page.screenshot({ path: join(screenshots, name) });
   };

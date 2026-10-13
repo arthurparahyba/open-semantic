@@ -35,6 +35,7 @@ test("contexto: pergunta rápida antes do modelo e suposição que pode ser troc
     env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
   });
   const page = await app.firstWindow();
+  await page.getByTestId("history-toggle").click();
 
   await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
   await expect(page.getByTestId("mod-explorer")).toBeVisible();
@@ -73,7 +74,11 @@ test("contexto: pergunta rápida antes do modelo e suposição que pode ser troc
   await expect(page.getByTestId("chat-progress")).toContainText("esperando sua resposta");
   await expect(page.getByTestId("chat-assistant")).toHaveCount(0);
   if (screenshots) await page.screenshot({ path: join(screenshots, "m25-1-pergunta.png") });
-  await question.getByRole("button", { name: /api-cartoes/ }).click();
+  // A mesma pergunta aparece na caixa flutuante acima da mensagem; responder ali basta.
+  const dock = page.getByTestId("dock-question");
+  await expect(dock).toContainText("De qual back-end você está falando?");
+  await dock.getByRole("button", { name: /api-cartoes/ }).click();
+  await expect(dock).toHaveCount(0);
   await expect(page.getByTestId("chat-assistant").last()).toContainText("api-cartoes por REST");
 
   // Um back-end só ligado ao app mobile: supõe, mostra a suposição e deixa trocar.

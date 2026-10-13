@@ -37,6 +37,7 @@ test("explicação: a resposta é um diagrama com legenda, e o chat aponta para 
     env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
   });
   const page = await app.firstWindow();
+  await page.getByTestId("history-toggle").click();
   await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
   await expect(page.getByTestId("mod-explorer")).toBeVisible();
 
@@ -110,6 +111,7 @@ test("tipos: camadas em faixas e sequência com linhas de vida", async () => {
     env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
   });
   const page = await app.firstWindow();
+  await page.getByTestId("history-toggle").click();
   await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
   await expect(page.getByTestId("mod-explorer")).toBeVisible();
 
