@@ -25,6 +25,8 @@ const ref = (path: string) => ({ $ref: SCHEMA_BASE_URI + path });
 const COLLAPSED_HEIGHT = 40;
 /** Margem, em pixels de tela, ao redor do que é enquadrado. */
 const FRAME_PADDING = 64;
+/** Abaixo desta fração do zoom de enquadramento, o alvo "visível" está pequeno demais e a câmera se aproxima. */
+const MIN_VISIBLE_ZOOM_RATIO = 0.6;
 const HISTORY_LIMIT = 20;
 
 export interface NavigatorDeps {
@@ -184,7 +186,12 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
     }
     const viewport = deps.viewport();
     const current = doc.navigation.camera;
-    const alreadyVisible = intent !== "detail" && resolved.rects.every((r) => isVisible(r, current, viewport));
+    const target = computeFrame(resolved.rects, viewport, { intent, padding: args.padding ?? FRAME_PADDING })!;
+    // Visível não basta: um diagrama minúsculo na tela (câmera bem mais afastada que o enquadramento) precisa de zoom.
+    const alreadyVisible =
+      intent !== "detail" &&
+      current.zoom >= target.zoom * MIN_VISIBLE_ZOOM_RATIO &&
+      resolved.rects.every((r) => isVisible(r, current, viewport));
     if (alreadyVisible && actor.kind !== "user") {
       // A câmera fica onde está, mas o destaque muda: o assunto já está na tela e precisa aparecer.
       const focus = { targetIds: resolved.framedIds, ...(args.highlight !== false ? { highlightIds: resolved.framedIds } : {}) };
@@ -196,7 +203,6 @@ export function navigationHandlers(deps: NavigatorDeps): OperationHandler[] {
         ...(same ? {} : { workspaceRevision: store.revision }),
       };
     }
-    const target = computeFrame(resolved.rects, viewport, { intent, padding: args.padding ?? FRAME_PADDING })!;
     const navigationId = newId("nav");
     const at = now().toISOString();
     const origin = actor.kind === "user" ? "user" : "agent";
