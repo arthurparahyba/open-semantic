@@ -113,6 +113,14 @@ export function blockHandlers({ store }: BlockHandlerDeps): OperationHandler[] {
         };
       },
     },
+    ...blockEditHandlers(store),
+    ...layoutHandlers(store),
+  ];
+}
+
+/** Mudar o conteúdo de um bloco e tirá-lo do canvas. */
+function blockEditHandlers(store: WorkspaceStore): OperationHandler[] {
+  return [
     {
       operation: "block.update",
       agent: { guide: "{blockId, set:{title?, text?, items?, ordered?, columns?, rows?}}", describe: (args) => `atualizar o bloco ${String(args.blockId)}` },
@@ -151,7 +159,6 @@ export function blockHandlers({ store }: BlockHandlerDeps): OperationHandler[] {
         return { changes: [{ id, change: "deleted" }], workspaceRevision: store.revision };
       },
     },
-    ...layoutHandlers(store),
   ];
 }
 
