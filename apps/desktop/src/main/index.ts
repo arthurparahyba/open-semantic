@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 
 import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 
-import { Conversation, ConversationBusyError, SCRIPTS, ScriptError, createCore, scriptedPlan, type Core } from "@open-semantic/core";
+import { Conversation, ConversationBusyError, SCRIPTS, ScriptError, createCore, loadModeDir, scriptedPlan, type Core } from "@open-semantic/core";
 import { withoutBefore } from "@open-semantic/workspace-store";
 
 import { AgentSettings } from "./agentSettings.js";
@@ -88,6 +88,10 @@ app.whenReady().then(async () => {
       snapshot: () => opened.store.snapshot(),
       onChange: (view) => send(CHANNELS.chatChanged, view),
     });
+    // Modos de execução do workspace (.open-semantic/modes/*.md) entram depois dos que vêm no app.
+    const extra = await loadModeDir(join(path, ".open-semantic", "modes"));
+    for (const mode of extra.modes) conversation.modes.register(mode);
+    for (const e of extra.errors) console.warn(`Modo ${e.file} ignorado: ${e.message}`);
   };
 
   const initial = forcedWorkspace ?? (await choice.recent());

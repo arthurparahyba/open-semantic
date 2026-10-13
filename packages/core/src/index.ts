@@ -246,4 +246,6 @@ export async function createCore(options: CoreOptions) {
 }
 
 export type Core = Awaited<ReturnType<typeof createCore>>;
+export { ModeFileError, parseModeFile } from "./modes/file.js";
+export { loadModeDir, type LoadedModes } from "./modes/load.js";
 export { BRIEF_MODE, BROAD_MODE, BUILTIN_MODES, ModeRegistry, PLANNING_MODE, asksForPlanning, splitNextSteps, type ExecutionMode, type ModeState } from "./modes/index.js";
