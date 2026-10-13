@@ -217,6 +217,12 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .diagram-edge.is-highlighted line { stroke-width: 2.6; }
 .diagram-edge-label { font-size: 11px; fill: var(--text-2); }
 .diagram-arrow { fill: var(--text-2); }
+.diagram-edge path { stroke: var(--text-2); stroke-width: 1.6; }
+.diagram-edge.q-inferred path { stroke-dasharray: 7 5; }
+.diagram-message.is-reply line { stroke-dasharray: 5 4; }
+.diagram-lifeline { stroke: var(--text-2); stroke-width: 1.2; stroke-dasharray: 4 4; opacity: 0.7; }
+.diagram-lane rect { fill: var(--surface-2); opacity: 0.55; stroke: var(--text-2); stroke-opacity: 0.25; }
+.diagram-lane-label { font-size: 12px; font-weight: 600; fill: var(--text-2); text-transform: uppercase; letter-spacing: 0.04em; }
 .diagram-footer {
   position: absolute; left: 12px; right: 12px; bottom: 6px; pointer-events: none;
   display: flex; flex-direction: column; gap: 4px;

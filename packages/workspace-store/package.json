@@ -16,6 +16,7 @@
     "./anchoring": "./src/anchoring.ts",
     "./commits": "./src/commits.ts",
     "./projects": "./src/projects.ts",
-    "./layers": "./src/layerView.ts"
+    "./layers": "./src/layerView.ts",
+    "./diagramShapes": "./src/diagramShapes.ts"
   }
 }

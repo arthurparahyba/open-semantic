@@ -15,7 +15,7 @@ import { AgentTurn } from "./loop.js";
 import { TOOLS, ToolRegistry, type ToolContext } from "./tools/index.js";
 import { ConversationBusyError, type ConversationOptions, type ConversationView } from "./types.js";
 import { Understanding } from "./understand.js";
-import { asksForExplanation, changedDiagrams, diagramRevisions } from "./visualFirst.js";
+import { asksForExplanation, changedDiagrams, diagramRevisions, kindHint } from "./visualFirst.js";
 
 /** Um pedido em andamento: o laço e as revisões dos diagramas de quando começou (para achar o que ele desenhou). */
 interface Turn {
@@ -105,7 +105,8 @@ export class Conversation {
       // vai junto do pedido, para o modelo não gastar uma chamada só para olhar nem ler o workspace inteiro.
       const workspace = await this.understanding.understand(message);
       if (!workspace) return this.chat.notice("Pedido parado antes de ir para o modelo.", "info");
-      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}` });
+      const hint = asksForExplanation(message) ? kindHint(message) : undefined;
+      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${hint ? `\n\n${hint}` : ""}` });
       await turn.agent.run();
     } catch (err) {
       this.fail(err);

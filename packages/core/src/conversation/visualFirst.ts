@@ -16,7 +16,7 @@ const EXPLAIN = [
   /\bexpli(que|ca|car|cacao|ca-me|que-me)\b/,
   /\bcomo (funciona|e organizad|esta organizad|se organiza|e a arquitetura|flui|passa)/,
   /\bdesenh[ae]\b/,
-  /\b(arquitetura|fluxo|visao geral|overview|estrutura|dependencias|camadas)\b/,
+  /\b(arquitetura|fluxo|visao geral|overview|estrutura|dependencias|camadas|implementad[ao]|implementacao|sequencia)\b/,
   /\bo que (e|faz) (o|a|esse|essa|este|esta) (projeto|repositorio|sistema|aplicacao|app|modulo|servico)\b/,
   /\b(entender|compreender|conhecer) (o|a|esse|essa|este|esta)\b/,
   /\bpor onde (passa|anda|vai)\b/,
@@ -30,6 +30,39 @@ const EXPLAIN = [
 export function asksForExplanation(message: string): boolean {
   const text = normalized(message);
   return EXPLAIN.some((re) => re.test(text));
+}
+
+/** Tipos de diagrama que o app sabe sugerir pelo pedido. */
+export type SuggestedKind = "layers" | "sequence" | "tree";
+
+const KIND_HINTS: [SuggestedKind, RegExp][] = [
+  ["layers", /\b(camadas?|layers?|niveis|tiers?|frontend.{0,20}backend.{0,20}(banco|dados)|apresentacao.{0,30}(dominio|negocio|infra))\b/],
+  ["tree", /\b(como (o|a)? ?(repositorio|projeto|monorepo|codigo|pastas?) (esta|e|foi) (dividid|organizad|estruturad)|estrutura de pastas|arvore|pastas e (modulos|pacotes)|quais (sao )?os (pacotes|modulos))/],
+  [
+    "sequence",
+    /\b(como (esta|foi|e) implementad|implementacao d|como funciona (a|o) (funcionalidade|fluxo|recurso|login|cadastro|salvamento|requisicao)|o que acontece quando|passo a passo|sequencia|quando (o usuario|eu) (clic|salv|envi|abr))/,
+  ],
+];
+
+/**
+ * A forma sugerida para o diagrama, pelo jeito da pergunta: camadas, sequência ou árvore.
+ * Sem sugestão, o modelo escolhe pelo guia do show_diagram (visão geral, fluxo, dependências).
+ */
+export function suggestDiagramKind(message: string): SuggestedKind | undefined {
+  const text = normalized(message);
+  return KIND_HINTS.find(([, re]) => re.test(text))?.[0];
+}
+
+const KIND_REASON: Record<SuggestedKind, string> = {
+  layers: "o pedido é sobre os níveis da aplicação",
+  sequence: "o pedido é sobre como uma funcionalidade acontece passo a passo",
+  tree: "o pedido é sobre como o código está dividido",
+};
+
+/** A dica que vai junto do pedido para o modelo. */
+export function kindHint(message: string): string | undefined {
+  const kind = suggestDiagramKind(message);
+  return kind && `[app] Forma sugerida para o diagrama: ${kind} (${KIND_REASON[kind]}).`;
 }
 
 /** Mensagem do app para o modelo quando uma explicação terminou sem diagrama. Vai uma vez por pedido. */

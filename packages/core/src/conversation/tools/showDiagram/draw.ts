@@ -84,13 +84,21 @@ function createStep(d: Drawing): BatchStepInput {
       ...(d.caption ? { caption: d.caption } : {}),
       nodes: d.nodes,
       edges: d.edges,
-      layout: { algorithm: "layered", direction: input.direction ?? (input.kind === "architecture" || input.kind === "dependency" ? "TB" : "LR") },
+      layout: layoutOf(input),
     },
   };
 }
 
+/** Cada tipo tem a sua gramática visual; os de caixas e setas usam o layout em camadas do ELK. */
+function layoutOf(input: ShowDiagramInput): { algorithm: string; direction?: string } {
+  if (input.kind === "layers") return { algorithm: "lanes" };
+  if (input.kind === "sequence") return { algorithm: "sequence" };
+  if (input.kind === "tree") return { algorithm: "tree", direction: "TB" };
+  return { algorithm: "layered", direction: input.direction ?? (input.kind === "architecture" || input.kind === "dependency" ? "TB" : "LR") };
+}
+
 function patchStep(d: Drawing, existing: DiagramModel): BatchStepInput | undefined {
-  const ops = [...removeOps(d, existing), ...nodeOps(d.nodes, existing), ...edgeOps(d.edges, existing)];
+  const ops = [...removeOps(d, existing), ...staleMessages(d, existing), ...nodeOps(d.nodes, existing), ...edgeOps(d.edges, existing)];
   const captionChanged = d.caption && d.caption !== (existing.caption ?? "");
   if (!ops.length && !captionChanged) return undefined;
   return {
@@ -108,13 +116,22 @@ function removeOps(d: Drawing, existing: DiagramModel): Record<string, unknown>[
     .map((nodeId) => ({ op: "remove_node", nodeId }));
 }
 
+/** Numa sequência a lista de mensagens é a história inteira: as que não vieram de novo saem. */
+function staleMessages(d: Drawing, existing: DiagramModel): Record<string, unknown>[] {
+  if (existing.kind !== "sequence" || !d.edges.length) return [];
+  const kept = new Set(d.edges.map((e) => e.id));
+  return existing.edges.filter((e) => !kept.has(e.id)).map((e) => ({ op: "remove_edge", edgeId: e.id }));
+}
+
 /** Nós novos entram; os que mudaram de rótulo, tipo ou unidade são atualizados. */
 function nodeOps(nodes: PlannedNode[], existing: DiagramModel): Record<string, unknown>[] {
   return nodes.flatMap<Record<string, unknown>>((n) => {
     const old = existing.nodes.find((x) => x.id === n.id);
     if (!old) return [{ op: "add_node", node: n }];
-    const changed = old.label !== n.label || old.kind !== n.kind || old.semanticEntityId !== n.semanticEntityId;
-    return changed ? [{ op: "update_node", nodeId: n.id, set: { label: n.label, kind: n.kind, semanticEntityId: n.semanticEntityId } }] : [];
+    const changed = old.label !== n.label || old.kind !== n.kind || old.semanticEntityId !== n.semanticEntityId || !sameAttributes(old.attributes, n.attributes);
+    return changed
+      ? [{ op: "update_node", nodeId: n.id, set: { label: n.label, kind: n.kind, semanticEntityId: n.semanticEntityId, ...(n.attributes ? { attributes: n.attributes } : {}) } }]
+      : [];
   });
 }
 
@@ -123,7 +140,11 @@ function edgeOps(edges: PlannedEdge[], existing: DiagramModel): Record<string, u
   return edges.flatMap<Record<string, unknown>>((e) => {
     const old = existing.edges.find((x) => x.id === e.id);
     if (!old) return [{ op: "add_edge", edge: e }];
-    const changed = (old.label ?? "") !== (e.label ?? "") || old.semanticRelationId !== e.semanticRelationId;
-    return changed ? [{ op: "update_edge", edgeId: e.id, set: { label: e.label ?? null, semanticRelationId: e.semanticRelationId } }] : [];
+    const changed = (old.label ?? "") !== (e.label ?? "") || old.semanticRelationId !== e.semanticRelationId || !sameAttributes(old.attributes, e.attributes);
+    return changed
+      ? [{ op: "update_edge", edgeId: e.id, set: { label: e.label ?? null, semanticRelationId: e.semanticRelationId ?? null, ...(e.attributes ? { attributes: e.attributes } : {}) } }]
+      : [];
   });
 }
+
+const sameAttributes = (a?: Record<string, unknown>, b?: Record<string, unknown>) => JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});

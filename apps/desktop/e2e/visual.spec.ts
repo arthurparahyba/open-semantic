@@ -101,3 +101,76 @@ test("explicação: a resposta é um diagrama com legenda, e o chat aponta para 
 
   await app.close();
 });
+
+test("tipos: camadas em faixas e sequência com linhas de vida", async () => {
+  const args = [appRoot];
+  if (process.getuid?.() === 0 || process.env.CI) args.unshift("--no-sandbox");
+  const app = await electron.launch({
+    args,
+    env: { ...process.env, OPEN_SEMANTIC_DATA_DIR: dataDir, OPEN_SEMANTIC_WORKSPACE: join(dataDir, "workspace"), OPEN_SEMANTIC_TEST_FOLDER: projectDir, OPEN_SEMANTIC_SCRIPTED_LLM: scriptFile },
+  });
+  const page = await app.firstWindow();
+  await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
+  await expect(page.getByTestId("mod-explorer")).toBeVisible();
+
+  await writeFile(
+    scriptFile,
+    JSON.stringify([
+      {
+        toolCalls: [
+          {
+            id: "tu_l",
+            name: "show_diagram",
+            input: {
+              diagramId: "dgm_petclinic_camadas",
+              title: "Camadas do Pet Clinic",
+              kind: "layers",
+              why: "o pedido é sobre os níveis da aplicação",
+              caption: "Web no topo, serviços no meio e dados embaixo.",
+              source: "layer Web\n  web[Controllers]:component\nlayer Domínio\n  owners[Donos e pets]:module\n  vets[Veterinários]:module\nlayer Dados\n  db[Banco]:data_store\nweb --> owners\nowners --> db",
+              evidence: { owners: { path: "src/main/java/owner", seen: "Pacote owner." }, vets: { path: "src/main/java/vet", seen: "Pacote vet." } },
+            },
+          },
+        ],
+      },
+      { text: "Três camadas: Web, Domínio e Dados." },
+      {
+        toolCalls: [
+          {
+            id: "tu_s",
+            name: "show_diagram",
+            input: {
+              diagramId: "dgm_petclinic_cadastro",
+              title: "Cadastro de dono",
+              kind: "sequence",
+              why: "o pedido é sobre como a funcionalidade acontece",
+              caption: "O navegador envia o formulário, o controller valida e grava no banco.",
+              source: "participant browser[Navegador]:actor\nparticipant ctrl[OwnerController]\nparticipant repo[OwnerRepository]\nbrowser ->> ctrl : POST /owners/new\nctrl ->> ctrl : valida\nctrl ->> repo : save(owner)\nrepo -->> ctrl : owner\nctrl -->> browser : redirect",
+            },
+          },
+        ],
+      },
+      { text: "O cadastro passa pelo controller e pelo repositório." },
+    ]),
+  );
+
+  await page.getByTestId("chat-input").fill("explique as camadas da aplicação");
+  await page.getByTestId("chat-send").click();
+  const layers = page.locator('[data-diagram-id="dgm_petclinic_camadas"]');
+  await expect(layers.locator(".diagram-lane")).toHaveCount(3);
+  await expect.poll(async () => (await page.evaluate(() => window.openSemantic.snapshot())).navigation.motion.status).toBe("idle");
+  await page.waitForTimeout(600);
+  if (screenshots) await page.screenshot({ path: join(screenshots, "tipos-1-camadas.png") });
+
+  await page.getByTestId("chat-input").fill("como está implementado o cadastro de dono?");
+  await page.getByTestId("chat-send").click();
+  const sequence = page.locator('[data-diagram-id="dgm_petclinic_cadastro"]');
+  await expect(sequence.locator(".diagram-lifeline")).toHaveCount(3);
+  await expect(sequence.locator(".diagram-message")).toHaveCount(5);
+  await expect(sequence.locator(".diagram-message.is-reply")).toHaveCount(2);
+  await expect.poll(async () => (await page.evaluate(() => window.openSemantic.snapshot())).navigation.motion.status).toBe("idle");
+  await page.waitForTimeout(600);
+  if (screenshots) await page.screenshot({ path: join(screenshots, "tipos-2-sequencia.png") });
+
+  await app.close();
+});

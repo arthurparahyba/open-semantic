@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ANTHROPIC_MODELS, type ChatMessage, type Completion, type CompletionRequest, type LlmProvider } from "@open-semantic/llm";
 
-import { Conversation, VISUAL_NUDGE, asksForExplanation, createCore, slug, type Core } from "../src/index.js";
+import { Conversation, VISUAL_NUDGE, asksForExplanation, createCore, kindHint, slug, suggestDiagramKind, type Core } from "../src/index.js";
 
 type Step = (request: CompletionRequest) => Partial<Completion>;
 
@@ -233,6 +233,108 @@ describe("Resposta visual (show_diagram)", () => {
     const answer = conv.view().entries.at(-1)!;
     expect(answer).toMatchObject({ kind: "assistant", text: "Node 22, segundo o package.json." });
     expect(answer.kind === "assistant" && answer.diagramIds).toBeUndefined();
+  });
+});
+
+describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
+  const draw = async (question: string, input: Record<string, unknown>) => {
+    const provider = new FakeProvider([() => ({ toolCalls: [call("show_diagram", input)] }), () => ({ text: "Pronto." })]);
+    await conversation(provider).send(question);
+    const result = lastToolResult(provider.requests[1]!);
+    expect(result.status, JSON.stringify(result, null, 1)).toBe("completed");
+    return { provider, diagram: core.store.snapshot().diagrams.find((d) => d.id === input.diagramId)! };
+  };
+
+  it("explique as camadas: faixas de cima para baixo, cada nó na sua camada", async () => {
+    const { provider, diagram } = await draw("explique as camadas da aplicação", {
+      diagramId: "dgm_minhaapp_camadas",
+      title: "Camadas",
+      kind: "layers",
+      why: "o pedido é sobre os níveis da aplicação",
+      caption: "Interface no topo, API no meio e Banco embaixo.",
+      source: "layer Interface\n  front[Frontend]:module\nlayer Serviços\n  api[API]:service\nlayer Dados\n  db[Banco]:data_store\nfront --> api : HTTP\napi --> db : grava",
+      evidence: { front: { path: "frontend", seen: "Pasta frontend/ na raiz." } },
+    });
+    // O pedido levou a dica da forma ao modelo.
+    expect(JSON.stringify(provider.requests[0]!.messages.at(-1))).toContain("Forma sugerida para o diagrama: layers");
+    expect(diagram.kind).toBe("layers");
+    expect(diagram.layout.algorithm).toBe("lanes");
+    expect(diagram.nodes.map((n) => n.attributes?.layer)).toEqual(["Interface", "Serviços", "Dados"]);
+    const [front, api, db] = diagram.nodes.map((n) => diagram.layout.nodes[n.id]!.position.y);
+    expect(front).toBeLessThan(api!);
+    expect(api).toBeLessThan(db!);
+    expect(core.store.snapshot().semantic.entities.find((e) => e.id === diagram.nodes[0]!.semanticEntityId)!.status).toBe("verified");
+  });
+
+  it("como está implementado: participantes em colunas e mensagens em ordem, retorno sem relação", async () => {
+    const { diagram } = await draw("como está implementado o salvamento de um arquivo?", {
+      diagramId: "dgm_minhaapp_salvar",
+      title: "Salvar arquivo",
+      kind: "sequence",
+      why: "o pedido é sobre como a funcionalidade acontece",
+      caption: "O Frontend pede à API, que grava no Banco e responde.",
+      source: "participant front[Frontend]\nparticipant api[API]\nparticipant db[Banco]\nfront ->> api : POST /arquivos\napi ->> db : grava\ndb -->> api : ok\napi -->> front : 201",
+    });
+    expect(diagram.layout.algorithm).toBe("sequence");
+    expect(diagram.edges.map((e) => [e.label, e.attributes?.order])).toEqual([
+      ["POST /arquivos", 1],
+      ["grava", 2],
+      ["ok", 3],
+      ["201", 4],
+    ]);
+    expect(diagram.edges.filter((e) => e.attributes?.reply).every((e) => !e.semanticRelationId)).toBe(true);
+    const rects = diagram.nodes.map((n) => diagram.layout.nodes[n.id]!);
+    expect(new Set(rects.map((r) => r.position.y)).size).toBe(1);
+    expect(rects[0]!.position.x).toBeLessThan(rects[1]!.position.x);
+    // A linha de vida desce até a última mensagem.
+    expect(rects[0]!.size.height).toBeGreaterThan(200);
+  });
+
+  it("como o projeto está dividido: árvore pelo recuo, com ligações de contenção", async () => {
+    const { diagram } = await draw("como o projeto está dividido em pastas?", {
+      diagramId: "dgm_minhaapp_pastas",
+      title: "Pastas",
+      kind: "tree",
+      why: "o pedido é sobre como o código está dividido",
+      caption: "O projeto tem o frontend e a automação do GitHub.",
+      source: "root[MinhaAplicacao]\n  front[frontend]\n  ci[.github]",
+      evidence: { front: { path: "frontend" }, ci: { path: ".github" } },
+    });
+    expect(diagram.layout.algorithm).toBe("tree");
+    const root = diagram.nodes[0]!.id;
+    expect(diagram.edges.map((e) => e.sourceNodeId)).toEqual([root, root]);
+    const rels = core.store.snapshot().semantic.relations;
+    expect(diagram.edges.every((e) => rels.find((r) => r.id === e.semanticRelationId)!.type === "contains")).toBe(true);
+    expect(diagram.layout.nodes[root]!.position.y).toBeLessThan(diagram.layout.nodes[diagram.edges[0]!.targetNodeId]!.position.y);
+  });
+
+  it("texto inválido volta como erro para o modelo corrigir", async () => {
+    const provider = new FakeProvider([
+      () => ({ toolCalls: [call("show_diagram", { diagramId: "dgm_x_seq", title: "X", kind: "sequence", why: "-", caption: "-", source: "participant a[A]" })] }),
+      () => ({ text: "Ok." }),
+    ]);
+    await conversation(provider).send("como funciona o login passo a passo?");
+    const tool = [...provider.requests[1]!.messages].reverse().find((m): m is Extract<ChatMessage, { role: "tool" }> => m.role === "tool")!;
+    expect(tool.results[0]!.content).toContain("precisa de mensagens");
+  });
+});
+
+describe("Escolha do tipo de diagrama", () => {
+  it.each([
+    ["explique as camadas da aplicação", "layers"],
+    ["quais são as camadas do sistema?", "layers"],
+    ["como está implementado o salvamento de arquivos?", "sequence"],
+    ["o que acontece quando o usuário clica em salvar?", "sequence"],
+    ["me explique passo a passo o login", "sequence"],
+    ["como o monorepo está dividido?", "tree"],
+    ["explique a estrutura de pastas", "tree"],
+    ["mostre a arquitetura", undefined],
+    ["quem depende de quem?", undefined],
+  ])("'%s' → %s", (text, kind) => expect(suggestDiagramKind(text)).toBe(kind));
+
+  it("a dica diz a forma e o porquê", () => {
+    expect(kindHint("explique as camadas")).toBe("[app] Forma sugerida para o diagrama: layers (o pedido é sobre os níveis da aplicação).");
+    expect(kindHint("qual a versão do Java?")).toBeUndefined();
   });
 });
 

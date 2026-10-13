@@ -1,7 +1,7 @@
 // A entrada do show_diagram (o desenho que o modelo descreve) e o plano que sai dela.
 import type { DiagramModel } from "@open-semantic/protocol";
 
-export const DIAGRAM_KINDS = ["architecture", "flow", "sequence", "dependency"] as const;
+export const DIAGRAM_KINDS = ["layers", "sequence", "tree", "architecture", "flow", "dependency"] as const;
 
 export interface ShowDiagramNode {
   id: string;
@@ -13,6 +13,8 @@ export interface ShowDiagramNode {
   path?: string;
   /** O que foi visto no caminho, em uma frase. */
   seen?: string;
+  /** Faixa do nó num diagrama layers. */
+  layer?: string;
 }
 
 export interface ShowDiagramEdge {
@@ -22,6 +24,10 @@ export interface ShowDiagramEdge {
   type?: string;
   /** A ligação aparece no código do caminho do nó de origem. */
   seen?: boolean;
+  /** Posição da mensagem num diagrama sequence (1, 2, 3...). */
+  order?: number;
+  /** Mensagem de retorno num diagrama sequence. */
+  reply?: boolean;
 }
 
 export interface ShowDiagramInput {
@@ -63,6 +69,7 @@ export interface PlannedNode {
   label: string;
   kind: string;
   semanticEntityId: string;
+  attributes?: Record<string, unknown>;
 }
 
 export interface PlannedEdge {
@@ -70,5 +77,6 @@ export interface PlannedEdge {
   sourceNodeId: string;
   targetNodeId: string;
   label?: string;
-  semanticRelationId: string;
+  semanticRelationId?: string;
+  attributes?: Record<string, unknown>;
 }

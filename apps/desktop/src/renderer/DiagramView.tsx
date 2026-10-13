@@ -2,6 +2,8 @@ import { useState } from "react";
 
 import type { CanvasObject, DiagramModel, KnowledgeStatus, Point, Rect, WorkspaceSnapshot } from "@open-semantic/protocol";
 
+import { FIRST_MESSAGE, LANE_GUTTER, LANE_PAD, MESSAGE_STEP, NODE_HEIGHT, isReply, layerOf, layerOrder, messageOrder } from "@open-semantic/workspace-store/diagramShapes";
+
 import { run } from "./client.js";
 
 interface Props {
@@ -83,6 +85,9 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
     if (result.status !== "succeeded") onError(result.error?.message ?? "Não foi possível mover o nó.");
   };
 
+  // Faixas e sequência têm posições fixas pela gramática; árvore e caixas e setas aceitam arraste.
+  const fixed = diagram.kind === "layers" || diagram.kind === "sequence";
+  const sequence = diagram.kind === "sequence";
   const hasInferred =
     diagram.nodes.some((n) => nodeQuality(n.semanticEntityId) === "inferred") ||
     diagram.edges.some((e) => edgeQuality(e.semanticRelationId) === "inferred");
@@ -109,25 +114,55 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
             <path d="M 0 0 L 10 5 L 0 10 z" className="diagram-arrow" />
           </marker>
         </defs>
-        {diagram.edges.map((edge) => {
-          const a = rectOf(edge.sourceNodeId);
-          const b = rectOf(edge.targetNodeId);
-          if (!a || !b) return null;
-          const [from, to] = connect(a, b);
-          const quality = edgeQuality(edge.semanticRelationId);
-          const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
-          return (
-            <g key={edge.id} className={`diagram-edge q-${quality}${highlightIds.has(edge.id) ? " is-highlighted" : ""}`} data-edge-id={edge.id}>
-              <title>{`${edge.label ?? "relação"} · ${QUALITY_LABEL[quality]}`}</title>
-              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={`url(#arrow-${diagram.id})`} />
-              {edge.label && (
-                <text x={mid.x} y={mid.y - 6} textAnchor="middle" className="diagram-edge-label">
-                  {edge.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
+        {diagram.kind === "layers" && <Lanes diagram={diagram} width={object.size.width} />}
+        {sequence
+          ? messageOrder(diagram.edges).map((edge, i) => {
+              const a = rectOf(edge.sourceNodeId);
+              const b = rectOf(edge.targetNodeId);
+              if (!a || !b) return null;
+              const quality = isReply(edge) ? "none" : edgeQuality(edge.semanticRelationId);
+              const y = a.position.y + FIRST_MESSAGE + i * MESSAGE_STEP;
+              const x1 = a.position.x + a.size.width / 2;
+              const x2 = b.position.x + b.size.width / 2;
+              const self = edge.sourceNodeId === edge.targetNodeId;
+              return (
+                <g key={edge.id} className={`diagram-edge diagram-message q-${quality}${isReply(edge) ? " is-reply" : ""}${highlightIds.has(edge.id) ? " is-highlighted" : ""}`} data-edge-id={edge.id}>
+                  <title>{`${i + 1}. ${edge.label ?? "mensagem"}`}</title>
+                  {self ? (
+                    <path d={`M ${x1} ${y - 8} h 28 v 16 h -26`} fill="none" markerEnd={`url(#arrow-${diagram.id})`} />
+                  ) : (
+                    <line x1={x1} y1={y} x2={x2 + (x2 > x1 ? -2 : 2)} y2={y} markerEnd={`url(#arrow-${diagram.id})`} />
+                  )}
+                  <text x={self ? x1 + 34 : (x1 + x2) / 2} y={y - 6} textAnchor={self ? "start" : "middle"} className="diagram-edge-label">
+                    {`${i + 1}. ${edge.label ?? ""}`}
+                  </text>
+                </g>
+              );
+            })
+          : diagram.edges.map((edge) => {
+              const a = rectOf(edge.sourceNodeId);
+              const b = rectOf(edge.targetNodeId);
+              if (!a || !b) return null;
+              const [from, to] = connect(a, b);
+              const quality = edgeQuality(edge.semanticRelationId);
+              const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+              const tree = diagram.kind === "tree";
+              return (
+                <g key={edge.id} className={`diagram-edge q-${quality}${highlightIds.has(edge.id) ? " is-highlighted" : ""}`} data-edge-id={edge.id}>
+                  <title>{`${edge.label ?? "relação"} · ${QUALITY_LABEL[quality]}`}</title>
+                  {tree ? (
+                    <path d={elbow(a, b)} fill="none" />
+                  ) : (
+                    <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={`url(#arrow-${diagram.id})`} />
+                  )}
+                  {edge.label && (
+                    <text x={mid.x} y={mid.y - 6} textAnchor="middle" className="diagram-edge-label">
+                      {edge.label}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
         {diagram.nodes.map((node) => {
           const rect = rectOf(node.id);
           if (!rect) return null;
@@ -139,14 +174,15 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
               className={`diagram-node q-${quality}${highlightIds.has(node.id) ? " is-highlighted" : ""}`}
               data-node-id={node.id}
               transform={`translate(${rect.position.x}, ${rect.position.y})`}
-              onPointerDown={onNodePointerDown(node.id)}
+              onPointerDown={fixed ? undefined : onNodePointerDown(node.id)}
             >
               <title>{`${node.label} · ${node.kind} · ${QUALITY_LABEL[quality]}${pinned ? " · fixado" : ""}`}</title>
-              <rect width={rect.size.width} height={rect.size.height} rx={node.kind === "data_store" ? 18 : 8} />
-              <text x={rect.size.width / 2} y={rect.size.height / 2 - 2} textAnchor="middle" className="diagram-node-label">
+              {sequence && <line className="diagram-lifeline" x1={rect.size.width / 2} y1={NODE_HEIGHT} x2={rect.size.width / 2} y2={rect.size.height} />}
+              <rect width={rect.size.width} height={sequence ? NODE_HEIGHT : rect.size.height} rx={node.kind === "data_store" ? 18 : 8} />
+              <text x={rect.size.width / 2} y={(sequence ? NODE_HEIGHT : rect.size.height) / 2 - 2} textAnchor="middle" className="diagram-node-label">
                 {node.label}
               </text>
-              <text x={rect.size.width / 2} y={rect.size.height / 2 + 14} textAnchor="middle" className="diagram-node-kind">
+              <text x={rect.size.width / 2} y={(sequence ? NODE_HEIGHT : rect.size.height) / 2 + 14} textAnchor="middle" className="diagram-node-kind">
                 {quality === "inferred" ? "inferido" : quality === "stale" ? "desatualizado" : quality === "broken" ? "vínculo quebrado" : node.kind}
               </text>
             </g>
@@ -171,6 +207,39 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
       <div className="mod-resize" onPointerDown={onResizePointerDown} aria-hidden />
     </section>
   );
+}
+
+/** As faixas de um diagrama de camadas, com o nome à esquerda, atrás dos nós. */
+function Lanes({ diagram, width }: { diagram: DiagramModel; width: number }) {
+  return (
+    <g className="diagram-lanes">
+      {layerOrder(diagram.nodes).map((layer) => {
+        const tops = diagram.nodes.filter((n) => layerOf(n) === layer).flatMap((n) => diagram.layout.nodes[n.id]?.position.y ?? []);
+        if (!tops.length) return null;
+        const y = Math.min(...tops) - LANE_PAD;
+        return (
+          <g key={layer} className="diagram-lane" data-layer={layer}>
+            <rect x={12} y={y} width={Math.max(0, width - 24)} height={NODE_HEIGHT + 2 * LANE_PAD} rx={10} />
+            <text x={24} y={y + LANE_PAD + NODE_HEIGHT / 2 + 4} className="diagram-lane-label">
+              {truncate(layer || "outros", Math.floor(LANE_GUTTER / 8))}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+const truncate = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+/** Ligação de árvore: desce do pai, anda na horizontal e desce até o filho. */
+function elbow(parent: Rect, child: Rect): string {
+  const x1 = parent.position.x + parent.size.width / 2;
+  const y1 = parent.position.y + parent.size.height;
+  const x2 = child.position.x + child.size.width / 2;
+  const y2 = child.position.y;
+  const mid = (y1 + y2) / 2;
+  return `M ${x1} ${y1} V ${mid} H ${x2} V ${y2}`;
 }
 
 /** Pontos nas bordas dos dois retângulos, na linha entre os centros. */
