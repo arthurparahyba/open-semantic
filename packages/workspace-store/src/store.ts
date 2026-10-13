@@ -13,7 +13,11 @@ import type {
   WorkspaceSnapshot,
 } from "@open-semantic/protocol";
 
-export type ChangeListener = (revision: number) => void;
+import { capture, deepFreeze, diff, freezeDocument, restore, type Captured } from "./changes.js";
+import { COLLECTIONS, LISTS, type Collection, type CollectionItems, type Commit, type ListCollection, type StoreChange } from "./commits.js";
+import { removeProjectFrom, type Removed } from "./removal.js";
+
+export type CommitListener = (commit: Commit) => void;
 
 export interface CreateWorkspaceOptions {
   id: string;
@@ -51,22 +55,32 @@ export function emptySnapshot({ id, name, now = () => new Date() }: CreateWorksp
   };
 }
 
+const withoutRegion = ({ regionId: _left, ...object }: CanvasObject): CanvasObject => object;
+const isWorkspaceChange = (c: StoreChange): c is Extract<StoreChange, { collection: "workspace" }> => c.collection === "workspace";
+
 /**
  * Fonte de verdade do que é visual e espacial (docs/funcionalidades/01-workspace-e-canvas.md).
- * Mudanças acontecem dentro de transact(); cada transação vira uma revisão do workspace.
+ * Mudanças acontecem dentro de transact(); cada transação vira um commit com o que mudou, avisado em onCommit.
+ * A navegação (câmera, foco, histórico, movimento, controle) é estado de visualização: é salva, mas um commit
+ * só dela não muda a revisão do documento. Objetos do store não mudam no lugar: cada mudança grava uma cópia nova.
  */
 export class WorkspaceStore {
   private doc: WorkspaceSnapshot;
-  private readonly listeners = new Set<ChangeListener>();
+  private readonly listeners = new Set<CommitListener>();
   private readonly now: () => Date;
   private depth = 0;
-  private dirty = false;
+  /** O que cada coleção tinha antes da transação em curso: a base do commit e do desfazer. */
+  private readonly before = new Map<Collection, Captured>();
+  private commits = 0;
+  private readonly queue: Commit[] = [];
+  private publishing = false;
 
   constructor(doc: WorkspaceSnapshot, options: { now?: () => Date } = {}) {
     this.doc = structuredClone(doc);
     this.now = options.now ?? (() => new Date());
     // Estado transitório não sobrevive a reabrir (V0.1 §2.4).
     this.doc.navigation.motion = { status: "idle" };
+    freezeDocument(this.doc);
   }
 
   static create(options: CreateWorkspaceOptions): WorkspaceStore {
@@ -77,8 +91,14 @@ export class WorkspaceStore {
     return this.doc.workspace.id;
   }
 
+  /** Revisão do documento. Mexer só na navegação não a muda. */
   get revision(): number {
     return this.doc.workspace.revision;
+  }
+
+  /** Quantos commits houve desde que o store foi aberto, de documento ou de visualização. */
+  get sequence(): number {
+    return this.commits;
   }
 
   /** Cópia profunda para entregar a outros processos. */
@@ -86,41 +106,98 @@ export class WorkspaceStore {
     return structuredClone(this.doc);
   }
 
-  /** Leitura sem cópia, para uso interno dos módulos. Não mutar. */
+  /** Leitura sem cópia, para uso interno dos módulos. Os objetos estão congelados: para mudar, grave uma cópia. */
   read(): Readonly<WorkspaceSnapshot> {
     return this.doc;
   }
 
-  onChange(listener: ChangeListener): () => void {
+  /** Recebe cada commit, na ordem em que aconteceram. */
+  onCommit(listener: CommitListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  /** Executa mutações e confirma uma única revisão nova se algo mudou. */
+  /**
+   * Executa mutações e confirma um commit se algo mudou; transações aninhadas viram um commit só.
+   * Se a função lançar erro, o que ela mudou é desfeito e nada é avisado.
+   */
   transact<T>(fn: () => T): T {
     this.depth++;
+    let result: T;
     try {
-      return fn();
+      result = fn();
+      if (result instanceof Promise) throw new Error("transact() não aceita função assíncrona: as mudanças precisam acontecer dentro dela.");
+    } catch (err) {
+      if (--this.depth === 0) this.rollback();
+      throw err;
+    }
+    if (--this.depth === 0) this.commit();
+    return result;
+  }
+
+  private touch(...collections: Collection[]) {
+    if (this.depth === 0) throw new Error("mutação fora de transact()");
+    for (const c of collections) if (!this.before.has(c)) this.before.set(c, capture(this.doc, c));
+  }
+
+  private rollback() {
+    for (const [collection, before] of this.before) restore(this.doc, collection, before);
+    this.before.clear();
+  }
+
+  private commit() {
+    const changes = COLLECTIONS.flatMap((c) => (this.before.has(c) ? diff(this.doc, c, this.before.get(c)!) : []));
+    this.before.clear();
+    if (changes.length === 0) return;
+    const viewOnly = changes.every((c) => c.collection === "navigation");
+    if (!viewOnly) this.bumpRevision(changes);
+    for (const change of changes) deepFreeze(change.after);
+    this.publish({ sequence: ++this.commits, revision: this.doc.workspace.revision, viewOnly, changes });
+  }
+
+  /** A revisão nova do documento entra no commit como mudança do workspace. */
+  private bumpRevision(changes: StoreChange[]) {
+    const before = this.doc.workspace;
+    const after = { ...before, revision: before.revision + 1, updatedAt: this.now().toISOString() };
+    this.doc.workspace = after;
+    const own = changes.find(isWorkspaceChange);
+    if (own) own.after = after;
+    else changes.unshift({ collection: "workspace", id: after.id, kind: "updated", before, after });
+  }
+
+  /** Avisa na ordem dos commits, mesmo que alguém mude o store dentro do aviso. */
+  private publish(commit: Commit) {
+    this.queue.push(commit);
+    if (this.publishing) return;
+    this.publishing = true;
+    try {
+      for (let next = this.queue.shift(); next; next = this.queue.shift()) for (const listener of this.listeners) listener(next);
     } finally {
-      this.depth--;
-      if (this.depth === 0 && this.dirty) {
-        this.dirty = false;
-        this.doc.workspace.revision++;
-        this.doc.workspace.updatedAt = this.now().toISOString();
-        const revision = this.doc.workspace.revision;
-        for (const listener of this.listeners) listener(revision);
-      }
+      this.publishing = false;
     }
   }
 
-  private touch() {
-    if (this.depth === 0) throw new Error("mutação fora de transact()");
-    this.dirty = true;
+  /** Grava um item novo, ou no lugar do que tem o mesmo id. */
+  private put<C extends ListCollection>(collection: C, item: CollectionItems[C]) {
+    this.touch(collection);
+    const list = LISTS[collection].get(this.doc);
+    const i = list.findIndex((x) => x.id === item.id);
+    if (i >= 0) list[i] = item;
+    else list.push(item);
+  }
+
+  private remove(collection: ListCollection, id: string): boolean {
+    const list = LISTS[collection].get(this.doc) as { id: string }[];
+    const i = list.findIndex((x) => x.id === id);
+    if (i < 0) return false;
+    this.touch(collection);
+    list.splice(i, 1);
+    return true;
   }
 
   /** Mudança em bloco no documento, para quem traz conteúdo de fora (ex.: `.open-semantic/` de um repositório). */
   mutate(fn: (doc: WorkspaceSnapshot) => void) {
-    this.touch();
+    this.touch(...COLLECTIONS);
     fn(this.doc);
   }
 
@@ -130,9 +207,10 @@ export class WorkspaceStore {
   }
 
   addProject(project: Project) {
-    this.touch();
+    this.touch("projects", "workspace");
     this.doc.projects.push(structuredClone(project));
-    if (!this.doc.workspace.projectIds.includes(project.id)) this.doc.workspace.projectIds.push(project.id);
+    const workspace = this.doc.workspace;
+    if (!workspace.projectIds.includes(project.id)) this.doc.workspace = { ...workspace, projectIds: [...workspace.projectIds, project.id] };
   }
 
   /** Projeto em que o agente trabalha quando o pedido não diz outro. */
@@ -142,57 +220,14 @@ export class WorkspaceStore {
   }
 
   setActiveProject(id: string) {
-    this.touch();
-    this.doc.workspace.activeProjectId = id;
+    this.touch("workspace");
+    this.doc.workspace = { ...this.doc.workspace, activeProjectId: id };
   }
 
-  /**
-   * Tira um projeto do workspace (os arquivos no disco não mudam). Sai junto tudo que só existe por causa dele:
-   * referências a arquivos, mods que mostram esses arquivos, diagramas e conhecimento do projeto.
-   * O que sobra perde só os vínculos com o que saiu.
-   */
-  removeProject(id: string): { artifacts: number; mods: number; diagrams: number; entities: number } {
-    this.touch();
-    const doc = this.doc;
-    const artifacts = new Set(doc.artifacts.filter((a) => a.projectId === id).map((a) => a.id));
-    const modGone = (m: ModInstance) =>
-      m.projectId === id || ["rootRef", "fileRef", "cwdRef", "artifactId"].some((k) => typeof m.config[k] === "string" && artifacts.has(m.config[k] as string));
-    const mods = new Set(doc.mods.filter(modGone).map((m) => m.id));
-    const diagrams = new Set(doc.diagrams.filter((d) => d.projectId === id).map((d) => d.id));
-    const entities = new Set(doc.semantic.entities.filter((e) => e.projectId === id).map((e) => e.id));
-    const relations = new Set(doc.semantic.relations.filter((r) => entities.has(r.sourceId) || entities.has(r.targetId)).map((r) => r.id));
-    const evidence = new Set(doc.semantic.evidence.filter((ev) => ev.artifactId !== undefined && artifacts.has(ev.artifactId)).map((ev) => ev.id));
-    const dropEvidence = <T extends { provenance: { evidenceIds?: string[] } }>(x: T): T => {
-      if (x.provenance.evidenceIds) x.provenance.evidenceIds = x.provenance.evidenceIds.filter((e) => !evidence.has(e));
-      return x;
-    };
-
-    doc.projects = doc.projects.filter((p) => p.id !== id);
-    doc.workspace.projectIds = doc.workspace.projectIds.filter((p) => p !== id);
-    if (doc.workspace.activeProjectId === id) {
-      const last = doc.workspace.projectIds[doc.workspace.projectIds.length - 1];
-      if (last) doc.workspace.activeProjectId = last;
-      else delete doc.workspace.activeProjectId;
-    }
-    doc.artifacts = doc.artifacts.filter((a) => !artifacts.has(a.id));
-    doc.mods = doc.mods.filter((m) => !mods.has(m.id));
-    for (const m of doc.mods) if (m.semanticEntityIds) m.semanticEntityIds = m.semanticEntityIds.filter((e) => !entities.has(e));
-    doc.diagrams = doc.diagrams.filter((d) => !diagrams.has(d.id));
-    for (const d of doc.diagrams) {
-      for (const n of d.nodes) if (n.semanticEntityId && entities.has(n.semanticEntityId)) delete n.semanticEntityId;
-      for (const e of d.edges) if (e.semanticRelationId && relations.has(e.semanticRelationId)) delete e.semanticRelationId;
-    }
-    doc.semantic.entities = doc.semantic.entities.filter((e) => !entities.has(e.id)).map(dropEvidence);
-    for (const e of doc.semantic.entities) if (e.artifactIds) e.artifactIds = e.artifactIds.filter((a) => !artifacts.has(a));
-    doc.semantic.relations = doc.semantic.relations.filter((r) => !relations.has(r.id)).map(dropEvidence);
-    doc.semantic.evidence = doc.semantic.evidence.filter((ev) => !evidence.has(ev.id));
-    doc.canvas.objects = doc.canvas.objects.filter((o) => !mods.has(o.id) && !diagrams.has(o.id));
-    for (const r of doc.canvas.regions) if (r.semanticEntityIds) r.semanticEntityIds = r.semanticEntityIds.filter((e) => !entities.has(e));
-    const gone = (x: string) => mods.has(x) || diagrams.has(x) || entities.has(x) || relations.has(x) || artifacts.has(x);
-    const focus = doc.navigation.focus as { targetIds?: string[]; highlightIds?: string[] };
-    if (focus.targetIds) focus.targetIds = focus.targetIds.filter((t) => !gone(t));
-    if (focus.highlightIds) focus.highlightIds = focus.highlightIds.filter((t) => !gone(t));
-    return { artifacts: artifacts.size, mods: mods.size, diagrams: diagrams.size, entities: entities.size };
+  /** Tira um projeto do workspace e o que só existe por causa dele (ver removal.ts). Os arquivos no disco não mudam. */
+  removeProject(id: string): Removed {
+    this.touch(...COLLECTIONS);
+    return removeProjectFrom(this.doc, id);
   }
 
   // ---------- artefatos ----------
@@ -208,10 +243,7 @@ export class WorkspaceStore {
   }
 
   upsertArtifact(artifact: ArtifactReference) {
-    this.touch();
-    const i = this.doc.artifacts.findIndex((a) => a.id === artifact.id);
-    if (i >= 0) this.doc.artifacts[i] = structuredClone(artifact);
-    else this.doc.artifacts.push(structuredClone(artifact));
+    this.put("artifacts", structuredClone(artifact));
   }
 
   // ---------- mods ----------
@@ -221,22 +253,15 @@ export class WorkspaceStore {
 
   /** Grava a instância incrementando a revisão dela. */
   putMod(mod: ModInstance): ModInstance {
-    this.touch();
-    const i = this.doc.mods.findIndex((m) => m.id === mod.id);
-    const next = structuredClone(mod);
-    next.revision = i >= 0 ? this.doc.mods[i]!.revision + 1 : 1;
-    if (i >= 0) {
-      next.updatedAt = this.now().toISOString();
-      this.doc.mods[i] = next;
-    } else this.doc.mods.push(next);
+    const current = this.mod(mod.id);
+    const next = { ...structuredClone(mod), revision: current ? current.revision + 1 : 1 };
+    if (current) next.updatedAt = this.now().toISOString();
+    this.put("mods", next);
     return next;
   }
 
   deleteMod(id: string): boolean {
-    const i = this.doc.mods.findIndex((m) => m.id === id);
-    if (i < 0) return false;
-    this.touch();
-    this.doc.mods.splice(i, 1);
+    if (!this.remove("mods", id)) return false;
     this.removeCanvasObject(id);
     return true;
   }
@@ -247,20 +272,13 @@ export class WorkspaceStore {
   }
 
   placeObject(object: CanvasObject): CanvasObject {
-    this.touch();
-    const i = this.doc.canvas.objects.findIndex((o) => o.id === object.id);
-    const next = structuredClone(object);
-    next.revision = i >= 0 ? (this.doc.canvas.objects[i]!.revision ?? 0) + 1 : 1;
-    if (i >= 0) this.doc.canvas.objects[i] = next;
-    else this.doc.canvas.objects.push(next);
+    const next = { ...structuredClone(object), revision: (this.canvasObject(object.id)?.revision ?? 0) + 1 };
+    this.put("canvas", next);
     return next;
   }
 
   removeCanvasObject(id: string) {
-    const i = this.doc.canvas.objects.findIndex((o) => o.id === id);
-    if (i < 0) return;
-    this.touch();
-    this.doc.canvas.objects.splice(i, 1);
+    this.remove("canvas", id);
   }
 
   // ---------- regiões ----------
@@ -269,22 +287,16 @@ export class WorkspaceStore {
   }
 
   putRegion(region: Region): Region {
-    this.touch();
-    const i = this.doc.canvas.regions.findIndex((r) => r.id === region.id);
-    const next = structuredClone(region);
-    next.revision = i >= 0 ? (this.doc.canvas.regions[i]!.revision ?? 0) + 1 : 1;
-    if (i >= 0) this.doc.canvas.regions[i] = next;
-    else this.doc.canvas.regions.push(next);
+    const next = { ...structuredClone(region), revision: (this.region(region.id)?.revision ?? 0) + 1 };
+    this.put("regions", next);
     return next;
   }
 
   /** Remove a região; os objetos dentro dela continuam no canvas, só perdem o vínculo. */
   deleteRegion(id: string): boolean {
-    const i = this.doc.canvas.regions.findIndex((r) => r.id === id);
-    if (i < 0) return false;
-    this.touch();
-    this.doc.canvas.regions.splice(i, 1);
-    for (const o of this.doc.canvas.objects) if (o.regionId === id) delete o.regionId;
+    if (!this.remove("regions", id)) return false;
+    this.touch("canvas");
+    this.doc.canvas.objects = this.doc.canvas.objects.map((o) => (o.regionId === id ? withoutRegion(o) : o));
     return true;
   }
 
@@ -295,20 +307,14 @@ export class WorkspaceStore {
 
   /** Grava o diagrama incrementando a revisão dele. */
   putDiagram(diagram: DiagramModel): DiagramModel {
-    this.touch();
-    const i = this.doc.diagrams.findIndex((d) => d.id === diagram.id);
-    const next = structuredClone(diagram);
-    next.revision = i >= 0 ? this.doc.diagrams[i]!.revision + 1 : 1;
-    if (i >= 0) this.doc.diagrams[i] = next;
-    else this.doc.diagrams.push(next);
+    const current = this.diagram(diagram.id);
+    const next = { ...structuredClone(diagram), revision: current ? current.revision + 1 : 1 };
+    this.put("diagrams", next);
     return next;
   }
 
   deleteDiagram(id: string): boolean {
-    const i = this.doc.diagrams.findIndex((d) => d.id === id);
-    if (i < 0) return false;
-    this.touch();
-    this.doc.diagrams.splice(i, 1);
+    if (!this.remove("diagrams", id)) return false;
     this.removeCanvasObject(id);
     return true;
   }
@@ -327,50 +333,42 @@ export class WorkspaceStore {
   }
 
   putEntity(entity: SemanticEntity): SemanticEntity {
-    this.touch();
-    const list = this.doc.semantic.entities;
-    const i = list.findIndex((e) => e.id === entity.id);
-    const next = structuredClone(entity);
-    next.revision = i >= 0 ? list[i]!.revision + 1 : 1;
-    if (i >= 0) list[i] = next;
-    else list.push(next);
+    const current = this.entity(entity.id);
+    const next = { ...structuredClone(entity), revision: current ? current.revision + 1 : 1 };
+    this.put("entities", next);
     return next;
   }
 
   putRelation(relation: SemanticRelation): SemanticRelation {
-    this.touch();
-    const list = this.doc.semantic.relations;
-    const i = list.findIndex((r) => r.id === relation.id);
-    const next = structuredClone(relation);
-    next.revision = i >= 0 ? list[i]!.revision + 1 : 1;
-    if (i >= 0) list[i] = next;
-    else list.push(next);
+    const current = this.relation(relation.id);
+    const next = { ...structuredClone(relation), revision: current ? current.revision + 1 : 1 };
+    this.put("relations", next);
     return next;
   }
 
   /** Evidências são imutáveis: gravar de novo o mesmo id não altera nada. */
   addEvidence(evidence: Evidence): boolean {
     if (this.evidence(evidence.id)) return false;
-    this.touch();
-    this.doc.semantic.evidence.push(structuredClone(evidence));
+    this.put("evidence", structuredClone(evidence));
     return true;
   }
 
-  // ---------- navegação ----------
+  // ---------- navegação (estado de visualização) ----------
   setCamera(camera: Camera) {
-    this.touch();
-    this.doc.navigation.camera = structuredClone(camera);
+    this.touch("navigation");
+    this.doc.navigation = { ...this.doc.navigation, camera: structuredClone(camera) };
   }
 
   /** Substitui partes do estado de navegação (câmera, foco, histórico, movimento, controle). */
   updateNavigation(patch: Partial<NavigationState>) {
-    this.touch();
+    this.touch("navigation");
     this.doc.navigation = { ...this.doc.navigation, ...structuredClone(patch) };
   }
 
   setSettings(patch: Partial<WorkspaceSnapshot["workspace"]["settings"]>) {
-    this.touch();
-    this.doc.workspace.settings = { ...this.doc.workspace.settings, ...patch };
+    this.touch("workspace");
+    const workspace = this.doc.workspace;
+    this.doc.workspace = { ...workspace, settings: { ...workspace.settings, ...patch } };
   }
 
   // ---------- consultas genéricas ----------

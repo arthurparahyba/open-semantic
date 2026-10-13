@@ -2,6 +2,7 @@
 // A V0.1 permite que as responsabilidades vivam no mesmo processo desde que as interfaces fiquem claras:
 // aqui elas só se falam pelo Dispatcher e por eventos.
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -12,14 +13,24 @@ import { modHandlers } from "@open-semantic/mod-runtime";
 import type { Viewport } from "@open-semantic/navigator";
 import { navigationHandlers } from "@open-semantic/navigator/handlers";
 import { ProjectRuntime, artifactUnchanged, projectHandlers } from "@open-semantic/project-runtime";
-import { BatchExecutor, Dispatcher, catalogPolicy, type ActionLog, type ActionRecord, type DomainEvent } from "@open-semantic/protocol";
+import {
+  BatchExecutor,
+  Dispatcher,
+  catalogPolicy,
+  currentOperationId,
+  type ActionLog,
+  type ActionRecord,
+  type DomainEvent,
+} from "@open-semantic/protocol";
 import {
   REPO_DIR,
   WorkspaceFolderPersistence,
   WorkspaceStore,
   autosave,
+  commitEvents,
   workspaceHandlers,
   workspacePreconditions,
+  type Commit,
   type PersistStatus,
 } from "@open-semantic/workspace-store";
 import { semanticHandlers } from "@open-semantic/semantic";
@@ -63,7 +74,8 @@ export interface CoreOptions {
   debounceMs?: number;
   onEvent?: (event: DomainEvent) => void;
   onPersist?: (status: PersistStatus) => void;
-  onRevision?: (revision: number) => void;
+  /** Cada commit do store, na ordem: a interface aplica as mudanças na cópia dela do workspace. */
+  onCommit?: (commit: Commit) => void;
   onActivity?: (activity: AgentActivity) => void;
   /** Duração da animação de navegação no núcleo (testes usam 0). */
   animationMs?: number;
@@ -95,6 +107,21 @@ export class JsonlActionLog implements ActionLog {
     this.closed = true;
     return this.chain;
   }
+}
+
+/**
+ * Eventos de domínio de cada commit do store, com a operação que o causou, e o `workspace.opened` de quando abre.
+ * Os eventos da navegação, das operações e dos lotes saem do Navigator, do Dispatcher e do executor de lotes.
+ */
+function publishDomainEvents(store: WorkspaceStore, onEvent: (event: DomainEvent) => void) {
+  const newId = () => `evt_${randomUUID().replaceAll("-", "").slice(0, 16)}`;
+  const now = () => new Date();
+  store.onCommit((commit) => {
+    const operationId = currentOperationId();
+    for (const event of commitEvents(commit, { workspaceId: store.id, newId, now, ...(operationId ? { operationId } : {}) })) onEvent(event);
+  });
+  const projects = store.read().projects.length;
+  onEvent({ eventId: newId(), type: "workspace.opened", source: "workspace_store", subjectId: store.id, workspaceRevision: store.revision, payload: { projects }, at: now().toISOString() });
 }
 
 /** `git clone` sem perguntar credenciais no terminal (o app não tem terminal para responder). */
@@ -174,7 +201,8 @@ export async function createCore(options: CoreOptions) {
     debounceMs: options.debounceMs ?? 300,
     ...(options.onPersist ? { onStatus: options.onPersist } : {}),
   });
-  if (options.onRevision) store.onChange(options.onRevision);
+  if (options.onCommit) store.onCommit(options.onCommit);
+  if (options.onEvent) publishDomainEvents(store, options.onEvent);
 
   // Ao abrir, revalida as referências a arquivos: algo pode ter mudado com o app fechado (C4).
   const revalidated = Promise.all(store.read().artifacts.map((a) => runtime.stat(a.id).catch(() => undefined)));

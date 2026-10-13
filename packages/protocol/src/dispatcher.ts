@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { actorRefusal, type Args, type AuthorizationDecision, type AuthorizationPolicy, type HandlerContext, type OperationHandler } from "./catalog.js";
 import { pointerFields, toContractError } from "./errors.js";
+import { runInOperation } from "./operationScope.js";
 import type {
   ActionRecord,
   ConfirmationRequest,
@@ -243,7 +244,7 @@ export class Dispatcher {
       if (stored.result) return { ...stored.result, replayed: true };
     }
 
-    const promise = this.run(request, fingerprint, preapproved);
+    const promise = runInOperation(request.operationId, () => this.run(request, fingerprint, preapproved));
     this.inFlight.set(request.operationId, { fingerprint, promise });
     try {
       return await promise;

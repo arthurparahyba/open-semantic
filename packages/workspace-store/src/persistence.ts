@@ -154,27 +154,29 @@ export function autosave(
   const debounceMs = options.debounceMs ?? 300;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> = Promise.resolve();
-  let savedRevision = store.revision;
+  // Conta commits, não revisões: a câmera também é salva, e mexer nela não muda a revisão do documento.
+  let savedSequence = store.sequence;
 
   const report = (status: PersistStatus) => options.onStatus?.(status);
 
   const saveNow = () => {
     timer = undefined;
     const snapshot = store.snapshot();
+    const sequence = store.sequence;
     const revision = snapshot.workspace.revision;
     saving = saving
       .then(() => persistence.save(snapshot))
       .then(
         () => {
-          savedRevision = Math.max(savedRevision, revision);
-          if (savedRevision === store.revision) report({ state: "saved", revision });
+          savedSequence = Math.max(savedSequence, sequence);
+          if (savedSequence === store.sequence) report({ state: "saved", revision });
         },
         (err: unknown) => report({ state: "error", revision, message: err instanceof Error ? err.message : String(err) }),
       );
     return saving;
   };
 
-  const unsubscribe = store.onChange((revision) => {
+  const unsubscribe = store.onCommit(({ revision }) => {
     report({ state: "pending", revision });
     if (timer) clearTimeout(timer);
     timer = setTimeout(saveNow, debounceMs);

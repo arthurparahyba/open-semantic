@@ -45,7 +45,6 @@
     "packages/semantic/src/index.ts#semanticHandlers": ["lines"],
     "packages/workspace-store/src/handlers.ts#addProject": ["params"],
     "packages/workspace-store/src/handlers.ts#workspaceHandlers": ["lines"],
-    "packages/workspace-store/src/repoStore.ts#mergeRepoContent": ["params"],
-    "packages/workspace-store/src/store.ts#WorkspaceStore.removeProject": ["complexity"]
+    "packages/workspace-store/src/repoStore.ts#mergeRepoContent": ["params"]
   }
 }

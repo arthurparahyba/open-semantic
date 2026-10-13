@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { WorkspaceSnapshot } from "@open-semantic/protocol";
-
 import type { PersistState, WorkspaceInfo } from "../shared/api.js";
 import { AgentPanel } from "./AgentPanel.js";
 import { Canvas, type CanvasHandle, type ObjectRenderProps } from "./Canvas.js";
@@ -10,6 +8,7 @@ import { DiagramView } from "./DiagramView.js";
 import { ModFrame } from "./ModFrame.js";
 import { Editor } from "./mods/Editor.js";
 import { Explorer } from "./mods/Explorer.js";
+import { useWorkspace } from "./useWorkspace.js";
 
 interface Toast {
   id: number;
@@ -17,7 +16,7 @@ interface Toast {
 }
 
 export function App({ workspace }: { workspace: WorkspaceInfo }) {
-  const [snapshot, setSnapshot] = useState<WorkspaceSnapshot | null>(null);
+  const snapshot = useWorkspace();
   const [persist, setPersist] = useState<PersistState | null>(null);
   const [zoom, setZoom] = useState(1);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -27,17 +26,7 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
   const canvas = useRef<CanvasHandle>(null);
   const toastSeq = useRef(0);
 
-  const refresh = useCallback(async () => setSnapshot(await api().snapshot()), []);
-
-  useEffect(() => {
-    void refresh();
-    const offRevision = api().onRevision(() => void refresh());
-    const offPersist = api().onPersist(setPersist);
-    return () => {
-      offRevision();
-      offPersist();
-    };
-  }, [refresh]);
+  useEffect(() => api().onPersist(setPersist), []);
 
   // Enquadra objetos recém-criados assim que aparecem no snapshot.
   useEffect(() => {

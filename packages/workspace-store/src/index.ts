@@ -1,4 +1,17 @@
-export { WorkspaceStore, emptySnapshot, type ChangeListener, type CreateWorkspaceOptions } from "./store.js";
+export { WorkspaceStore, emptySnapshot, type CommitListener, type CreateWorkspaceOptions } from "./store.js";
+export {
+  applyCommit,
+  withoutBefore,
+  type ChangeKind,
+  type Collection,
+  type CollectionItems,
+  type Commit,
+  type CommitSummary,
+  type StoreChange,
+  type StoreChangeAfter,
+} from "./commits.js";
+export { commitEvents, type EventContext } from "./events.js";
+export type { Removed } from "./removal.js";
 export { findFreeSpot, overlaps, GAP, placeNew, regionAt, boundsOfRects, REGION_PADDING, type PlacementRequest } from "./placement.js";
 export { FileWorkspacePersistence, WorkspaceFolderPersistence, autosave, type PersistStatus, type WorkspacePersistence } from "./persistence.js";
 export { CAPTION_LINE, DIAGRAM_HEADER, DIAGRAM_PADDING, captionLines, contentSize, diagramSize } from "./diagramSize.js";

@@ -1,6 +1,7 @@
 export * from "./generated/contracts.js";
 export * from "./catalog.js";
 export * from "./dispatcher.js";
+export { currentOperationId, runInOperation } from "./operationScope.js";
 export { OperationError, toContractError } from "./errors.js";
 export {
   SCHEMA_BASE_URI,

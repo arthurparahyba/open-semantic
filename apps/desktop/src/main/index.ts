@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 
 import { Conversation, ConversationBusyError, SCRIPTS, ScriptError, createCore, scriptedPlan, type Core } from "@open-semantic/core";
+import { withoutBefore } from "@open-semantic/workspace-store";
 
 import { AgentSettings } from "./agentSettings.js";
 import { WorkspaceChoice } from "./workspaceChoice.js";
@@ -72,7 +73,8 @@ app.whenReady().then(async () => {
     await mkdir(path, { recursive: true });
     const opened = await createCore({
       workspaceDir: path,
-      onRevision: (revision) => send(CHANNELS.revision, revision),
+      // Só o valor novo de cada mudança vai para a interface: ela não precisa do anterior.
+      onCommit: (commit) => send(CHANNELS.commit, withoutBefore(commit)),
       onPersist: (status) => send(CHANNELS.persist, status),
       onEvent: (event) => send(CHANNELS.event, event),
       onActivity: (activity) => send(CHANNELS.agentActivity, activity),
@@ -155,6 +157,7 @@ app.whenReady().then(async () => {
     return core.dispatcher.dispatch({ ...request, authorization: { actor: LOCAL_USER } });
   });
   ipcMain.handle(CHANNELS.snapshot, () => core?.store.snapshot() ?? null);
+  ipcMain.handle(CHANNELS.workspaceState, () => (core ? { snapshot: core.store.snapshot(), sequence: core.store.sequence } : null));
   ipcMain.handle(CHANNELS.pickFolder, async () => {
     let path = testFolder;
     if (!path) {
