@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { _electron as electron, test, type Page } from "@playwright/test";
 import type { WorkspaceSnapshot } from "@open-semantic/protocol";
+import type { ConversationView } from "../src/shared/api.js";
 
 import { avaliar, consolidar, escolher, gasto, MODELO_AVALIADOR, type Avaliacao } from "./avaliador.js";
 
@@ -106,12 +107,28 @@ async function esperarAgente(page: Page, objetivo: string, log: string[]) {
       await page.waitForTimeout(1500);
       continue;
     }
-    // Ocioso; dá um respiro para a navegação animada assentar antes do screenshot.
+    // Ocioso; dá um respiro para a navegação animada assentar antes do screenshot. Quem diz que acabou é a
+    // conversa (status idle), não o botão Parar, que some antes de a resposta entrar no chat.
     await page.waitForTimeout(2500);
-    if (!(await page.getByTestId("chat-stop").count())) return;
+    if (!(await page.getByTestId("chat-stop").count()) && (await conversa(page)).status === "idle") return;
   }
   log.push(`passou de ${MAX_INTERACOES} rodadas de pergunta/confirmação`);
 }
+
+/** A conversa do app (respostas, custo e tokens). O histórico do chat só existe no DOM com o painel aberto. */
+const conversa = (page: Page) => page.evaluate(() => window.openSemantic.conversation());
+
+/** A resposta do agente a este passo: as falas dele depois da última mensagem do usuário (ou os avisos, se não houver). */
+function respostaDoPasso(entries: ConversationView["entries"]): string {
+  const i = entries.map((e) => e.kind).lastIndexOf("user");
+  const depois = entries.slice(i + 1);
+  const falas = depois.filter((e) => e.kind === "assistant").map((e) => e.text).filter(Boolean);
+  const avisos = depois.filter((e) => e.kind === "notice").map((e) => `[aviso] ${e.text}`);
+  return (falas.length ? falas : avisos).join("\n\n");
+}
+
+const usd = (n: number) => `US$ ${n.toFixed(3)}`;
+const custoDe = (v: ConversationView) => `${usd(v.costUsd)}, ${v.usage.inputTokens} tokens de entrada (${v.usage.cacheReadTokens} do cache), ${v.usage.outputTokens} de saída`;
 
 async function clonarPetClinic(): Promise<{ dir: string; commit: string }> {
   const cache = join(homedir(), ".cache", "open-semantic-uso", "spring-petclinic");
@@ -136,7 +153,7 @@ interface Contexto {
   page: Page;
   saida: string;
   petclinic: string;
-  estado: { wireframe: string };
+  estado: { wireframe: string; daSpec: string[] };
 }
 
 const wireframes = (s: Snapshot) => JSON.stringify(s.diagrams.filter((d) => d.kind === "wireframe").map((d) => d.nodes));
@@ -160,16 +177,25 @@ async function checagensFixas(passo: Passo, s: Snapshot, { page, petclinic, esta
       checar(passo.id, s.diagrams.length >= 1, "nenhum diagrama na explicação");
       break;
     case "2-cadastro-produtos":
-      checar(passo.id, layers.some((l) => l.parentId), "não abriu uma camada nova de especificação");
+      const spec = layers.find((l) => l.name.startsWith("Especificação"));
+      checar(passo.id, !!spec, 'não abriu a camada "Especificação: <assunto>"');
+      const naSpec = s.diagrams.filter((d) => spec?.members.some((m) => m.id === d.id)).map((d) => d.kind);
+      checar(passo.id, naSpec.includes("bpmn") && naSpec.includes("wireframe"), `BPMN e wireframe não estão na camada de especificação (nela: ${naSpec.join(", ") || "nada"})`);
       checar(passo.id, tipos.has("bpmn"), "sem diagrama BPMN");
       checar(passo.id, tipos.has("wireframe"), "sem wireframe da tela");
       estado.wireframe = wireframes(s);
       break;
     case "3-refinar-tela":
+      estado.daSpec = layers.find((l) => l.name.startsWith("Especificação"))?.members.map((m) => m.id) ?? [];
       checar(passo.id, wireframes(s) !== estado.wireframe, "o refinamento não alterou o wireframe");
       break;
     case "4-implementacao": {
-      checar(passo.id, layers.some((l) => l.name.startsWith("Implementação")), 'não chegou à camada "Implementação: <assunto>"');
+      const impl = layers.find((l) => l.name.startsWith("Implementação"));
+      const pai = layers.find((l) => l.id === impl?.parentId);
+      checar(passo.id, !!impl, 'não chegou à camada "Implementação: <assunto>"');
+      checar(passo.id, !impl || !!pai?.name.startsWith("Especificação"), "a implementação não é filha da especificação");
+      const movidos = s.diagrams.filter((d) => estado.daSpec.includes(d.id) && !pai?.members.some((m) => m.id === d.id)).map((d) => d.title);
+      checar(passo.id, movidos.length === 0, `diagramas saíram da camada de especificação: ${movidos.join(", ")}`);
       const specs = await specsGravados(petclinic);
       checar(passo.id, specs.length > 0, "nenhum specs/<assunto>.md gravado no repositório");
       for (const f of specs) checar(passo.id, f.texto.trim().length > 200, `specs/${f.nome} está vazio ou curto demais`);
@@ -184,19 +210,22 @@ async function executarPasso(passo: Passo, ctx: Contexto) {
   const { page, saida } = ctx;
   const log: string[] = [];
   const t0 = Date.now();
+  const antes = (await conversa(page)).costUsd;
   await page.getByTestId("chat-input").fill(passo.pedido);
   await page.getByTestId("chat-input").press("Enter");
   await esperarAgente(page, passo.objetivo, log);
   const s = await page.evaluate(() => window.openSemantic.snapshot());
   const screenshot = join(saida, `${passo.id}.png`);
   await page.screenshot({ path: screenshot });
-  const resposta = (await page.getByTestId("chat-assistant").last().innerText().catch(() => "")) || "(sem resposta)";
+  const v = await conversa(page);
+  const resposta = respostaDoPasso(v.entries) || "(sem resposta)";
+  const custo = v.costUsd - antes;
   await checagensFixas(passo, s, ctx);
   const a = await avaliar({ passo: passo.id, objetivo: passo.objetivo, screenshot, resumo: resumo(s), resposta });
   const diario =
-    `### ${passo.id} (${Math.round((Date.now() - t0) / 1000)} s)\n\n**Pedido:** ${passo.pedido}\n\n${log.map((l) => `- ${l}`).join("\n")}\n\n` +
-    `![](${passo.id}.png)\n\n**Nota ${a.nota}/5.** ${a.explicacao}\n\n**Organização ${a.organizacao.nota}/5.** ${a.organizacao.comentario}\n`;
-  return { avaliacao: a, diario };
+    `### ${passo.id} (${Math.round((Date.now() - t0) / 1000)} s, agente ${usd(custo)})\n\n**Pedido:** ${passo.pedido}\n\n${log.map((l) => `- ${l}`).join("\n")}\n\n` +
+    `**Resposta do agente:** ${resposta.replace(/\s+/g, " ").slice(0, 600)}\n\n![](${passo.id}.png)\n\n**Nota ${a.nota}/5.** ${a.explicacao}\n\n**Organização ${a.organizacao.nota}/5.** ${a.organizacao.comentario}\n`;
+  return { avaliacao: a, diario, custo };
 }
 
 const lista = (itens: string[], vazio: string, numerada = false) => (itens.length ? itens.map((t, i) => `${numerada ? `${i + 1}.` : "-"} ${t}`) : [vazio]);
@@ -275,7 +304,8 @@ test("uso: Pet Clinic do discovery à implementação", async () => {
   const { app, page, erros } = await abrirApp(petclinic, dataDir);
   const avaliacoes: Avaliacao[] = [];
   const diario: string[] = [];
-  const ctx: Contexto = { page, saida, petclinic, estado: { wireframe: "" } };
+  const custos: [string, number][] = [];
+  const ctx: Contexto = { page, saida, petclinic, estado: { wireframe: "", daSpec: [] } };
 
   try {
     await associarRepositorio(page, saida);
@@ -283,12 +313,15 @@ test("uso: Pet Clinic do discovery à implementação", async () => {
       const r = await executarPasso(passo, ctx);
       avaliacoes.push(r.avaliacao);
       diario.push(r.diario);
+      custos.push([passo.id, r.custo]);
     }
   } catch (err) {
     falhas.push(`roteiro interrompido: ${err instanceof Error ? err.message : String(err)}`);
     await page.screenshot({ path: join(saida, "erro.png") }).catch(() => {});
   } finally {
-    const custoApp = (await page.getByTestId("agent-cost").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const custoApp = await conversa(page)
+      .then((v) => `${v.model}: ${custoDe(v)}; por passo: ${custos.map(([id, c]) => `${id} ${usd(c)}`).join(", ")}`)
+      .catch(() => "");
     await app.close().catch(() => {});
     if (erros.length) falhas.push(`erros no console: ${[...new Set(erros)].slice(0, 5).join(" | ")}`);
     await escreverRelatorio({ saida, inicio, commit, avaliacoes, diario, custoApp });
