@@ -60,30 +60,37 @@ export async function prepareLayer(modeId: string, request: string, deps: Deps):
   const snap = deps.snapshot();
   const layers = snap.layers ?? [];
   const active = layers.find((l) => l.id === snap.navigation.activeLayerId);
-  if (modeId === "planejamento") {
-    // Continuação de uma etapa: a especificação ativa continua sendo o destino.
-    if (!asksForPlanning(request)) return active && isSpec(active) ? locked(active, "spec") : undefined;
-    const name = SPEC_PREFIX + specSubject(request);
-    const existing = layers.find((l) => isSpec(l) && !l.parentId && normalized(l.name) === normalized(name));
-    if (existing) return activate(existing, deps).then((l) => l && locked(l, "spec"));
-    const anchor = baseAnchor(snap);
-    if (!anchor) return undefined;
-    const layer = await create(deps, { name, anchors: [anchor] });
-    return layer && locked(layer, "spec");
-  }
-  if (modeId === "implementacao") {
-    const spec = specOf(layers, active);
-    if (!spec) return undefined;
-    const child = layers.find((l) => l.parentId === spec.id && isImpl(l));
-    if (child) return activate(child, deps).then((l) => l && locked(l, "impl", spec));
-    const diagrams = spec.members.filter((m) => m.id.startsWith("dgm_")).map((m) => snap.diagrams.find((d) => d.id === m.id)).filter((d) => d !== undefined);
-    const anchor = (diagrams.find((d) => d.kind === "bpmn") ?? diagrams[0])?.id ?? spec.anchors[0];
-    if (!anchor) return undefined;
-    const layer = await create(deps, { name: IMPL_PREFIX + subjectOfLayer(spec), parentId: spec.id, anchors: [anchor] });
-    return layer && locked(layer, "impl", spec);
-  }
+  if (modeId === "planejamento") return prepareSpec(request, snap, active, deps);
+  if (modeId === "implementacao") return prepareImpl(snap, active, deps);
   return undefined;
 }
+
+async function prepareSpec(request: string, snap: WorkspaceSnapshot, active: Layer | undefined, deps: Deps): Promise<PreparedLayer | undefined> {
+  const layers = snap.layers ?? [];
+  // Continuação de uma etapa: a especificação ativa continua sendo o destino.
+  if (!asksForPlanning(request)) return active && isSpec(active) ? locked(active, "spec") : undefined;
+  const name = SPEC_PREFIX + specSubject(request);
+  const existing = layers.find((l) => isSpec(l) && !l.parentId && normalized(l.name) === normalized(name));
+  if (existing) return activate(existing, deps).then((l) => l && locked(l, "spec"));
+  const anchor = baseAnchor(snap);
+  if (!anchor) return undefined;
+  const layer = await create(deps, { name, anchors: [anchor] });
+  return layer && locked(layer, "spec");
+}
+
+async function prepareImpl(snap: WorkspaceSnapshot, active: Layer | undefined, deps: Deps): Promise<PreparedLayer | undefined> {
+  const layers = snap.layers ?? [];
+  const spec = specOf(layers, active);
+  if (!spec) return undefined;
+  const child = layers.find((l) => l.parentId === spec.id && isImpl(l));
+  if (child) return activate(child, deps).then((l) => l && locked(l, "impl", spec));
+  const diagrams = spec.members.filter((m) => m.id.startsWith("dgm_")).map((m) => snap.diagrams.find((d) => d.id === m.id)).filter((d) => d !== undefined);
+  const anchor = (diagrams.find((d) => d.kind === "bpmn") ?? diagrams[0])?.id ?? spec.anchors[0];
+  if (!anchor) return undefined;
+  const layer = await create(deps, { name: IMPL_PREFIX + subjectOfLayer(spec), parentId: spec.id, anchors: [anchor] });
+  return layer && locked(layer, "impl", spec);
+}
+
 
 /** A especificação da implementação: a ativa, a mãe da implementação ativa, ou a usada por último. */
 function specOf(layers: Layer[], active: Layer | undefined): Layer | undefined {
