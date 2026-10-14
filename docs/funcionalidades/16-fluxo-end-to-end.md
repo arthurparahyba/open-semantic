@@ -62,7 +62,19 @@ Fora do MVP: os demais fluxos (atualização, listagem, compra, histórico), bac
 - Quanto da camada 2 copiar para a base: tudo, ou só o que o usuário escolher.
 
 ## Primeira entrega
-- **Modo Implementação** (`packages/core/src/modes/index.ts`): ativa com "Preparar a implementação", "quero implementar isso", "Implementar", "Validar os critérios", "Levar para a base" (e mensagens curtas logo depois). Conduz quatro etapas: preparar (camada filha da especificação com definição, restrições e tabela de critérios derivados dos diagramas), implementar (`project.write_file`, com as confirmações de sempre), validar (status na tabela e no diagrama) e levar para a base (`layer.remove_members`).
+- **Modo Implementação** (`packages/core/src/modes/index.ts`): ativa com "Preparar a implementação", "quero implementar isso", "Implementar", "Validar os critérios", "Levar para a base" (e mensagens curtas logo depois). Conduz quatro etapas: preparar (camada filha da especificação com definição, restrições e tabela de critérios derivados dos diagramas), implementar (removido depois, ver abaixo), validar (status na tabela e no diagrama) e levar para a base (`layer.remove_members`).
 - **Planejamento em etapas** conhece os dois casos da camada 2 e, numa mudança sobre o existente, marca a diferença em relação à base.
 - **Ferramenta `mark_diagram`**: marca nós sem redesenhar (`novo`, `muda`, `remove`, `pendente`, `passou`, `falhou`), por id ou rótulo. A marca fica em `attributes.mark` e continua quando o diagrama é redesenhado.
 - **Canvas**: nós marcados ganham cor (verde novo/passou, amarelo muda, vermelho remove/falhou, cinza pendente; o que sai fica riscado) e uma legenda no rodapé do diagrama.
+
+## Mudança de direção: o app refina, o agente de código implementa
+Decisão do Arthur: o Open Semantic não implementa, não cria arquivos, não roda comandos e não abre terminal. Implementar exige um agente de código completo (branch, modelo, dúvidas, acompanhamento), e essa responsabilidade não é do app. A entrega que criava arquivos e rodava comandos (PR #38) foi revertida.
+
+- **A camada 3 é só refinamento:** definição, restrições e critérios de aceite. O modo Implementação não altera arquivos do projeto.
+- **A camada vira markdown sozinha:** toda camada chamada "Implementação: <assunto>" é gravada em `specs/<assunto>.md` na raiz do repositório, a cada mudança. A conversão é programática (`packages/workspace-store/src/specs.ts`), sem modelo e sem inventar conteúdo:
+  - blocos na ordem do canvas: heading vira `##`, texto vira parágrafo, lista vira lista, tabela vira tabela markdown;
+  - diagramas em Mermaid quando o tipo permite: bpmn, flow, architecture e layers viram `flowchart` (raias e faixas como `subgraph`), sequence vira `sequenceDiagram`, er vira `erDiagram`; wireframe e tree viram uma lista aninhada com o tipo de cada elemento;
+  - as marcas dos nós (novo, muda, sai, pendente, passou, falhou) aparecem como lista embaixo do diagrama;
+  - no fim, os diagramas da camada mãe (a especificação), de onde vêm os critérios.
+- **O usuário entrega o arquivo ao agente de código que preferir** (Claude Code, Cursor etc.).
+- **Validar continua no app:** quando o usuário diz que implementou, o agente lê o código e marca os critérios (passou ou falhou) na tabela e nos diagramas. Levar para a base também continua.

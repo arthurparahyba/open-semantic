@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { contractValidator, describeErrors, type WorkspaceSnapshot } from "@open-semantic/protocol";
 
 import { dropOrphanBlocks } from "./orphanBlocks.js";
+import { SpecWriter, specFiles } from "./specs.js";
 import { REPO_DIR, RepoWriter, mergeRepoContent, readRepoContent, rootPathOfProject, splitSnapshot, statPaths, storesInRepo } from "./repoStore.js";
 import type { WorkspaceStore } from "./store.js";
 
@@ -53,6 +54,8 @@ export class FileWorkspacePersistence implements WorkspacePersistence {
  */
 export class WorkspaceFolderPersistence implements WorkspacePersistence {
   readonly writer = new RepoWriter();
+  /** A camada de implementação vira `specs/<assunto>.md` no repositório (doc 16). */
+  readonly specs = new SpecWriter();
   /** Problemas encontrados ao ler os repositórios (arquivo inválido etc.), para avisar o usuário. */
   readonly problems: string[] = [];
   private seq = 0;
@@ -121,6 +124,7 @@ export class WorkspaceFolderPersistence implements WorkspacePersistence {
 
   async save(snapshot: WorkspaceSnapshot): Promise<void> {
     const { workspace, repos } = splitSnapshot(snapshot);
+    const specs = specFiles(snapshot);
     await mkdir(join(this.workspaceDir, REPO_DIR), { recursive: true });
     const tmp = `${this.file}.${process.pid}.tmp`;
     await writeFile(tmp, JSON.stringify(workspace, null, 2) + "\n", "utf8");
@@ -134,6 +138,7 @@ export class WorkspaceFolderPersistence implements WorkspacePersistence {
       if (!(await stat(rootPath).catch(() => undefined))?.isDirectory()) continue;
       try {
         await this.writer.write(rootPath, content);
+        await this.specs.write(rootPath, specs.get(project.id) ?? []);
       } catch (err) {
         failures.push(`${project.name}: ${(err as Error).message}`);
       }
