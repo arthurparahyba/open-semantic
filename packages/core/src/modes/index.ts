@@ -174,10 +174,8 @@ export const IMPLEMENTATION_MODE: ExecutionMode = {
     "e uma table \"Critérios de aceite\" com as colunas Critério, Origem, Status. Derive os critérios dos diagramas: cada caminho do bpmn (o feliz e cada exceção) vira um cenário dado/quando/então; " +
     "cada wireframe vira uma verificação de tela (abrir, ver os campos, executar a ação); cada tabela do er vira uma checagem de banco; cada sequence, uma verificação de endpoint. " +
     "Na coluna Origem ponha o id do diagrama e do nó (dgm_x / nd_y); o Status começa pendente. Depois marque com mark_diagram os nós de origem como pendente. " +
-    "2) Implementar: leia o código necessário e, num só run_batch (um cartão de confirmação), crie os arquivos novos com project.create_file e mude os existentes com project.write_file, " +
-    "seguindo as restrições; inclua os testes automáticos que cobrem os critérios, no padrão de testes do projeto. Diga em uma frase o que mudou. " +
-    "3) Validar: rode os testes do projeto com project.run_command (o comando que o projeto usa, por exemplo ./mvnw test ou npm test; timeoutMs até 600000) e leia a saída; " +
-    "o que os testes não cobrem, confira lendo o código. Reescreva a tabela com o Status (passou ou falhou, com o motivo curto) " +
+    "2) Implementar: leia o código necessário e escreva os arquivos com project.write_file (run_batch), seguindo as restrições; diga em uma frase o que mudou. " +
+    "3) Validar: confira cada critério contra o código (e os testes do projeto, quando houver); reescreva a tabela com o Status (passou ou falhou, com o motivo curto) " +
     "e marque os nós de origem com mark_diagram: passou só quando todos os critérios daquele nó passaram, falhou se algum falhou. " +
     "4) Levar para a base: com tudo aprovado, tire as marcas de diferença (novo, muda) dos diagramas da especificação e mova-os para a base com layer.remove_members; " +
     "as camadas de especificação e implementação ficam como histórico. " +

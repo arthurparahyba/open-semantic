@@ -47,8 +47,7 @@ Caminhos relativos são validados no schema (`ProjectRelativePath`: sem `/` inic
 | `project.write_file` | `artifactId` ou `rootId`+`path`, `content`, pré-condição `artifact_unchanged` | novo fingerprint | Sim (mesmo conteúdo) | write | Sim |
 | `project.move` | `artifactId`, `toPath` | mesmo `artifactId`, novo locator | Sim | write | Sim |
 | `project.delete` | `artifactId` | — | Sim | delete | Sim, risco alto |
-| `project.create_file` | `rootId`, `path`, `content` | `artifactId` + fingerprint (recusa se existe) | Não | write | Sim |
-| `project.run_command` | `rootId`, `command`, `cwd?`, `timeoutMs?` | `exitCode`, `timedOut`, fim da saída | **Não** | execute (ou `confirm_all`) | `commandPolicy` |
+| `project.run_command` | `cwdArtifactId`, `command`, `timeoutMs` | `artifactId` do processo | **Não** | execute | `commandPolicy` |
 | `project.kill_process` | `artifactId` | — | Sim | execute | Não |
 | `project.revalidate` | `artifactIds?` (todos se vazio) | mudanças de validade | Sim | read | Não |
 

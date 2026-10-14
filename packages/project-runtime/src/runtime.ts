@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
@@ -22,18 +21,6 @@ export interface DirEntry {
   path: string;
   kind: "directory" | "file";
 }
-
-export interface CommandResult {
-  exitCode: number;
-  timedOut: boolean;
-  durationMs: number;
-  /** O fim da saída (stdout e stderr juntos), onde ficam os resultados dos testes. */
-  output: string;
-  truncated: boolean;
-}
-
-const MAX_COMMAND_MS = 10 * 60_000;
-const MAX_OUTPUT_CHARS = 8_000;
 
 export interface RuntimeOptions {
   now?: () => Date;
@@ -272,69 +259,6 @@ export class ProjectRuntime {
     return fp;
   }
 
-  /**
-   * Cria um arquivo novo (e as pastas do caminho). Recusa se o arquivo já existe: para mudar um arquivo
-   * existente, o caminho é project.write_file com o hash lido.
-   */
-  async createFile(
-    { projectId, rootId, path }: { projectId: string; rootId: string; path: string },
-    content: string,
-    { actor, operationId }: { actor: Actor; operationId?: string },
-  ): Promise<{ artifact: ArtifactReference; fingerprint: Fingerprint }> {
-    const { project } = this.rootOf(projectId, rootId, "write");
-    const normalized = normalize(path);
-    const slash = normalized.lastIndexOf("/");
-    if (slash > 0) await this.createDir(projectId, rootId, normalized.slice(0, slash), actor, operationId);
-    const abs = await this.safeAbsolute(project, rootId, normalized, { mustExist: false });
-    await writeFile(abs, content, { encoding: "utf8", flag: "wx" }).catch((err: NodeJS.ErrnoException) => {
-      if (err.code === "EEXIST") throw new OperationError("PRECONDITION_FAILED", `'${normalized}' já existe; use project.write_file.`, { argumentPath: "/path" });
-      throw err;
-    });
-    const artifact = await this.resolve(projectId, rootId, normalized, actor, operationId);
-    return { artifact, fingerprint: await fingerprint(abs, true) };
-  }
-
-  /**
-   * Roda um comando na raiz (ou numa pasta dela) e devolve o código de saída e o fim da saída.
-   * Quem decide se pode é a política de comandos da raiz: deny_all recusa; nos outros modos o agente
-   * só chega aqui depois de o usuário aprovar o comando exato no cartão de confirmação.
-   */
-  async runCommand(projectId: string, rootId: string, command: string, opts: { cwd?: string; timeoutMs?: number } = {}): Promise<CommandResult> {
-    const { project, root } = this.rootOf(projectId, rootId);
-    const mode = root.commandPolicy?.mode ?? "confirm_all";
-    if (mode === "deny_all") throw new OperationError("UNAUTHORIZED", `A raiz ${rootId} não executa comandos.`, { targetId: rootId });
-    if (mode !== "confirm_all" && !root.capabilities.includes("execute")) {
-      throw new OperationError("UNAUTHORIZED", `A raiz ${rootId} não concede 'execute'.`, { targetId: rootId });
-    }
-    const cwd = await this.safeAbsolute(project, rootId, normalize(opts.cwd ?? ""), { mustExist: true });
-    const timeoutMs = Math.min(opts.timeoutMs ?? 120_000, MAX_COMMAND_MS);
-    const started = Date.now();
-    return new Promise((resolvePromise, reject) => {
-      // Grupo próprio: no tempo limite, o shell e tudo o que ele abriu (mvn, java, node) param juntos.
-      const child = spawn(command, { cwd, shell: true, env: process.env, windowsHide: true, detached: process.platform !== "win32" });
-      let output = "";
-      const keep = (chunk: Buffer) => {
-        output = (output + chunk.toString("utf8")).slice(-MAX_OUTPUT_CHARS * 2);
-      };
-      child.stdout.on("data", keep);
-      child.stderr.on("data", keep);
-      let timedOut = false;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        killTree(child.pid);
-      }, timeoutMs);
-      child.on("error", (err) => {
-        clearTimeout(timer);
-        reject(new OperationError("INTERNAL", `Não consegui rodar o comando: ${err.message}`, { retryable: false }));
-      });
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        const truncated = output.length > MAX_OUTPUT_CHARS;
-        resolvePromise({ exitCode: code ?? -1, timedOut, durationMs: Date.now() - started, output: truncated ? output.slice(-MAX_OUTPUT_CHARS) : output, truncated });
-      });
-    });
-  }
-
   /** Pré-condição artifact_unchanged: compara o hash atual com o esperado. */
   async isUnchanged(artifactId: string, expected: Fingerprint): Promise<boolean> {
     const { project, rootId, path, artifact } = this.locate(artifactId);
@@ -420,16 +344,6 @@ function normalize(path: string): string {
 
 function hash(data: Buffer): string {
   return "sha256:" + createHash("sha256").update(data).digest("hex");
-}
-
-function killTree(pid: number | undefined) {
-  if (pid === undefined) return;
-  try {
-    if (process.platform === "win32") spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true });
-    else process.kill(-pid, "SIGKILL");
-  } catch {
-    // já terminou
-  }
 }
 
 async function fingerprint(abs: string, withHash: boolean): Promise<Fingerprint> {
