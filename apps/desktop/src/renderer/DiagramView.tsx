@@ -145,6 +145,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
               );
             })
           : diagram.edges.map((edge) => {
+              const nthOut = (e: typeof edge) => diagram.edges.filter((o) => o.sourceNodeId === e.sourceNodeId).indexOf(e);
               const a = rectOf(edge.sourceNodeId);
               const b = rectOf(edge.targetNodeId);
               if (!a || !b) return null;
@@ -156,14 +157,14 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
                 <g key={edge.id} className={`diagram-edge q-${quality}${highlightIds.has(edge.id) ? " is-highlighted" : ""}`} data-edge-id={edge.id}>
                   <title>{`${edge.label ?? "relação"} · ${QUALITY_LABEL[quality]}`}</title>
                   {diagram.kind === "bpmn" ? (
-                    <path d={bpmnRoute(a, b).d} fill="none" markerEnd={`url(#arrow-${diagram.id})`} />
+                    <path d={bpmnRoute(a, b, nthOut(edge)).d} fill="none" markerEnd={`url(#arrow-${diagram.id})`} />
                   ) : tree ? (
                     <path d={elbow(a, b)} fill="none" />
                   ) : (
                     <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={`url(#arrow-${diagram.id})`} />
                   )}
                   {edge.label && (
-                    <text x={diagram.kind === "bpmn" ? bpmnRoute(a, b).label.x : mid.x} y={diagram.kind === "bpmn" ? bpmnRoute(a, b).label.y : mid.y - 6} textAnchor="middle" className="diagram-edge-label">
+                    <text x={diagram.kind === "bpmn" ? bpmnRoute(a, b, nthOut(edge)).label.x : mid.x} y={diagram.kind === "bpmn" ? bpmnRoute(a, b, nthOut(edge)).label.y : mid.y - 6} textAnchor="middle" className="diagram-edge-label">
                       {edge.label}
                     </text>
                   )}
@@ -405,21 +406,27 @@ function BpmnLanes({ diagram, width }: { diagram: DiagramModel; width: number })
  * Seta do BPMN em ângulos retos: para a frente, sai pela direita e entra pela esquerda; voltando no fluxo,
  * desce, passa por baixo das células e sobe até o elemento. O rótulo fica no primeiro trecho.
  */
-function bpmnRoute(a: Rect, b: Rect): { d: string; label: Point } {
+/**
+ * `nth`: a ordem desta seta entre as que saem do mesmo elemento. As saídas de uma decisão (sim/não) começavam no
+ * mesmo ponto e os rótulos se fundiam: o rótulo vai para o trecho que chega no destino, e as voltas descem em
+ * faixas diferentes.
+ */
+function bpmnRoute(a: Rect, b: Rect, nth = 0): { d: string; label: Point } {
   const ay = a.position.y + a.size.height / 2;
   const by = b.position.y + b.size.height / 2;
   const x1 = a.position.x + a.size.width;
   const x2 = b.position.x;
   if (x2 > x1) {
     const mx = Math.round((x1 + x2) / 2);
-    return { d: `M ${x1} ${ay} H ${mx} V ${by} H ${x2 - 2}`, label: { x: (x1 + mx) / 2, y: ay - 6 } };
+    const label = Math.abs(by - ay) > 4 ? { x: (mx + x2) / 2, y: by - 6 } : { x: (x1 + mx) / 2, y: ay - 6 };
+    return { d: `M ${x1} ${ay} H ${mx} V ${by} H ${x2 - 2}`, label };
   }
   const acx = a.position.x + a.size.width / 2;
   const bcx = b.position.x + b.size.width / 2;
-  const below = Math.max(bpmnCellTop(a), bpmnCellTop(b)) + BPMN_ROW - 6;
+  const below = Math.max(bpmnCellTop(a), bpmnCellTop(b)) + BPMN_ROW - 6 - nth * 12;
   return {
     d: `M ${acx} ${a.position.y + a.size.height} V ${below} H ${bcx} V ${b.position.y + b.size.height + 2}`,
-    label: { x: (acx + bcx) / 2, y: below - 4 },
+    label: { x: (acx + bcx) / 2 + nth * 24, y: below - 4 },
   };
 }
 

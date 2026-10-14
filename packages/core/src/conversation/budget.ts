@@ -58,6 +58,11 @@ export class TurnBudget {
     return this.batches > 0;
   }
 
+  /** A próxima chamada é a última que o limite de chamadas deixa. */
+  get lastCall(): boolean {
+    return this.modelCalls === this.limits.maxModelCalls - 1;
+  }
+
   /** Uma chamada ao modelo. */
   record(usage: Usage, costUsd: number) {
     this.usage = addUsage(this.usage, usage);

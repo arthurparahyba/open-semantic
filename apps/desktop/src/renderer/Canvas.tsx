@@ -9,7 +9,7 @@ import { api, run } from "./client.js";
 
 export interface CanvasHandle {
   /** Enquadra os objetos (todos, se ids vazio) com animação. */
-  frame(ids?: string[], intent?: FrameOptions["intent"]): void;
+  frame(ids?: string[], intent?: FrameOptions["intent"], options?: { readable?: boolean }): void;
   zoomBy(factor: number): void;
   viewportCenter(): Point;
   /**
@@ -164,12 +164,12 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
   useImperativeHandle(
     handle,
     () => ({
-      frame(ids = [], intent = "focus") {
+      frame(ids = [], intent = "focus", options = {}) {
         userTakesOver();
         const pool = ids.length ? objects.filter((o) => ids.includes(o.id)) : objects;
         const rects = pool.map((o) => ({ position: o.position, size: o.collapsed ? { width: o.size.width, height: 40 } : o.size }));
         if (!ids.length) rects.push(...snapshot.canvas.regions.map((r) => r.bounds), ...contextGroups(snapshot).map((g) => g.bounds));
-        const target = computeFrame(rects, viewport, { intent, padding: 64 });
+        const target = computeFrame(rects, viewport, { intent, padding: 64, ...(options.readable ? { readableZoom: READABLE_ZOOM } : {}) });
         if (target) animateTo(target, { persist: true });
       },
       zoomBy(factor) {
@@ -395,6 +395,9 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
     </div>
   );
 }
+
+/** Abaixo disto o texto dos cards não se lê (o teste de uso entrava na implementação a 18%). */
+const READABLE_ZOOM = 0.55;
 
 /** Controles que flutuam sobre o canvas; o que eles cobrem nas bordas não serve para enquadrar. */
 const OVERLAYS = [".chat-bottom", ".layers", ".hint"];

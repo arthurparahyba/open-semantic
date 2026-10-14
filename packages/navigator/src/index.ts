@@ -17,6 +17,11 @@ export interface FrameOptions {
    * detail: permite ampliar até maxZoom. overview: limita a zoom 0.6 para dar contexto.
    */
   intent?: "overview" | "focus" | "detail" | "compare";
+  /**
+   * Zoom mínimo para o texto ser lido. Quando os alvos não cabem nele, a câmera fica nesse zoom e mostra o
+   * começo (canto de cima à esquerda), como uma página, em vez de encolher tudo até ficar ilegível.
+   */
+  readableZoom?: number;
 }
 
 export const ZOOM_LIMITS = { min: 0.05, max: 8 } as const;
@@ -57,6 +62,16 @@ export function computeFrame(rects: Rect[], viewport: Viewport, options: FrameOp
   const zoom = clamp(fit, minZoom, Math.max(maxZoom, minZoom));
 
   // O centro da área livre fica deslocado do centro da tela; a câmera compensa.
+  if (options.readableZoom && zoom < options.readableZoom) {
+    const z = round(options.readableZoom);
+    const halfW = availableW / 2 / z;
+    const halfH = availableH / 2 / z;
+    const cx = box.size.width / 2 > halfW ? box.position.x + halfW : box.position.x + box.size.width / 2;
+    return {
+      center: { x: cx - (inset.left - inset.right) / 2 / z, y: box.position.y + halfH - (inset.top - inset.bottom) / 2 / z },
+      zoom: z,
+    };
+  }
   const z = round(zoom);
   return {
     center: { x: box.position.x + box.size.width / 2 - (inset.left - inset.right) / 2 / z, y: box.position.y + box.size.height / 2 - (inset.top - inset.bottom) / 2 / z },
@@ -103,7 +118,9 @@ export function isVisible(rect: Rect, camera: Camera, viewport: Viewport): boole
   const a = worldToScreen(rect.position, camera, viewport);
   const b = worldToScreen({ x: rect.position.x + rect.size.width, y: rect.position.y + rect.size.height }, camera, viewport);
   const eps = 1e-6;
-  return a.x >= -eps && a.y >= -eps && b.x <= viewport.width + eps && b.y <= viewport.height + eps;
+  // Embaixo de um controle flutuante não conta como visível.
+  const i = viewport.insets ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  return a.x >= i.left - eps && a.y >= i.top - eps && b.x <= viewport.width - i.right + eps && b.y <= viewport.height - i.bottom + eps;
 }
 
 function clamp(v: number, min: number, max: number) {
