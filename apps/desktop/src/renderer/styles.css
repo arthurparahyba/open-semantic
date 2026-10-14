@@ -252,6 +252,16 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 }
 .legend-solid, .legend-dashed { display: inline-block; width: 18px; border-top: 2px solid var(--text-2); }
 .legend-dashed { border-top-style: dashed; margin-left: 8px; }
+/* Marcas (doc 16): diferença em relação à base e status dos critérios de aceite. */
+.diagram-node[class*=" m-"] rect, .diagram-node[class*=" m-"] .bpmn-event, .diagram-node[class*=" m-"] .bpmn-gateway { stroke: var(--mark); stroke-width: 2.5; fill: color-mix(in srgb, var(--mark) 16%, var(--surface-2)); }
+.m-novo, .m-passou { --mark: #2e9d5b; }
+.m-muda { --mark: #c99a16; }
+.m-remove, .m-falhou { --mark: #d0453a; }
+.m-pendente { --mark: #6b7a90; }
+.diagram-node.m-remove .diagram-node-label { text-decoration: line-through; }
+.diagram-node.m-remove { opacity: 0.7; }
+.legend-mark { display: inline-flex; align-items: center; gap: 4px; }
+.legend-mark::before { content: ""; width: 10px; height: 10px; border-radius: 2px; border: 2px solid var(--mark); background: color-mix(in srgb, var(--mark) 16%, transparent); }
 
 /* Painel do agente */
 .agent-panel {

@@ -113,6 +113,10 @@ export const PLANNING_MODE: ExecutionMode = {
     "com os nomes no padrão do projeto. 4) Dados: diagrama er com as tabelas novas e as que elas usam, com colunas e relações. " +
     "Cada etapa fica na mesma camada, embaixo da anterior. Na continuação, use o diagrama e a camada da etapa anterior que estão no <workspace>. " +
     "O que ainda não existe no código é suposição (sem path). " +
+    "Uma especificação é de um de dois casos. Cenário novo: algo sem equivalente no sistema; os diagramas são novos, no padrão do projeto. " +
+    "Mudança sobre o existente: parta do diagrama da base sobre o assunto (mesmos nomes) e, depois de desenhar, use mark_diagram para mostrar a diferença: " +
+    "novo no que entra, muda no que é alterado, remove no que sai; o que fica igual não leva marca. " +
+    "Quando o usuário disser que quer implementar, sugira nos próximos passos \"Preparar a implementação\". " +
     "Termine sempre com uma legenda de uma ou duas frases que pergunta se é isso, e na última linha: " +
     '"Próximos passos: <opção 1> | <opção 2> | <opção 3>" (ações curtas, como "Seguir para a interface" ou "Ajustar o processo").',
 };
@@ -138,4 +142,45 @@ export const BROAD_MODE: ExecutionMode = {
     "Leia o suficiente para cada parte, sem ler o repositório inteiro. A legenda final resume em duas frases e cita as seções.",
 };
 
-export const BUILTIN_MODES: ExecutionMode[] = [BRIEF_MODE, BROAD_MODE, PLANNING_MODE];
+const IMPLEMENTATION = [
+  /\b(preparar|prepare|comecar|vamos para|partir para|ir para) a implementacao\b/,
+  /\b(quero|vamos|pode|podemos|bora) (agora )?(realmente )?(implementar|executar a implementacao)\b(?! (uma|um|novas?|novos?)\b)/,
+  /^(implementar|implemente)\b(?! (uma|um|novas?|novos?)\b)/,
+  /\bcriterios de aceite\b/,
+  /\b(validar|valide|verificar|verifique|revalidar) (os |todos os )?criterios\b/,
+  /\b(levar|leve|incorporar|incorpore) (isso |a mudanca |tudo )?(para|na|a) (a )?base\b/,
+];
+
+/** O pedido é para implementar o que foi especificado (ou validar e fechar a implementação)? */
+export function asksForImplementation(message: string): boolean {
+  const text = normalized(message);
+  return IMPLEMENTATION.some((re) => re.test(text));
+}
+
+/** Implementação: alvo e validação, a partir da especificação (docs/funcionalidades/16-fluxo-end-to-end.md). */
+export const IMPLEMENTATION_MODE: ExecutionMode = {
+  id: "implementacao",
+  name: "Implementação",
+  activatesWhen: (message, state) => asksForImplementation(message) || (state.previous === "implementacao" && continues(message)),
+  cadence: "steps",
+  nextSteps: ["Implementar", "Validar os critérios", "Levar para a base"],
+  limits: (base) => ({ ...base, maxModelCalls: Math.round(base.maxModelCalls * 2), maxBatches: base.maxBatches + 6 }),
+  instructions:
+    "[app] Modo: implementação. Não é um plano passo a passo: é o alvo e como saber que chegou lá. Cada pedido é UMA etapa: " +
+    "1) Preparar: a partir dos diagramas da camada de especificação (bpmn, wireframe, sequence, er no <workspace>), abra uma camada filha dela com layer.create " +
+    "(parentId = a camada da especificação, anchors = o diagrama de processo, nome \"Implementação: <assunto>\"). Para cada funcionalidade, use show_blocks: " +
+    "um heading com o nome; um text com a intenção em uma ou duas frases; uma list com os passos focados no resultado (o que o usuário vê, não como codificar); " +
+    "uma list \"Restrições do projeto\" com o padrão lido na base (camadas da arquitetura, telas parecidas, banco); " +
+    "e uma table \"Critérios de aceite\" com as colunas Critério, Origem, Status. Derive os critérios dos diagramas: cada caminho do bpmn (o feliz e cada exceção) vira um cenário dado/quando/então; " +
+    "cada wireframe vira uma verificação de tela (abrir, ver os campos, executar a ação); cada tabela do er vira uma checagem de banco; cada sequence, uma verificação de endpoint. " +
+    "Na coluna Origem ponha o id do diagrama e do nó (dgm_x / nd_y); o Status começa pendente. Depois marque com mark_diagram os nós de origem como pendente. " +
+    "2) Implementar: leia o código necessário e escreva os arquivos com project.write_file (run_batch), seguindo as restrições; diga em uma frase o que mudou. " +
+    "3) Validar: confira cada critério contra o código (e os testes do projeto, quando houver); reescreva a tabela com o Status (passou ou falhou, com o motivo curto) " +
+    "e marque os nós de origem com mark_diagram: passou só quando todos os critérios daquele nó passaram, falhou se algum falhou. " +
+    "4) Levar para a base: com tudo aprovado, tire as marcas de diferença (novo, muda) dos diagramas da especificação e mova-os para a base com layer.remove_members; " +
+    "as camadas de especificação e implementação ficam como histórico. " +
+    "Se a especificação mudou depois dos critérios, diga quais ficaram desatualizados e ofereça regerar. " +
+    "Termine com uma legenda curta e, na última linha, \"Próximos passos: <opção 1> | <opção 2> | <opção 3>\".",
+};
+
+export const BUILTIN_MODES: ExecutionMode[] = [BRIEF_MODE, BROAD_MODE, PLANNING_MODE, IMPLEMENTATION_MODE];

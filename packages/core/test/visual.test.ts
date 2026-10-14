@@ -370,6 +370,30 @@ describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
     expect(diagram.edges).toHaveLength(5);
   });
 
+  it("marca nós de um diagrama sem redesenhar e a marca sobrevive a um redesenho (doc 16)", async () => {
+    const input = {
+      diagramId: "dgm_minhaapp_marcas",
+      title: "Cadastro de produto",
+      kind: "bpmn",
+      why: "processo",
+      caption: "O lojista preenche e o sistema salva.",
+      source: "i[Início]:start\nf[Preencher produto]:task\nsalvar[Salvar]:task\nfim[Cadastrado]:end\ni --> f\nf --> salvar\nsalvar --> fim",
+    };
+    await draw("desenhe o processo de negócio do cadastro de produtos", input);
+    const provider = new FakeProvider([() => ({ toolCalls: [call("mark_diagram", { diagramId: input.diagramId, marks: { nd_salvar: "passou", "Preencher produto": "falhou", nada: "novo" } })] }), () => ({ text: "Marcado." })]);
+    await conversation(provider).send("valide os critérios");
+    const result = lastToolResult(provider.requests[1]!);
+    expect(result.status, JSON.stringify(result, null, 1)).toBe("completed");
+    expect(result.notes).toEqual(["Não achei no diagrama: nada."]);
+    const markOf = (label: string) => core.store.snapshot().diagrams.find((d) => d.id === input.diagramId)!.nodes.find((n) => n.label === label)!.attributes?.mark;
+    expect(markOf("Salvar")).toBe("passou");
+    expect(markOf("Preencher produto")).toBe("falhou");
+    expect(markOf("Início")).toBeUndefined();
+
+    await draw("desenhe o processo de negócio do cadastro de produtos", { ...input, source: input.source.replace("[Salvar]", "[Salvar produto]") });
+    expect(markOf("Salvar produto")).toBe("passou");
+  });
+
   it("bpmn com raias: uma faixa por ator, colunas na ordem do fluxo e a volta não empurra ninguém", async () => {
     const { diagram } = await draw("desenhe o processo de negócio do cadastro de produtos", {
       diagramId: "dgm_minhaapp_processo_raias",

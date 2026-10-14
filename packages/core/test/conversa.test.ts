@@ -425,7 +425,7 @@ describe("Conversa com o agente de IA", () => {
     await conv.send("o que tem aqui?", { mode: "ampla" });
     expect(JSON.stringify(provider.requests[1]!.messages.at(-1))).toContain("Modo: explicação ampla");
     expect(conv.view().entries.at(-1)).toMatchObject({ kind: "assistant", mode: { id: "ampla", name: "Explicação ampla" } });
-    expect(conv.view().modes.map((m) => m.id)).toEqual(["breve", "ampla", "planejamento"]);
+    expect(conv.view().modes.map((m) => m.id)).toEqual(["breve", "ampla", "planejamento", "implementacao"]);
   });
 
   it("nova conversa zera o histórico e o custo", async () => {

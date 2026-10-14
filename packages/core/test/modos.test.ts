@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BUILTIN_MODES, ModeRegistry, asksForPlanning, splitNextSteps } from "../src/modes/index.js";
+import { BUILTIN_MODES, ModeRegistry, asksForImplementation, asksForPlanning, splitNextSteps } from "../src/modes/index.js";
 import { acceptsAll } from "../src/conversation/acceptAll.js";
 
 const modes = new ModeRegistry(BUILTIN_MODES);
@@ -29,6 +29,17 @@ describe("modos de execução", () => {
     expect(modes.pick("me explique o sistema inteiro").id).toBe("ampla");
     expect(modes.pick("quero entender a aplicação como um todo").id).toBe("ampla");
     expect(modes.pick("como funciona o cadastro de pet?").id).toBe("breve");
+  });
+
+  it("pedido de implementar o que foi especificado entra na implementação (doc 16)", () => {
+    expect(modes.pick("agora quero realmente implementar isso").id).toBe("implementacao");
+    expect(modes.pick("Preparar a implementação").id).toBe("implementacao");
+    expect(modes.pick("Implementar").id).toBe("implementacao");
+    expect(modes.pick("Validar os critérios").id).toBe("implementacao");
+    expect(modes.pick("Levar para a base").id).toBe("implementacao");
+    expect(modes.pick("Seguir", { previous: "implementacao" }).id).toBe("implementacao");
+    expect(asksForImplementation("quero implementar um crud de vacinas")).toBe(false);
+    expect(modes.pick("quero implementar um crud de vacinas").id).toBe("planejamento");
   });
 
   it("um modo registrado depois tem prioridade e o padrão continua sendo o primeiro", () => {
