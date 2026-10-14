@@ -52,3 +52,4 @@ export {
 export { blockHandlers, placeInFlow, type BlockHandlerDeps } from "./blockHandlers.js";
 export { layerHandlers, keepNewDiagramsInActiveLayer, BORN_IN_LAYER, elementExists, inLayer, mergeMembers, type LayerHandlerDeps } from "./layerHandlers.js";
 export { activeLayerOf, childMarks, hiddenObjects, layerTree, litObjects, type LayerMark, type LayerNode } from "./layerView.js";
+export { SPECS_DIR, SpecWriter, isSpecLayer, renderSpec, specFiles, specSlug } from "./specs.js";

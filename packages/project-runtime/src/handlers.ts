@@ -11,7 +11,7 @@ import type { ProjectRuntime } from "./runtime.js";
 const ref = (path: string) => ({ $ref: SCHEMA_BASE_URI + path });
 const artifactArg = { type: "object", required: ["artifactId"], properties: { artifactId: ref("common.schema.json#/$defs/ArtifactId") } };
 
-/** Operações do Project Runtime: leitura, gravação, criação de arquivo e comandos (doc 07). */
+/** Operações do Project Runtime disponíveis no M1 (leitura + gravação de arquivo existente). */
 export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
   return [
     {
@@ -130,67 +130,6 @@ export function projectHandlers(runtime: ProjectRuntime): OperationHandler[] {
           args.expectedContentHash as string | undefined,
         );
         return { output: { fingerprint }, changes: [{ id: args.artifactId as string, change: "updated" }] };
-      },
-    },
-    {
-      operation: "project.create_file",
-      agent: {
-        guide: "{projectId, rootId, path, content} creates a NEW file (and its folders) with this content (needs confirmation). Fails if the file exists: change an existing file with read_file then project.write_file.",
-        describe: (args) => `criar o arquivo ${String(args.path)}`,
-        confirm: (args) => ({ risk: "medium", summary: `Criar o arquivo ${String(args.path)} no projeto.`, reversible: false }),
-      },
-      argumentsSchema: {
-        type: "object",
-        required: ["projectId", "rootId", "path", "content"],
-        properties: {
-          projectId: ref("common.schema.json#/$defs/ProjectId"),
-          rootId: ref("common.schema.json#/$defs/RootId"),
-          path: ref("common.schema.json#/$defs/ProjectRelativePath"),
-          content: { type: "string" },
-        },
-        additionalProperties: false,
-      },
-      redact: (args) => ({ ...args, content: `[${String(args.content).length} caracteres]` }),
-      async handle(args, { request }) {
-        const target = { projectId: args.projectId as string, rootId: args.rootId as string, path: args.path as string };
-        const { artifact, fingerprint } = await runtime.createFile(target, args.content as string, {
-          actor: request.authorization.actor,
-          operationId: request.operationId,
-        });
-        return { output: { artifactId: artifact.id, fingerprint }, changes: [{ id: artifact.id, change: "created" }] };
-      },
-    },
-    {
-      // Comando no projeto (doc 07, política de comandos): o usuário aprova o comando exato e a pasta.
-      operation: "project.run_command",
-      agent: {
-        guide:
-          "{projectId, rootId, command, cwd?, timeoutMs?} runs a shell command in the project (needs confirmation), e.g. the project's tests (./mvnw test, npm test). cwd is a folder relative to the root. Output: exitCode, timedOut and the end of the output.",
-        describe: (args) => `rodar ${String(args.command)}`,
-        confirm: (args) => ({
-          risk: "high",
-          summary: `Rodar no projeto${args.cwd ? ` (pasta ${String(args.cwd)})` : ""}: ${String(args.command)}`.slice(0, 500),
-          reversible: false,
-        }),
-      },
-      argumentsSchema: {
-        type: "object",
-        required: ["projectId", "rootId", "command"],
-        properties: {
-          projectId: ref("common.schema.json#/$defs/ProjectId"),
-          rootId: ref("common.schema.json#/$defs/RootId"),
-          command: { type: "string", minLength: 1, maxLength: 1000 },
-          cwd: { type: "string" },
-          timeoutMs: { type: "integer", minimum: 1000, maximum: 600000 },
-        },
-        additionalProperties: false,
-      },
-      async handle(args) {
-        const result = await runtime.runCommand(args.projectId as string, args.rootId as string, args.command as string, {
-          ...(typeof args.cwd === "string" ? { cwd: args.cwd } : {}),
-          ...(typeof args.timeoutMs === "number" ? { timeoutMs: args.timeoutMs } : {}),
-        });
-        return { output: { ...result }, changes: [] };
       },
     },
   ];

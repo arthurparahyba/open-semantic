@@ -36,6 +36,7 @@ describe("modos de execução", () => {
     expect(modes.pick("Preparar a implementação").id).toBe("implementacao");
     expect(modes.pick("Implementar").id).toBe("implementacao");
     expect(modes.pick("Validar os critérios").id).toBe("implementacao");
+    expect(modes.pick("já implementei, pode validar").id).toBe("implementacao");
     expect(modes.pick("Levar para a base").id).toBe("implementacao");
     expect(modes.pick("Seguir", { previous: "implementacao" }).id).toBe("implementacao");
     expect(asksForImplementation("quero implementar um crud de vacinas")).toBe(false);

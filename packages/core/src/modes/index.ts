@@ -147,6 +147,7 @@ const IMPLEMENTATION = [
   /\b(quero|vamos|pode|podemos|bora) (agora )?(realmente )?(implementar|executar a implementacao)\b(?! (uma|um|novas?|novos?)\b)/,
   /^(implementar|implemente)\b(?! (uma|um|novas?|novos?)\b)/,
   /\bcriterios de aceite\b/,
+  /\b(ja )?implementei\b|\b(ja )?(foi|esta|ficou) implementad[oa]\b|\bterminei (a implementacao|de implementar)\b/,
   /\b(validar|valide|verificar|verifique|revalidar) (os |todos os )?criterios\b/,
   /\b(levar|leve|incorporar|incorpore) (isso |a mudanca |tudo )?(para|na|a) (a )?base\b/,
 ];
@@ -163,21 +164,21 @@ export const IMPLEMENTATION_MODE: ExecutionMode = {
   name: "Implementação",
   activatesWhen: (message, state) => asksForImplementation(message) || (state.previous === "implementacao" && continues(message)),
   cadence: "steps",
-  nextSteps: ["Implementar", "Validar os critérios", "Levar para a base"],
+  nextSteps: ["Refinar os critérios", "Validar os critérios", "Levar para a base"],
   limits: (base) => ({ ...base, maxModelCalls: Math.round(base.maxModelCalls * 2), maxBatches: base.maxBatches + 6 }),
   instructions:
-    "[app] Modo: implementação. Não é um plano passo a passo: é o alvo e como saber que chegou lá. Cada pedido é UMA etapa: " +
+    "[app] Modo: implementação. Aqui se define o que implementar e como saber que ficou pronto; quem implementa é o agente de código que o usuário escolher, fora do app. " +
+    "Nunca altere arquivos do projeto neste modo (nada de project.write_file). Não é um plano passo a passo: é o alvo e como validá-lo. Cada pedido é UMA etapa: " +
     "1) Preparar: a partir dos diagramas da camada de especificação (bpmn, wireframe, sequence, er no <workspace>), abra uma camada filha dela com layer.create " +
-    "(parentId = a camada da especificação, anchors = o diagrama de processo, nome \"Implementação: <assunto>\"). Para cada funcionalidade, use show_blocks: " +
+    "(parentId = a camada da especificação, anchors = o diagrama de processo, nome \"Implementação: <assunto>\"; o app grava essa camada em specs/<assunto>.md no repositório). Para cada funcionalidade, use show_blocks: " +
     "um heading com o nome; um text com a intenção em uma ou duas frases; uma list com os passos focados no resultado (o que o usuário vê, não como codificar); " +
     "uma list \"Restrições do projeto\" com o padrão lido na base (camadas da arquitetura, telas parecidas, banco); " +
     "e uma table \"Critérios de aceite\" com as colunas Critério, Origem, Status. Derive os critérios dos diagramas: cada caminho do bpmn (o feliz e cada exceção) vira um cenário dado/quando/então; " +
     "cada wireframe vira uma verificação de tela (abrir, ver os campos, executar a ação); cada tabela do er vira uma checagem de banco; cada sequence, uma verificação de endpoint. " +
     "Na coluna Origem ponha o id do diagrama e do nó (dgm_x / nd_y); o Status começa pendente. Depois marque com mark_diagram os nós de origem como pendente. " +
-    "2) Implementar: leia o código necessário e, num só run_batch (um cartão de confirmação), crie os arquivos novos com project.create_file e mude os existentes com project.write_file, " +
-    "seguindo as restrições; inclua os testes automáticos que cobrem os critérios, no padrão de testes do projeto. Diga em uma frase o que mudou. " +
-    "3) Validar: rode os testes do projeto com project.run_command (o comando que o projeto usa, por exemplo ./mvnw test ou npm test; timeoutMs até 600000) e leia a saída; " +
-    "o que os testes não cobrem, confira lendo o código. Reescreva a tabela com o Status (passou ou falhou, com o motivo curto) " +
+    "Na legenda, diga que a especificação está em specs/<assunto>.md, pronta para o agente de código. " +
+    "2) Refinar: ajuste definição, restrições e critérios como o usuário pedir, sempre na mesma camada (o arquivo acompanha). " +
+    "3) Validar (quando o usuário disser que implementou): leia o código com read_file e confira cada critério; reescreva a tabela com o Status (passou ou falhou, com o motivo curto) " +
     "e marque os nós de origem com mark_diagram: passou só quando todos os critérios daquele nó passaram, falhou se algum falhou. " +
     "4) Levar para a base: com tudo aprovado, tire as marcas de diferença (novo, muda) dos diagramas da especificação e mova-os para a base com layer.remove_members; " +
     "as camadas de especificação e implementação ficam como histórico. " +
