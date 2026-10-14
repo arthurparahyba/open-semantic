@@ -127,6 +127,9 @@ describe("camadas de assunto (doc 11)", () => {
     await op("layer.create", { layerId: "lyr_auth", name: "Autenticação", parentId: "lyr_infra", anchors: ["dgm_infra"], members: [{ id: "dgm_login" }] });
     expect(store.layer("lyr_infra")?.members.map((m) => m.id)).toEqual(["dgm_infra"]);
     expect(store.layer("lyr_auth")?.members.map((m) => m.id)).toEqual(["dgm_login"]);
+    // Bloco também nasce na camada ativa (critérios de aceite da implementação).
+    store.transact(() => store.putBlock({ id: "blk_criterios", kind: "text", text: "Critérios" } as never));
+    expect(store.layer("lyr_auth")?.members.map((m) => m.id)).toEqual(["dgm_login", "blk_criterios"]);
   });
 });
 

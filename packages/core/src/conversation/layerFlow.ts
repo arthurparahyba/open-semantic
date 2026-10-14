@@ -42,6 +42,8 @@ export function specSubject(message: string): string {
 /** A camada preparada pelo app para o pedido: o destino dos diagramas, travado até o fim dele. */
 export interface PreparedLayer {
   layer: Layer;
+  /** draft: primeira etapa da especificação; refine: ajuste dela; impl: camada de implementação. */
+  phase: "draft" | "refine" | "impl";
   /** Instrução que vai junto do pedido. */
   hint: string;
 }
@@ -62,20 +64,21 @@ export async function prepareLayer(modeId: string, request: string, deps: Deps):
   const active = layers.find((l) => l.id === snap.navigation.activeLayerId);
   if (modeId === "planejamento") return prepareSpec(request, snap, active, deps);
   if (modeId === "implementacao") return prepareImpl(snap, active, deps);
-  return undefined;
+  // Qualquer outro pedido com a especificação ativa é um ajuste dela ("adicione um campo na tela").
+  return active && isSpec(active) ? locked(active, "refine", snap) : undefined;
 }
 
 async function prepareSpec(request: string, snap: WorkspaceSnapshot, active: Layer | undefined, deps: Deps): Promise<PreparedLayer | undefined> {
   const layers = snap.layers ?? [];
   // Continuação de uma etapa: a especificação ativa continua sendo o destino.
-  if (!asksForPlanning(request)) return active && isSpec(active) ? locked(active, "spec") : undefined;
+  if (!asksForPlanning(request)) return active && isSpec(active) ? locked(active, "refine", snap) : undefined;
   const name = SPEC_PREFIX + specSubject(request);
   const existing = layers.find((l) => isSpec(l) && !l.parentId && normalized(l.name) === normalized(name));
-  if (existing) return activate(existing, deps).then((l) => l && locked(l, "spec"));
+  if (existing) return activate(existing, deps).then((l) => l && locked(l, "draft", snap));
   const anchor = baseAnchor(snap);
   if (!anchor) return undefined;
   const layer = await create(deps, { name, anchors: [anchor] });
-  return layer && locked(layer, "spec");
+  return layer && locked(layer, "draft", snap);
 }
 
 async function prepareImpl(snap: WorkspaceSnapshot, active: Layer | undefined, deps: Deps): Promise<PreparedLayer | undefined> {
@@ -83,12 +86,12 @@ async function prepareImpl(snap: WorkspaceSnapshot, active: Layer | undefined, d
   const spec = specOf(layers, active);
   if (!spec) return undefined;
   const child = layers.find((l) => l.parentId === spec.id && isImpl(l));
-  if (child) return activate(child, deps).then((l) => l && locked(l, "impl", spec));
+  if (child) return activate(child, deps).then((l) => l && locked(l, "impl", snap, spec));
   const diagrams = spec.members.filter((m) => m.id.startsWith("dgm_")).map((m) => snap.diagrams.find((d) => d.id === m.id)).filter((d) => d !== undefined);
   const anchor = (diagrams.find((d) => d.kind === "bpmn") ?? diagrams[0])?.id ?? spec.anchors[0];
   if (!anchor) return undefined;
   const layer = await create(deps, { name: IMPL_PREFIX + subjectOfLayer(spec), parentId: spec.id, anchors: [anchor] });
-  return layer && locked(layer, "impl", spec);
+  return layer && locked(layer, "impl", snap, spec);
 }
 
 
@@ -129,15 +132,54 @@ async function activate(layer: Layer, deps: Deps): Promise<Layer | undefined> {
   return result.status === "succeeded" ? layer : undefined;
 }
 
-function locked(layer: Layer, kind: "spec" | "impl", spec?: Layer): PreparedLayer {
+function locked(layer: Layer, phase: PreparedLayer["phase"], snap: WorkspaceSnapshot, spec?: Layer): PreparedLayer {
+  const rule = "Não chame layer.create, layer.activate nem layer.add_members com diagramas de outras camadas.";
   const where =
-    kind === "spec"
-      ? `A camada "${layer.name}" (${layer.id}) já está aberta e ativa: é a especificação; os diagramas novos entram nela sozinhos.`
-      : `A camada "${layer.name}" (${layer.id}) já está aberta e ativa, filha de "${spec!.name}" (${spec!.id}): os blocos novos entram nela sozinhos. Os diagramas da especificação ficam na camada deles; leia-os de lá.`;
-  return {
-    layer,
-    hint: `[app] ${where} Não chame layer.create, layer.activate nem layer.add_members com diagramas de outras camadas.`,
-  };
+    phase === "impl"
+      ? `A camada "${layer.name}" (${layer.id}) já está aberta e ativa, filha de "${spec!.name}" (${spec!.id}): os blocos novos entram nela sozinhos. Os diagramas da especificação ficam na camada deles; leia-os de lá.`
+      : `A camada "${layer.name}" (${layer.id}) já está aberta e ativa: é a especificação; os diagramas novos entram nela sozinhos.`;
+  const task =
+    phase === "draft"
+      ? " Nesta primeira etapa, desenhe os dois: o processo em bpmn e o wireframe da tela principal."
+      : phase === "refine"
+        ? ` Este pedido ajusta a especificação. Os artefatos dela: ${artifacts(layer, snap)}. Atualize todos os que o ajuste afeta (a tela, o processo e os textos que descrevem a tela), não só um, e marque com mark_diagram o que entrou (novo) e o que mudou (muda).`
+        : "";
+  return { layer, phase, hint: `[app] ${where}${task} ${rule}` };
+}
+
+function artifacts(layer: Layer, snap: WorkspaceSnapshot): string {
+  const ids = new Set(layer.members.map((m) => m.id));
+  const diagrams = snap.diagrams.filter((d) => ids.has(d.id)).map((d) => `${d.kind} "${d.title}" (${d.id})`);
+  const blocks = (snap.blocks ?? []).filter((b) => ids.has(b.id)).map((b) => `${b.kind} "${b.title ?? b.text?.slice(0, 40) ?? ""}" (${b.id})`);
+  return [...diagrams, ...blocks].join("; ") || "nenhum ainda";
+}
+
+/**
+ * Depois que o modelo respondeu: o que falta para a etapa estar completa. O app cobra uma vez, sem depender
+ * de o modelo lembrar: na primeira etapa, bpmn e wireframe; num ajuste, os artefatos da especificação que
+ * ficaram para trás e as marcas do que mudou.
+ */
+export function pendingWork(prepared: PreparedLayer, before: Map<string, number>, snap: WorkspaceSnapshot): string | undefined {
+  const layer = (snap.layers ?? []).find((l) => l.id === prepared.layer.id);
+  if (!layer || prepared.phase === "impl") return undefined;
+  const ids = new Set(layer.members.map((m) => m.id));
+  const diagrams = snap.diagrams.filter((d) => ids.has(d.id));
+  if (prepared.phase === "draft") {
+    const missing = (["bpmn", "wireframe"] as const).filter((k) => !diagrams.some((d) => d.kind === k));
+    if (!missing.length) return undefined;
+    const what = missing.map((k) => (k === "bpmn" ? "o processo em bpmn" : "o wireframe da tela principal (kind wireframe)")).join(" e ");
+    return `[app] Falta na camada de especificação: ${what}. Desenhe agora com show_diagram, sem refazer o que já existe, e termine com a legenda.`;
+  }
+  const changed = diagrams.filter((d) => before.get(d.id) !== d.revision);
+  if (!changed.length) return undefined;
+  const behind = diagrams.filter((d) => !changed.includes(d) && (d.kind === "bpmn" || d.kind === "wireframe"));
+  const unmarked = changed.filter((d) => !d.nodes.some((n) => ["novo", "muda"].includes(String((n.attributes as Record<string, unknown> | undefined)?.mark))));
+  if (!behind.length && !unmarked.length) return undefined;
+  const parts = [
+    behind.length ? `Você mudou ${changed.map((d) => `"${d.title}"`).join(", ")}, mas ${behind.map((d) => `"${d.title}" (${d.id})`).join(", ")} não mudou: se o ajuste também vale para ele (um passo de validação no processo, um campo novo), atualize-o agora.` : "",
+    unmarked.length ? `Marque com mark_diagram o que entrou (novo) e o que mudou (muda) em ${unmarked.map((d) => `"${d.title}" (${d.id})`).join(", ")}.` : "",
+  ];
+  return `[app] ${parts.filter(Boolean).join(" ")} Se nada mais precisar mudar, só responda.`;
 }
 
 /** O que o modelo não pode fazer com as camadas enquanto o app segura o destino. Devolve o motivo da recusa. */

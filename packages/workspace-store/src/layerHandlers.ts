@@ -58,16 +58,17 @@ function requireElements(store: WorkspaceStore, ids: string[], argumentPath: str
   });
 }
 
-/** Motivo dos membros que entram sozinhos: diagrama criado com a camada ativa. */
+/** Motivo dos membros que entram sozinhos: diagrama ou bloco criado com a camada ativa. */
 export const BORN_IN_LAYER = "criado com a camada ativa";
 
 /**
- * Diagrama novo nasce na camada ativa (docs/funcionalidades/11-camadas.md). Na base não há o que fazer.
+ * Diagrama e bloco novos nascem na camada ativa (docs/funcionalidades/11-camadas.md). Na base não há o que fazer.
+ * Sem isso, os blocos da implementação (critérios de aceite) ficavam fora da camada e o specs/<assunto>.md saía vazio.
  * Devolve a função que para de acompanhar.
  */
 export function keepNewDiagramsInActiveLayer(store: WorkspaceStore): () => void {
   return store.onCommit((commit) => {
-    const created = commit.changes.filter((c) => c.collection === "diagrams" && c.kind === "created").map((c) => c.id);
+    const created = commit.changes.filter((c) => (c.collection === "diagrams" || c.collection === "blocks") && c.kind === "created").map((c) => c.id);
     const layer = store.activeLayer();
     if (!created.length || !layer) return;
     const members = mergeMembers(layer.members, created.map((id) => ({ id, weight: 1, addedBy: "agent" as const, reason: BORN_IN_LAYER })));

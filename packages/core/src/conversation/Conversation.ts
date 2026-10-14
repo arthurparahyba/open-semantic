@@ -17,7 +17,7 @@ import { ConversationBusyError, type ConversationOptions, type ConversationView 
 import { Understanding } from "./understand.js";
 import { BUILTIN_MODES, ModeRegistry, splitNextSteps, type ExecutionMode } from "../modes/index.js";
 import { ACCEPT_ALL_HINT, acceptsAll } from "./acceptAll.js";
-import { layerGuard, prepareLayer, type PreparedLayer } from "./layerFlow.js";
+import { layerGuard, pendingWork, prepareLayer, type PreparedLayer } from "./layerFlow.js";
 import { asksForExplanation, changedDiagrams, diagramRevisions, kindHint } from "./visualFirst.js";
 
 /** Um pedido em andamento: o laço e as revisões dos diagramas de quando começou (para achar o que ele desenhou). */
@@ -186,6 +186,7 @@ export class Conversation {
     this.abort = abort;
     const limits = mode.limits?.(this.limits) ?? this.limits;
     const budget = new TurnBudget(limits, settings.maxCostPerRequestUsd);
+    const diagramsBefore = diagramRevisions(this.options.snapshot());
     const agent = new AgentTurn({
       provider,
       model,
@@ -198,6 +199,7 @@ export class Conversation {
       signal: abort.signal,
       explanation: asksForExplanation(message),
       chat: this.chat,
+      followUp: () => (this.prepared ? pendingWork(this.prepared, diagramsBefore, this.options.snapshot()) : undefined),
       onUsage: (usage, cost) => {
         this.lastPromptTokens = promptTokens(usage);
         this.usage = addUsage(this.usage, usage);
@@ -205,8 +207,7 @@ export class Conversation {
         this.lastRequest = budget.spend();
       },
     });
-    // Visual first: o texto do modelo só aparece no fim, como legenda do que foi desenhado.
-    const diagramsBefore = diagramRevisions(this.options.snapshot());
+    // Visual first: o texto do modelo só aparece no fim, como legenda do que foi desenhado (diagramsBefore).
     this.lastRequest = budget.spend();
     this.chat.setStatus("thinking");
     return { agent, diagramsBefore };

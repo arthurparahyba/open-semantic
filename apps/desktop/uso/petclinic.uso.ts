@@ -188,6 +188,7 @@ async function checagensFixas(passo: Passo, s: Snapshot, { page, petclinic, esta
     case "3-refinar-tela":
       estado.daSpec = layers.find((l) => l.name.startsWith("Especificação"))?.members.map((m) => m.id) ?? [];
       checar(passo.id, wireframes(s) !== estado.wireframe, "o refinamento não alterou o wireframe");
+      checar(passo.id, s.diagrams.some((d) => d.nodes.some((n) => ["novo", "muda"].includes(String((n.attributes as Record<string, unknown> | undefined)?.mark)))), "o refinamento não marcou o que mudou (novo/muda)");
       break;
     case "4-implementacao": {
       const impl = layers.find((l) => l.name.startsWith("Implementação"));
