@@ -2,6 +2,7 @@
 // e o enquadramento.
 import type { Arrangement, DiagramModel } from "@open-semantic/protocol";
 
+import { keepMark } from "../markDiagram.js";
 import type { BatchStepInput, PlannedEdge, PlannedNode, ShowDiagramInput } from "./types.js";
 
 /** O que vira passo semântico. */
@@ -131,9 +132,11 @@ function staleMessages(d: Drawing, existing: DiagramModel): Record<string, unkno
 
 /** Nós novos entram; os que mudaram de rótulo, tipo ou unidade são atualizados. */
 function nodeOps(nodes: PlannedNode[], existing: DiagramModel): Record<string, unknown>[] {
-  return nodes.flatMap<Record<string, unknown>>((n) => {
-    const old = existing.nodes.find((x) => x.id === n.id);
-    if (!old) return [{ op: "add_node", node: n }];
+  return nodes.flatMap<Record<string, unknown>>((drawn) => {
+    const old = existing.nodes.find((x) => x.id === drawn.id);
+    if (!old) return [{ op: "add_node", node: drawn }];
+    const attributes = keepMark(old.attributes, drawn.attributes);
+    const n = { ...drawn, ...(attributes ? { attributes } : {}) };
     const changed = old.label !== n.label || old.kind !== n.kind || old.semanticEntityId !== n.semanticEntityId || !sameAttributes(old.attributes, n.attributes);
     return changed
       ? [{ op: "update_node", nodeId: n.id, set: { label: n.label, kind: n.kind, semanticEntityId: n.semanticEntityId, ...(n.attributes ? { attributes: n.attributes } : {}) } }]

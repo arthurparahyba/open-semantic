@@ -4,6 +4,7 @@ import type { ToolCall, ToolResult, ToolSpec } from "@open-semantic/llm";
 import { describeOperation } from "./describeOperation.js";
 import { getWorkspace } from "./getWorkspace.js";
 import { listDir } from "./listDir.js";
+import { markDiagram } from "./markDiagram.js";
 import { readFile } from "./readFile.js";
 import { runBatch } from "./runBatch.js";
 import { searchWorkspace } from "./searchWorkspace.js";
@@ -14,7 +15,7 @@ import type { ConversationTool, ToolContext } from "./tool.js";
 export type { ConversationTool, ToolContext } from "./tool.js";
 
 /** A resposta visual e as leituras primeiro; por último as que dependem do catálogo de operações. */
-export const TOOLS: ConversationTool[] = [showDiagram, showBlocks, getWorkspace, searchWorkspace, listDir, readFile, describeOperation, runBatch];
+export const TOOLS: ConversationTool[] = [showDiagram, showBlocks, markDiagram, getWorkspace, searchWorkspace, listDir, readFile, describeOperation, runBatch];
 
 export class ToolRegistry {
   /** As ferramentas como vão ao modelo. */

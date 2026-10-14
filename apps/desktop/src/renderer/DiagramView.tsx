@@ -92,6 +92,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
   const hasInferred =
     diagram.nodes.some((n) => nodeQuality(n.semanticEntityId) === "inferred") ||
     diagram.edges.some((e) => edgeQuality(e.semanticRelationId) === "inferred");
+  const marks = marksIn(diagram);
 
   return (
     <section className={`mod diagram${highlighted ? " is-highlighted" : ""}`} data-testid="diagram" data-diagram-id={diagram.id}>
@@ -181,7 +182,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           return (
             <g
               key={node.id}
-              className={`diagram-node q-${quality}${highlightIds.has(node.id) ? " is-highlighted" : ""}`}
+              className={`diagram-node q-${quality}${markClass(node)}${highlightIds.has(node.id) ? " is-highlighted" : ""}`}
               data-node-id={node.id}
               transform={`translate(${rect.position.x}, ${rect.position.y})`}
               onPointerDown={fixed ? undefined : onNodePointerDown(node.id)}
@@ -199,13 +200,14 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
           );
         })}
       </svg>
-      {(hasInferred || diagram.caption) && (
+      {(hasInferred || marks.length > 0 || diagram.caption) && (
         <footer className={`diagram-footer${diagram.caption ? " with-caption" : ""}`}>
           {hasInferred && (
             <div className="diagram-legend" aria-hidden>
               <span className="legend-solid" /> verificado <span className="legend-dashed" /> inferido
             </div>
           )}
+          <MarkLegend marks={marks} />
           {diagram.caption && (
             <p className="diagram-caption" data-testid="diagram-caption" title={diagram.caption}>
               {diagram.caption}
@@ -219,12 +221,35 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
   );
 }
 
+/** Marcas da especificação (diferença em relação à base) e da implementação (status dos critérios), doc 16. */
+const MARK_ORDER = ["novo", "muda", "remove", "pendente", "passou", "falhou"] as const;
+const MARK_LABEL: Record<(typeof MARK_ORDER)[number], string> = { novo: "novo", muda: "muda", remove: "sai", pendente: "pendente", passou: "passou", falhou: "falhou" };
+const markClass = (node: DiagramModel["nodes"][number]) => {
+  const mark = node.attributes?.mark;
+  return typeof mark === "string" && (MARK_ORDER as readonly string[]).includes(mark) ? ` m-${mark}` : "";
+};
+
+const marksIn = (diagram: DiagramModel) => MARK_ORDER.filter((m) => diagram.nodes.some((n) => n.attributes?.mark === m));
+
+function MarkLegend({ marks }: { marks: readonly (typeof MARK_ORDER)[number][] }) {
+  if (!marks.length) return null;
+  return (
+    <div className="diagram-legend diagram-marks" aria-hidden>
+      {marks.map((m) => (
+        <span key={m} className={`legend-mark m-${m}`}>
+          {MARK_LABEL[m]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Nós que não são caixas: tabelas do er, eventos e decisões do bpmn. */
 const drawsShape = (diagramKind: DiagramModel["kind"], nodeKind: string) => diagramKind === "er" || (diagramKind === "bpmn" && bpmnShape(nodeKind) !== "task");
 
 function ShapedNode({ diagramKind, node, rect, quality, highlighted, onPointerDown }: { diagramKind: DiagramModel["kind"]; node: DiagramModel["nodes"][number]; rect: Rect; quality: Quality; highlighted: boolean; onPointerDown: (event: React.PointerEvent) => void }) {
   return (
-    <g className={`diagram-node q-${quality}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} transform={`translate(${rect.position.x}, ${rect.position.y})`} onPointerDown={onPointerDown}>
+    <g className={`diagram-node q-${quality}${markClass(node)}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} transform={`translate(${rect.position.x}, ${rect.position.y})`} onPointerDown={onPointerDown}>
       <title>{`${node.label} · ${node.kind} · ${QUALITY_LABEL[quality]}`}</title>
       {diagramKind === "er" ? <ErTable label={node.label} columns={columnsOf(node)} width={rect.size.width} height={rect.size.height} /> : <BpmnSymbol kind={node.kind} label={node.label} size={rect.size.width} />}
     </g>
@@ -276,7 +301,7 @@ function WireNode({ node, rect, quality, highlighted, container }: { node: Diagr
   const kind = node.kind;
   const max = Math.max(4, Math.floor((w - 16) / 7));
   return (
-    <g className={`diagram-node wire-node wire-${container ? "box" : kind} q-${quality}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} data-wire-kind={kind} transform={`translate(${rect.position.x}, ${rect.position.y})`}>
+    <g className={`diagram-node wire-node wire-${container ? "box" : kind} q-${quality}${markClass(node)}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} data-wire-kind={kind} transform={`translate(${rect.position.x}, ${rect.position.y})`}>
       <title>{`${node.label} · ${kind} · ${QUALITY_LABEL[quality]}`}</title>
       <rect width={w} height={h} rx={kind === "button" ? 8 : container ? 6 : 4} />
       {container ? (

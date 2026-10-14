@@ -17,6 +17,7 @@ describe("registro de ferramentas", () => {
     expect(registry.specs.map((s) => s.name)).toEqual([
       "show_diagram",
       "show_blocks",
+      "mark_diagram",
       "get_workspace",
       "search_workspace",
       "list_dir",
@@ -25,6 +26,7 @@ describe("registro de ferramentas", () => {
       "run_batch",
     ]);
     expect([...registry.batchTools].sort()).toEqual([
+      "mark_diagram",
       "run_batch",
       "show_blocks",
       "show_diagram",
