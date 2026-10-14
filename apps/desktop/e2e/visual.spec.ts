@@ -45,7 +45,7 @@ test("explicação: a resposta é um diagrama com legenda, e o chat aponta para 
   await writeFile(
     scriptFile,
     JSON.stringify([
-      { text: "Vou olhar o repositório.", toolCalls: [{ id: "tu_1", name: "list_dir", input: { path: "" } }] },
+      { text: "Vou olhar o repositório.", toolCalls: [{ id: "tu_1", name: "list_dir", input: { path: "", depth: 4 } }] },
       {
         toolCalls: [
           {
