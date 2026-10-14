@@ -192,7 +192,7 @@ function sequence(model: Pick<DiagramModel, "nodes" | "edges">, sizes: Map<strin
   const height = FIRST_MESSAGE + Math.max(1, model.edges.length) * MESSAGE_STEP;
   // Colunas largas o bastante para o rótulo da mensagem mais longa.
   const longest = Math.max(0, ...model.edges.map((e) => (e.label ?? "").length));
-  const gap = Math.max(48, Math.round(longest * 7) - 100);
+  const gap = Math.min(180, Math.max(48, Math.round(longest * 7) - 100));
   let x = DIAGRAM_PADDING;
   for (const node of model.nodes) {
     const size = sizes.get(node.id)!;
@@ -217,6 +217,7 @@ function wireframe(model: Pick<DiagramModel, "nodes">): Record<string, Rect> {
     const key = parent && ids.has(parent) && parent !== n.id ? parent : undefined;
     children.set(key, [...(children.get(key) ?? []), n.id]);
   }
+  adoptOrphans(children, (id) => byId.get(id)!.kind);
   const measured = new Map<string, Size>();
   const measure = (id: string, seen: Set<string>): Size => {
     const node = byId.get(id)!;
@@ -276,6 +277,32 @@ function wireframe(model: Pick<DiagramModel, "nodes">): Record<string, Rect> {
     y += size.height + 24;
   }
   return placed;
+}
+
+/**
+ * Campo solto na raiz de uma tela que já tem contêineres (o modelo esqueceu o parent ao acrescentar um campo):
+ * vai para o contêiner com mais campos, o formulário, em vez de ficar fora da tela.
+ */
+function adoptOrphans(children: Map<string | undefined, string[]>, kindOf: (id: string) => string) {
+  const roots = children.get(undefined) ?? [];
+  const isBox = (id: string) => (children.get(id) ?? []).length > 0;
+  const orphans = roots.filter((id) => !isBox(id));
+  if (!orphans.length || !roots.some(isBox)) return;
+  let form: string | undefined;
+  let most = 0;
+  for (const [id, kids] of children) {
+    const leaves = id === undefined ? 0 : kids.filter((k) => !isBox(k)).length;
+    if (leaves > most) [form, most] = [id, leaves];
+  }
+  if (!form) return;
+  children.set(undefined, roots.filter((id) => isBox(id)));
+  // Campos entram antes dos botões (Salvar, Cancelar), como numa tela de verdade.
+  const kids = children.get(form)!;
+  const firstButton = kids.findIndex((k) => /button|botao/.test(kindOf(k)));
+  const at = firstButton < 0 ? kids.length : firstButton;
+  const fields = orphans.filter((k) => !/button|botao/.test(kindOf(k)));
+  const buttons = orphans.filter((k) => /button|botao/.test(kindOf(k)));
+  children.set(form, [...kids.slice(0, at), ...fields, ...kids.slice(at), ...buttons]);
 }
 
 /** Mantém o que existe; nós novos vão para a próxima linha livre. */

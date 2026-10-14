@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DiagramModel } from "@open-semantic/protocol";
 
-import { applyPatch, computeLayout } from "../src/index.js";
+import { applyPatch, closeBpmnPaths, computeLayout } from "../src/index.js";
 
 function base(): DiagramModel {
   return {
@@ -85,5 +85,35 @@ describe("computeLayout", () => {
     const next = await computeLayout(model, { algorithm: "layered", direction: "TB" });
     expect(next.nodes.nd_back!.position).toEqual({ x: 900, y: 500 });
     expect(next.pinned).toEqual(["nd_back"]);
+  });
+});
+
+describe("BPMN fechado e tela sem campos soltos", () => {
+  const node = (id: string, kind: string, attributes?: Record<string, unknown>) => ({ id, label: id, kind, ...(attributes ? { attributes } : {}) }) as DiagramModel["nodes"][number];
+  const edge = (id: string, s: string, t: string) => ({ id, sourceNodeId: s, targetNodeId: t }) as DiagramModel["edges"][number];
+
+  it("tarefa sem saída ganha uma seta para o fim", () => {
+    const { edges } = closeBpmnPaths([node("nd_ini", "start"), node("nd_salva", "task"), node("nd_fim", "end")], [edge("e1", "nd_ini", "nd_salva")]);
+    expect(edges.map((e) => `${e.sourceNodeId}>${e.targetNodeId}`)).toEqual(["nd_ini>nd_salva", "nd_salva>nd_fim"]);
+  });
+
+  it("sem fim, cria um", () => {
+    const { nodes, edges } = closeBpmnPaths([node("nd_ini", "start"), node("nd_salva", "task")], [edge("e1", "nd_ini", "nd_salva")]);
+    expect(nodes.at(-1)).toMatchObject({ id: "nd_fim", kind: "end" });
+    expect(edges.at(-1)).toMatchObject({ sourceNodeId: "nd_salva", targetNodeId: "nd_fim" });
+  });
+
+  it("campo sem parent entra no formulário, antes dos botões", async () => {
+    const nodes = [
+      node("nd_tela", "screen"),
+      node("nd_nome", "input", { parent: "nd_tela" }),
+      node("nd_salvar", "button", { parent: "nd_tela" }),
+      node("nd_categoria", "select"),
+    ];
+    const layout = await computeLayout({ nodes, edges: [], kind: "wireframe", layout: { algorithm: "manual", nodes: {} } }, { algorithm: "wireframe" });
+    const tela = layout.nodes.nd_tela!;
+    const cat = layout.nodes.nd_categoria!;
+    expect(cat.position.y + cat.size.height).toBeLessThanOrEqual(tela.position.y + tela.size.height);
+    expect(cat.position.y).toBeLessThan(layout.nodes.nd_salvar!.position.y);
   });
 });

@@ -13,11 +13,25 @@ const blockId = (diagramId: string, part: string) => `blk_${diagramId.slice(4, 5
  */
 export function arrangementFor(input: ShowDiagramInput, snapshot: WorkspaceSnapshot, projectId: string): Arrangement | undefined {
   const onCanvas = (id: string | undefined) => !!id && snapshot.canvas.objects.some((o) => o.id === id);
+  const process = processOfScreen(input, snapshot);
+  if (process && onCanvas(process)) return { relation: "details", targetId: process };
   if (onCanvas(input.details)) return { relation: "details", targetId: input.details! };
   if (onCanvas(input.continues)) return { relation: "continues", targetId: input.continues! };
   if (input.about || input.continues || input.details) return undefined;
   const previous = snapshot.diagrams.filter((d) => d.projectId === projectId && d.id !== input.diagramId && onCanvas(d.id)).pop();
   return previous && { relation: "continues", targetId: previous.id };
+}
+
+/**
+ * A tela de uma especificação fica ao lado do processo a que pertence, não embaixo dele (agrupado por assunto):
+ * um wireframe novo na camada ativa vai à direita do bpmn dela.
+ */
+function processOfScreen(input: ShowDiagramInput, snapshot: WorkspaceSnapshot): string | undefined {
+  if (input.kind !== "wireframe") return undefined;
+  const layer = (snapshot.layers ?? []).find((l) => l.id === snapshot.navigation.activeLayerId);
+  if (!layer) return undefined;
+  const ids = new Set(layer.members.map((m) => m.id));
+  return snapshot.diagrams.find((d) => d.kind === "bpmn" && ids.has(d.id) && d.id !== input.diagramId)?.id;
 }
 
 /** Os blocos da seção: cria os que faltam, atualiza os que já existem. Rodam depois do desenho. */

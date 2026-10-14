@@ -5,6 +5,7 @@ import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
 
 import { Conversation, ConversationBusyError, SCRIPTS, ScriptError, createCore, loadModeDir, scriptedPlan, type Core } from "@open-semantic/core";
 import { withoutBefore } from "@open-semantic/workspace-store";
+import type { Viewport } from "@open-semantic/navigator";
 
 import { AgentSettings } from "./agentSettings.js";
 import { WorkspaceChoice } from "./workspaceChoice.js";
@@ -172,8 +173,11 @@ app.whenReady().then(async () => {
     return { path, name: basename(path) };
   });
 
-  ipcMain.on(CHANNELS.viewport, (_event, viewport: { width: number; height: number }) => {
-    if (typeof viewport?.width === "number" && typeof viewport?.height === "number") core?.setViewport(viewport);
+  ipcMain.on(CHANNELS.viewport, (_event, viewport: Viewport) => {
+    if (typeof viewport?.width !== "number" || typeof viewport?.height !== "number") return;
+    const i = viewport.insets;
+    const insets = i && [i.top, i.right, i.bottom, i.left].every((n) => typeof n === "number" && n >= 0) ? i : undefined;
+    core?.setViewport({ width: viewport.width, height: viewport.height, ...(insets ? { insets } : {}) });
   });
   ipcMain.handle(CHANNELS.agentScripts, () => SCRIPTS);
   ipcMain.handle(CHANNELS.agentActivityList, () => core?.agent.list() ?? []);

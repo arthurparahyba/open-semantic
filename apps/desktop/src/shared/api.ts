@@ -67,7 +67,7 @@ export interface OpenSemanticApi {
   onPersist(listener: (state: PersistState) => void): () => void;
   onEvent(listener: (event: DomainEvent) => void): () => void;
   /** Tamanho da área do canvas, para o Navigator enquadrar no núcleo. */
-  setViewport(viewport: { width: number; height: number }): void;
+  setViewport(viewport: { width: number; height: number; insets?: { top: number; right: number; bottom: number; left: number } }): void;
   /** Roteiros do agente roteirizado (M2, antes da IA). */
   agentScripts(): Promise<ScriptInfo[]>;
   /** Pede ao agente roteirizado que execute um roteiro. O pedido é do usuário; quem age é o agente. */

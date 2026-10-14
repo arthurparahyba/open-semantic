@@ -14,7 +14,7 @@ import {
 import { placeInFlow, placeNew, placedBy, repositoryUnit, type PlacementRequest, type WorkspaceStore } from "@open-semantic/workspace-store";
 
 import { computeLayout, diagramSize, type LayoutAlgorithm, type LayoutDirection } from "./layout.js";
-import { applyPatch, checkModel, type DiagramOp } from "./model.js";
+import { applyPatch, checkModel, closeBpmnPaths, type DiagramOp } from "./model.js";
 
 const ref = (path: string) => ({ $ref: SCHEMA_BASE_URI + path });
 const diagramId = ref("common.schema.json#/$defs/DiagramId");
@@ -182,8 +182,9 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
         const existing = store.diagram(id);
         if (existing) return { output: output(existing), changes: [{ id, change: "unchanged", revision: existing.revision }] };
         const requested = (args.layout ?? {}) as { algorithm?: LayoutAlgorithm; direction?: LayoutDirection };
-        const nodes = args.nodes as DiagramNode[];
-        const edges = args.edges as DiagramEdge[];
+        const closed = args.kind === "bpmn" ? closeBpmnPaths(args.nodes as DiagramNode[], args.edges as DiagramEdge[]) : undefined;
+        const nodes = closed?.nodes ?? (args.nodes as DiagramNode[]);
+        const edges = closed?.edges ?? (args.edges as DiagramEdge[]);
         const layout = await computeLayout(
           { nodes, edges, kind: args.kind as DiagramModel["kind"], layout: { algorithm: "manual", nodes: {} } },
           { algorithm: requested.algorithm ?? "layered", direction: requested.direction ?? "LR" },
@@ -270,6 +271,7 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
       async handle(args) {
         const diagram = requireDiagram(args.diagramId as string);
         const { model, summary } = applyPatch(diagram, (args.ops ?? []) as DiagramOp[]);
+        if (model.kind === "bpmn") Object.assign(model, closeBpmnPaths(model.nodes, model.edges));
         const captionChanged = typeof args.caption === "string" && args.caption !== (diagram.caption ?? "");
         if (captionChanged) {
           if (args.caption) model.caption = args.caption as string;
@@ -416,11 +418,12 @@ export function diagramHandlers({ store }: { store: WorkspaceStore }): Operation
 }
 
 function sameModel(existing: DiagramModel, args: Record<string, unknown>): boolean {
+  const closed = args.kind === "bpmn" ? closeBpmnPaths(args.nodes as DiagramNode[], args.edges as DiagramEdge[]) : { nodes: args.nodes, edges: args.edges };
   return (
     existing.title === args.title &&
     (existing.caption ?? "") === ((args.caption as string | undefined) ?? "") &&
     existing.kind === args.kind &&
-    sameValue(existing.nodes, args.nodes) &&
-    sameValue(existing.edges, args.edges)
+    sameValue(existing.nodes, closed.nodes) &&
+    sameValue(existing.edges, closed.edges)
   );
 }

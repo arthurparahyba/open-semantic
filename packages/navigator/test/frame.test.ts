@@ -54,3 +54,14 @@ describe("transformações da câmera", () => {
     expect(pan(camera, 100, -40).center).toEqual({ x: 50, y: 70 });
   });
 });
+
+describe("enquadramento com controles flutuantes", () => {
+  it("evita a faixa coberta embaixo: o alvo sobe e cabe na área livre", () => {
+    const rect = { position: { x: 0, y: 0 }, size: { width: 400, height: 400 } };
+    const free = computeFrame([rect], { width: 1000, height: 800 }, { padding: 0 })!;
+    const covered = computeFrame([rect], { width: 1000, height: 800, insets: { top: 0, right: 0, bottom: 200, left: 0 } }, { padding: 0 })!;
+    expect(covered.zoom).toBe(free.zoom);
+    // Centro da área livre (y = 300 na tela) mostra o centro do alvo: a câmera olha mais para baixo.
+    expect(covered.center.y).toBeGreaterThan(free.center.y);
+  });
+});
