@@ -176,7 +176,7 @@ export const IMPLEMENTATION_MODE: ExecutionMode = {
     "e uma table \"Critérios de aceite\" com as colunas Critério, Origem, Status. Derive os critérios dos diagramas: cada caminho do bpmn (o feliz e cada exceção) vira um cenário dado/quando/então; " +
     "cada wireframe vira uma verificação de tela (abrir, ver os campos, executar a ação); cada tabela do er vira uma checagem de banco; cada sequence, uma verificação de endpoint. " +
     "Na coluna Origem ponha o id do diagrama e do nó (dgm_x / nd_y); o Status começa pendente. Depois marque com mark_diagram os nós de origem como pendente. " +
-    "Na legenda, diga que a especificação está em specs/<assunto>.md, pronta para o agente de código. " +
+    "Na legenda, diga que a especificação está em specs/<assunto>.md e que o botão Copiar pedido, no painel de camadas, copia o pedido para o agente de código. " +
     "2) Refinar: ajuste definição, restrições e critérios como o usuário pedir, sempre na mesma camada (o arquivo acompanha). " +
     "3) Validar (quando o usuário disser que implementou): leia o código com read_file e confira cada critério; reescreva a tabela com o Status (passou ou falhou, com o motivo curto) " +
     "e marque os nós de origem com mark_diagram: passou só quando todos os critérios daquele nó passaram, falhou se algum falhou. " +

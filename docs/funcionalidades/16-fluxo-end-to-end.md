@@ -78,3 +78,4 @@ Decisão do Arthur: o Open Semantic não implementa, não cria arquivos, não ro
   - no fim, os diagramas da camada mãe (a especificação), de onde vêm os critérios.
 - **O usuário entrega o arquivo ao agente de código que preferir** (Claude Code, Cursor etc.).
 - **Validar continua no app:** quando o usuário diz que implementou, o agente lê o código e marca os critérios (passou ou falhou) na tabela e nos diagramas. Levar para a base também continua.
+- **Entregar com um clique:** no painel de camadas, a camada de implementação tem o botão **Copiar pedido**. Ele copia um pedido curto e fixo (sem modelo) que aponta para `specs/<assunto>.md`: implementar seguindo definição, restrições e critérios, incluir testes que cubram os critérios e não mexer no arquivo de especificação. O usuário cola no agente de código que preferir.
