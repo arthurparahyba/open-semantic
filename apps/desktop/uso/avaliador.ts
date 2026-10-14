@@ -66,7 +66,7 @@ function json<T>(texto: string, padrao: T): T {
 }
 
 /** Julga um passo do roteiro pelo screenshot e pelo resumo do workspace. */
-export async function avaliar(passo: string, objetivo: string, screenshot: string, resumo: unknown, resposta: string): Promise<Avaliacao> {
+export async function avaliar({ passo, objetivo, screenshot, resumo, resposta }: { passo: string; objetivo: string; screenshot: string; resumo: unknown; resposta: string }): Promise<Avaliacao> {
   const imagem = (await readFile(screenshot)).toString("base64");
   const texto = await chamar([
     { type: "image", source: { type: "base64", media_type: "image/png", data: imagem } },

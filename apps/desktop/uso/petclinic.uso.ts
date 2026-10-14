@@ -130,15 +130,117 @@ async function clonarPetClinic(): Promise<{ dir: string; commit: string }> {
   return { dir, commit };
 }
 
-test("uso: Pet Clinic do discovery à implementação", async () => {
-  test.skip(!process.env.ANTHROPIC_API_KEY, "precisa de ANTHROPIC_API_KEY");
-  const inicio = new Date();
-  const saida = join(appRoot, "relatorios-uso", inicio.toISOString().slice(0, 16).replace(/[:T]/g, "-"));
-  await mkdir(saida, { recursive: true });
-  const { dir: petclinic, commit } = await clonarPetClinic();
-  const dataDir = await mkdtemp(join(tmpdir(), "uso-data-"));
-  await writeFile(join(dataDir, "agent-settings.json"), JSON.stringify({ model: MODELO_APP, maxCostPerRequestUsd: Number(process.env.USO_MAX_CUSTO_PEDIDO ?? 0.5) }));
+type Snapshot = WorkspaceSnapshot;
+type Passo = (typeof PASSOS)[number];
+interface Contexto {
+  page: Page;
+  saida: string;
+  petclinic: string;
+  estado: { wireframe: string };
+}
 
+const wireframes = (s: Snapshot) => JSON.stringify(s.diagrams.filter((d) => d.kind === "wireframe").map((d) => d.nodes));
+
+async function specsGravados(petclinic: string) {
+  const dir = join(petclinic, "specs");
+  if (!existsSync(dir)) return [];
+  const out: { nome: string; texto: string }[] = [];
+  for (const f of (await readdir(dir)).filter((f) => f.endsWith(".md"))) out.push({ nome: f, texto: await readFile(join(dir, f), "utf8") });
+  return out;
+}
+
+/** Checagens fixas de cada passo; `estado` guarda o wireframe do passo 2 para comparar no 3. */
+async function checagensFixas(passo: Passo, s: Snapshot, { page, petclinic, estado }: Contexto) {
+  const layers = s.layers ?? [];
+  const tipos = new Set(s.diagrams.map((d) => d.kind));
+  const sobre = sobreposicoes(s);
+  checar(passo.id, sobre.length === 0, `diagramas sobrepostos: ${sobre.join("; ")}`);
+  switch (passo.id) {
+    case "1-como-funciona":
+      checar(passo.id, s.diagrams.length >= 1, "nenhum diagrama na explicação");
+      break;
+    case "2-cadastro-produtos":
+      checar(passo.id, layers.some((l) => l.parentId), "não abriu uma camada nova de especificação");
+      checar(passo.id, tipos.has("bpmn"), "sem diagrama BPMN");
+      checar(passo.id, tipos.has("wireframe"), "sem wireframe da tela");
+      estado.wireframe = wireframes(s);
+      break;
+    case "3-refinar-tela":
+      checar(passo.id, wireframes(s) !== estado.wireframe, "o refinamento não alterou o wireframe");
+      break;
+    case "4-implementacao": {
+      checar(passo.id, layers.some((l) => l.name.startsWith("Implementação")), 'não chegou à camada "Implementação: <assunto>"');
+      const specs = await specsGravados(petclinic);
+      checar(passo.id, specs.length > 0, "nenhum specs/<assunto>.md gravado no repositório");
+      for (const f of specs) checar(passo.id, f.texto.trim().length > 200, `specs/${f.nome} está vazio ou curto demais`);
+      checar(passo.id, await page.getByRole("button", { name: "Copiar pedido" }).isVisible().catch(() => false), "botão Copiar pedido não aparece");
+      break;
+    }
+  }
+}
+
+/** Faz um pedido, espera o agente, checa e pede o julgamento do avaliador. Devolve a avaliação e o trecho do diário. */
+async function executarPasso(passo: Passo, ctx: Contexto) {
+  const { page, saida } = ctx;
+  const log: string[] = [];
+  const t0 = Date.now();
+  await page.getByTestId("chat-input").fill(passo.pedido);
+  await page.getByTestId("chat-input").press("Enter");
+  await esperarAgente(page, passo.objetivo, log);
+  const s = await page.evaluate(() => window.openSemantic.snapshot());
+  const screenshot = join(saida, `${passo.id}.png`);
+  await page.screenshot({ path: screenshot });
+  const resposta = (await page.getByTestId("chat-assistant").last().innerText().catch(() => "")) || "(sem resposta)";
+  await checagensFixas(passo, s, ctx);
+  const a = await avaliar({ passo: passo.id, objetivo: passo.objetivo, screenshot, resumo: resumo(s), resposta });
+  const diario =
+    `### ${passo.id} (${Math.round((Date.now() - t0) / 1000)} s)\n\n**Pedido:** ${passo.pedido}\n\n${log.map((l) => `- ${l}`).join("\n")}\n\n` +
+    `![](${passo.id}.png)\n\n**Nota ${a.nota}/5.** ${a.explicacao}\n\n**Organização ${a.organizacao.nota}/5.** ${a.organizacao.comentario}\n`;
+  return { avaliacao: a, diario };
+}
+
+const lista = (itens: string[], vazio: string, numerada = false) => (itens.length ? itens.map((t, i) => `${numerada ? `${i + 1}.` : "-"} ${t}`) : [vazio]);
+
+async function escreverRelatorio(o: { saida: string; inicio: Date; commit: string; avaliacoes: Avaliacao[]; diario: string[]; custoApp: string }) {
+  const final = await consolidar(o.avaliacoes, falhas).catch((e) => ({ resumo: `consolidação falhou: ${e}`, bugs: [] as string[], melhorias: [] as string[] }));
+  const notas = o.avaliacoes.map((a) => `${a.passo} ${a.nota}/5 (org. ${a.organizacao.nota}/5)`).join(", ");
+  const md = [
+    `# Teste de uso: Pet Clinic, ${o.inicio.toLocaleString("pt-BR")}`,
+    "",
+    `Pet Clinic em ${o.commit}. Agente do app: ${MODELO_APP}. Avaliador: ${MODELO_AVALIADOR} (esforço baixo).`,
+    "",
+    `**Resultado:** ${falhas.length ? `${falhas.length} checagem(ns) falharam` : "todas as checagens fixas passaram"}. Notas: ${notas}.`,
+    "",
+    final.resumo,
+    "",
+    "## Checagens que falharam",
+    "",
+    ...lista(falhas, "Nenhuma."),
+    "",
+    "## Bugs",
+    "",
+    ...lista(final.bugs, "Nenhum apontado.", true),
+    "",
+    "## Melhorias",
+    "",
+    ...lista(final.melhorias, "Nenhuma apontada.", true),
+    "",
+    "## Custo",
+    "",
+    `- Agente do app: ${o.custoApp || "não lido"}`,
+    `- Avaliador: ${gasto.chamadas} chamadas, ${gasto.entrada} tokens de entrada, ${gasto.saida} de saída, US$ ${gasto.usd.toFixed(3)}`,
+    "",
+    "## Passo a passo",
+    "",
+    ...o.diario,
+  ].join("\n");
+  await writeFile(join(o.saida, "relatorio.md"), md);
+  await writeFile(join(o.saida, "avaliacoes.json"), JSON.stringify({ falhas, avaliacoes: o.avaliacoes, final, gasto }, null, 2));
+  console.log(`\nRelatório: ${join(o.saida, "relatorio.md")}\n`);
+}
+
+async function abrirApp(petclinic: string, dataDir: string) {
+  await writeFile(join(dataDir, "agent-settings.json"), JSON.stringify({ model: MODELO_APP, maxCostPerRequestUsd: Number(process.env.USO_MAX_CUSTO_PEDIDO ?? 0.5) }));
   const args = [appRoot];
   if (process.getuid?.() === 0 || process.env.CI) args.unshift("--no-sandbox");
   const app = await electron.launch({
@@ -149,61 +251,38 @@ test("uso: Pet Clinic do discovery à implementação", async () => {
   const erros: string[] = [];
   page.on("console", (m) => m.type() === "error" && erros.push(m.text()));
   page.on("pageerror", (e) => erros.push(String(e)));
-  const snap = () => page.evaluate(() => window.openSemantic.snapshot());
+  return { app, page, erros };
+}
+
+/** Abre o workspace e associa o repositório. */
+async function associarRepositorio(page: Page, saida: string) {
+  await page.waitForLoadState("domcontentloaded");
+  checar("0-abrir", await page.getByTestId("canvas").isVisible({ timeout: 30_000 }).catch(() => false), "o canvas não apareceu");
+  await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
+  await page.waitForTimeout(2000);
+  const s0 = await page.evaluate(() => window.openSemantic.snapshot());
+  checar("0-abrir", s0.projects.length === 1, `esperava 1 projeto associado, veio ${s0.projects.length}`);
+  await page.screenshot({ path: join(saida, "0-abrir.png") });
+}
+
+test("uso: Pet Clinic do discovery à implementação", async () => {
+  test.skip(!process.env.ANTHROPIC_API_KEY, "precisa de ANTHROPIC_API_KEY");
+  const inicio = new Date();
+  const saida = join(appRoot, "relatorios-uso", inicio.toISOString().slice(0, 16).replace(/[:T]/g, "-"));
+  await mkdir(saida, { recursive: true });
+  const { dir: petclinic, commit } = await clonarPetClinic();
+  const dataDir = await mkdtemp(join(tmpdir(), "uso-data-"));
+  const { app, page, erros } = await abrirApp(petclinic, dataDir);
   const avaliacoes: Avaliacao[] = [];
   const diario: string[] = [];
+  const ctx: Contexto = { page, saida, petclinic, estado: { wireframe: "" } };
 
   try {
-    // Abrir o workspace e associar o repositório.
-    await page.waitForLoadState("domcontentloaded");
-    checar("0-abrir", await page.getByTestId("canvas").isVisible({ timeout: 30_000 }).catch(() => false), "o canvas não apareceu");
-    await page.getByRole("button", { name: "Abrir pasta…" }).first().click();
-    await page.waitForTimeout(2000);
-    const s0 = await snap();
-    checar("0-abrir", s0.projects.length === 1, `esperava 1 projeto associado, veio ${s0.projects.length}`);
-    await page.screenshot({ path: join(saida, "0-abrir.png") });
-
-    let wireframeAntes = "";
+    await associarRepositorio(page, saida);
     for (const passo of PASSOS) {
-      const log: string[] = [];
-      const t0 = Date.now();
-      await page.getByTestId("chat-input").fill(passo.pedido);
-      await page.getByTestId("chat-input").press("Enter");
-      await esperarAgente(page, passo.objetivo, log);
-      const s = await snap();
-      const shot = join(saida, `${passo.id}.png`);
-      await page.screenshot({ path: shot });
-      const resposta = (await page.getByTestId("chat-assistant").last().innerText().catch(() => "")) || "(sem resposta)";
-      const layers = s.layers ?? [];
-      const tipos = new Set(s.diagrams.map((d) => d.kind));
-      const sobre = sobreposicoes(s);
-      checar(passo.id, sobre.length === 0, `diagramas sobrepostos: ${sobre.join("; ")}`);
-
-      if (passo.id === "1-como-funciona") {
-        checar(passo.id, s.diagrams.length >= 1, "nenhum diagrama na explicação");
-      }
-      if (passo.id === "2-cadastro-produtos") {
-        checar(passo.id, layers.some((l) => l.parentId), "não abriu uma camada nova de especificação");
-        checar(passo.id, tipos.has("bpmn"), "sem diagrama BPMN");
-        checar(passo.id, tipos.has("wireframe"), "sem wireframe da tela");
-        wireframeAntes = JSON.stringify(s.diagrams.filter((d) => d.kind === "wireframe").map((d) => d.nodes));
-      }
-      if (passo.id === "3-refinar-tela") {
-        const depois = JSON.stringify(s.diagrams.filter((d) => d.kind === "wireframe").map((d) => d.nodes));
-        checar(passo.id, depois !== wireframeAntes, "o refinamento não alterou o wireframe");
-      }
-      if (passo.id === "4-implementacao") {
-        const impl = layers.find((l) => l.name.startsWith("Implementação"));
-        checar(passo.id, !!impl, "não chegou à camada \"Implementação: <assunto>\"");
-        const specs = existsSync(join(petclinic, "specs")) ? (await readdir(join(petclinic, "specs"))).filter((f) => f.endsWith(".md")) : [];
-        checar(passo.id, specs.length > 0, "nenhum specs/<assunto>.md gravado no repositório");
-        for (const f of specs) checar(passo.id, (await readFile(join(petclinic, "specs", f), "utf8")).trim().length > 200, `specs/${f} está vazio ou curto demais`);
-        checar(passo.id, await page.getByRole("button", { name: "Copiar pedido" }).isVisible().catch(() => false), "botão Copiar pedido não aparece");
-      }
-
-      const a = await avaliar(passo.id, passo.objetivo, shot, resumo(s), resposta);
-      avaliacoes.push(a);
-      diario.push(`### ${passo.id} (${Math.round((Date.now() - t0) / 1000)} s)\n\n**Pedido:** ${passo.pedido}\n\n${log.map((l) => `- ${l}`).join("\n")}\n\n![](${passo.id}.png)\n\n**Nota ${a.nota}/5.** ${a.explicacao}\n\n**Organização ${a.organizacao.nota}/5.** ${a.organizacao.comentario}\n`);
+      const r = await executarPasso(passo, ctx);
+      avaliacoes.push(r.avaliacao);
+      diario.push(r.diario);
     }
   } catch (err) {
     falhas.push(`roteiro interrompido: ${err instanceof Error ? err.message : String(err)}`);
@@ -212,40 +291,7 @@ test("uso: Pet Clinic do discovery à implementação", async () => {
     const custoApp = (await page.getByTestId("agent-cost").innerText().catch(() => "")).replace(/\s+/g, " ");
     await app.close().catch(() => {});
     if (erros.length) falhas.push(`erros no console: ${[...new Set(erros)].slice(0, 5).join(" | ")}`);
-    const final = await consolidar(avaliacoes, falhas).catch((e) => ({ resumo: `consolidação falhou: ${e}`, bugs: [], melhorias: [] }));
-    const md = [
-      `# Teste de uso: Pet Clinic, ${inicio.toLocaleString("pt-BR")}`,
-      "",
-      `Pet Clinic em ${commit}. Agente do app: ${MODELO_APP}. Avaliador: ${MODELO_AVALIADOR} (esforço baixo).`,
-      "",
-      `**Resultado:** ${falhas.length ? `${falhas.length} checagem(ns) falharam` : "todas as checagens fixas passaram"}. Notas: ${avaliacoes.map((a) => `${a.passo} ${a.nota}/5 (org. ${a.organizacao.nota}/5)`).join(", ")}.`,
-      "",
-      final.resumo,
-      "",
-      "## Checagens que falharam",
-      "",
-      ...(falhas.length ? falhas.map((f) => `- ${f}`) : ["Nenhuma."]),
-      "",
-      "## Bugs",
-      "",
-      ...(final.bugs.length ? final.bugs.map((b, i) => `${i + 1}. ${b}`) : ["Nenhum apontado."]),
-      "",
-      "## Melhorias",
-      "",
-      ...(final.melhorias.length ? final.melhorias.map((m, i) => `${i + 1}. ${m}`) : ["Nenhuma apontada."]),
-      "",
-      "## Custo",
-      "",
-      `- Agente do app: ${custoApp || "não lido"}`,
-      `- Avaliador: ${gasto.chamadas} chamadas, ${gasto.entrada} tokens de entrada, ${gasto.saida} de saída, US$ ${gasto.usd.toFixed(3)}`,
-      "",
-      "## Passo a passo",
-      "",
-      ...diario,
-    ].join("\n");
-    await writeFile(join(saida, "relatorio.md"), md);
-    await writeFile(join(saida, "avaliacoes.json"), JSON.stringify({ falhas, avaliacoes, final, gasto }, null, 2));
-    console.log(`\nRelatório: ${join(saida, "relatorio.md")}\n`);
+    await escreverRelatorio({ saida, inicio, commit, avaliacoes, diario, custoApp });
     await rm(dataDir, { recursive: true, force: true });
   }
   if (falhas.length) throw new Error(`Checagens que falharam:\n${falhas.join("\n")}`);
