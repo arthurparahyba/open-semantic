@@ -49,6 +49,35 @@ export function flowIds(doc: FlowDoc, id: string, seen = new Set<string>()): str
   return [...own, ...next.flatMap((x) => flowIds(doc, x, seen))];
 }
 
+/**
+ * A ordem de leitura de uma explicação, a mesma que decide o canvas: título e introdução acima (o mais longe primeiro),
+ * o objeto, as notas abaixo, depois o que o detalha e o que o continua. Não usa coordenadas: mover algo à mão não muda a ordem.
+ */
+export function readingOrder(doc: FlowDoc, id: string, seen = new Set<string>()): string[] {
+  const section = (x: string): string[] => {
+    if (seen.has(x)) return [];
+    seen.add(x);
+    return [...annotations(doc, x, "above").reverse().flatMap(section), x, ...annotations(doc, x, "below").flatMap(section)];
+  };
+  const own = section(id);
+  const next = [...arrangedOn(doc, id, "details"), ...arrangedOn(doc, id, "continues")].filter((x) => !seen.has(x));
+  return [...own, ...next.flatMap((x) => readingOrder(doc, x, seen))];
+}
+
+/** Os ids em ordem de leitura: cada explicação a partir da sua raiz (na ordem em que entrou no canvas), e o que sobrar no fim. */
+export function documentOrder(doc: FlowDoc, ids: string[]): string[] {
+  const wanted = new Set(ids);
+  const entry = new Map(doc.canvas.objects.map((o, i) => [o.id, i]));
+  const isRoot = (id: string) => {
+    const target = arrangementOf(doc, id)?.targetId;
+    return !target || !wanted.has(target) || !entry.has(target);
+  };
+  const roots = ids.filter(isRoot).sort((a, b) => (entry.get(a) ?? Infinity) - (entry.get(b) ?? Infinity));
+  const seen = new Set<string>();
+  const ordered = roots.flatMap((r) => readingOrder(doc, r, seen)).filter((id) => wanted.has(id));
+  return [...ordered, ...ids.filter((id) => !ordered.includes(id))];
+}
+
 export function boundsOf(rects: Rect[]): Rect {
   const minX = Math.min(...rects.map((r) => r.position.x));
   const minY = Math.min(...rects.map((r) => r.position.y));

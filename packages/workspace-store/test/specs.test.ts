@@ -37,10 +37,11 @@ function petclinic(): WorkspaceSnapshot {
   ];
   doc.blocks = [
     { id: "blk_titulo", kind: "heading", projectId: "prj_pet", title: "Cadastro de produto", text: "O lojista cadastra produtos para pets." },
-    { id: "blk_criterios", kind: "table", projectId: "prj_pet", title: "Critérios de aceite", columns: ["Critério", "Origem", "Status"], rows: [["Dado | quando | então", "dgm_processo / nd_v", "passou"]] },
-    { id: "blk_passos", kind: "list", projectId: "prj_pet", title: "Passos", ordered: true, items: ["Abrir a tela", "Salvar"] },
+    { id: "blk_criterios", kind: "table", projectId: "prj_pet", arrangement: { relation: "continues", targetId: "blk_passos" }, title: "Critérios de aceite", columns: ["Critério", "Origem", "Status"], rows: [["Dado | quando | então", "dgm_processo / nd_v", "passou"]] },
+    { id: "blk_passos", kind: "list", projectId: "prj_pet", arrangement: { relation: "continues", targetId: "blk_titulo" }, title: "Passos", ordered: true, items: ["Abrir a tela", "Salvar"] },
   ] as WorkspaceSnapshot["blocks"];
-  doc.canvas.objects.push(place("blk_titulo", 0), place("blk_passos", 100), place("blk_criterios", 200));
+  // A tabela foi arrastada para o topo à mão e entrou primeiro no canvas: a ordem vem das relações, não das coordenadas.
+  doc.canvas.objects.push(place("blk_criterios", -500), place("blk_titulo", 0), place("blk_passos", 100));
   doc.layers = [layer("lyr_spec", "Produtos para pets", ["dgm_processo", "dgm_dados", "dgm_tela"]), layer("lyr_impl", "Implementação: Cadastro de produto", ["blk_criterios", "blk_titulo", "blk_passos"], "lyr_spec")];
   return doc;
 }
@@ -53,7 +54,7 @@ describe("especificação em markdown", () => {
     expect(specSlug(layer("lyr_x", "Implementação: Atualização de preço", []))).toBe("atualizacao-de-preco");
   });
 
-  it("converte blocos na ordem do canvas e diagramas em Mermaid, sem inventar conteúdo", () => {
+  it("converte blocos na ordem de leitura do layout semântico e diagramas em Mermaid, sem inventar conteúdo", () => {
     const doc = petclinic();
     const md = renderSpec(doc, doc.layers!.find((l) => l.id === "lyr_impl")!);
     expect(md.startsWith("# Cadastro de produto\n")).toBe(true);

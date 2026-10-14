@@ -72,7 +72,7 @@ Decisão do Arthur: o Open Semantic não implementa, não cria arquivos, não ro
 
 - **A camada 3 é só refinamento:** definição, restrições e critérios de aceite. O modo Implementação não altera arquivos do projeto.
 - **A camada vira markdown sozinha:** toda camada chamada "Implementação: <assunto>" é gravada em `specs/<assunto>.md` na raiz do repositório, a cada mudança. A conversão é programática (`packages/workspace-store/src/specs.ts`), sem modelo e sem inventar conteúdo:
-  - blocos na ordem do canvas: heading vira `##`, texto vira parágrafo, lista vira lista, tabela vira tabela markdown;
+  - blocos e diagramas na mesma ordem de leitura que o layout semântico (doc 13) usa no canvas: título e introdução, o objeto, as notas, depois o que detalha e o que continua. As coordenadas não entram, então mover algo à mão não embaralha o documento. Heading vira `##`, texto vira parágrafo, lista vira lista, tabela vira tabela markdown;
   - diagramas em Mermaid quando o tipo permite: bpmn, flow, architecture e layers viram `flowchart` (raias e faixas como `subgraph`), sequence vira `sequenceDiagram`, er vira `erDiagram`; wireframe e tree viram uma lista aninhada com o tipo de cada elemento;
   - as marcas dos nós (novo, muda, sai, pendente, passou, falhou) aparecem como lista embaixo do diagrama;
   - no fim, os diagramas da camada mãe (a especificação), de onde vêm os critérios.

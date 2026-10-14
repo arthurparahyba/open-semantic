@@ -1,10 +1,13 @@
 // A camada de implementação vira um markdown em `specs/` do repositório (docs/funcionalidades/16-fluxo-end-to-end.md).
-// Conversão determinística, sem modelo: só reorganiza o que está na camada (blocos e diagramas, na ordem do canvas),
+// Conversão determinística, sem modelo: só reorganiza o que está na camada (blocos e diagramas, na ordem de leitura
+// que o layout semântico usa no canvas),
 // sem inventar conteúdo. O arquivo é regerado a cada mudança e é o que um agente de código recebe para implementar.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { Block, DiagramModel, Layer, WorkspaceSnapshot } from "@open-semantic/protocol";
+
+import { documentOrder } from "./layout/flow.js";
 
 export const SPECS_DIR = "specs";
 /** O modo Implementação nomeia a camada assim: "Implementação: Cadastro de produto". */
@@ -67,21 +70,13 @@ export function renderSpec(snapshot: WorkspaceSnapshot, layer: Layer): string {
 
 type Item = { kind: "block"; block: Block } | { kind: "diagram"; diagram: DiagramModel };
 
-/** De cima para baixo e da esquerda para a direita, como no canvas; sem posição, na ordem da camada. */
+/** A mesma ordem que o layout semântico usa no canvas (título, objeto, notas, detalhes, continuação), não as coordenadas. */
 function inReadingOrder(snapshot: WorkspaceSnapshot, ids: string[]): Item[] {
-  const position = new Map(snapshot.canvas.objects.map((o) => [o.id, o.position]));
-  const items = ids.flatMap<Item & { order: number }>((id, order) => {
+  return documentOrder(snapshot, ids).flatMap<Item>((id) => {
     const diagram = snapshot.diagrams.find((d) => d.id === id);
-    if (diagram) return [{ kind: "diagram", diagram, order }];
+    if (diagram) return [{ kind: "diagram", diagram }];
     const block = (snapshot.blocks ?? []).find((b) => b.id === id);
-    return block ? [{ kind: "block", block, order }] : [];
-  });
-  const key = (i: Item & { order: number }) => position.get(i.kind === "diagram" ? i.diagram.id : i.block.id);
-  return items.sort((a, b) => {
-    const pa = key(a);
-    const pb = key(b);
-    if (!pa || !pb) return a.order - b.order;
-    return pa.y - pb.y || pa.x - pb.x || a.order - b.order;
+    return block ? [{ kind: "block", block }] : [];
   });
 }
 
