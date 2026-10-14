@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ANTHROPIC_MODELS, type Completion, type CompletionRequest, type LlmProvider } from "@open-semantic/llm";
 
 import { Conversation, createCore, scriptedPlan, type Core } from "../src/index.js";
-import { specSubject } from "../src/conversation/layerFlow.js";
+import { pendingWork, specSubject, type PreparedLayer } from "../src/conversation/layerFlow.js";
+import type { WorkspaceSnapshot } from "@open-semantic/protocol";
 
 type Step = (request: CompletionRequest) => Partial<Completion>;
 
@@ -91,6 +92,8 @@ describe("camadas garantidas pelo app", () => {
     expect(spec.name).toBe("Especificação: Cadastro de produtos");
     expect(spec.parentId).toBeUndefined();
     expect(lastUserText(provider.requests[0]!)).toContain(`A camada "Especificação: Cadastro de produtos" (${spec.id}) já está aberta`);
+    // O modelo respondeu sem desenhar: o app cobra o bpmn e o wireframe.
+    expect(lastUserText(provider.requests[1]!)).toContain("Falta na camada de especificação: o processo em bpmn e o wireframe");
 
     // O processo que o modelo teria desenhado na especificação.
     const bpmn = core.store.snapshot().diagrams[0]!.id;
@@ -123,5 +126,24 @@ describe("camadas garantidas pelo app", () => {
     ]);
     await conversation(provider).send("quero criar uma funcionalidade de agendamento de consultas");
     expect(layers().map((l) => l.name)).toEqual(["Especificação: Agendamento de consultas"]);
+  });
+});
+
+describe("o que o app cobra no fim da etapa", () => {
+  const dgm = (id: string, kind: string, revision: number, mark?: string) => ({ id, kind, title: id, revision, nodes: [{ id: `nd_${id}`, attributes: mark ? { mark } : {} }], edges: [] });
+  const snap = (diagrams: ReturnType<typeof dgm>[]) =>
+    ({ diagrams, blocks: [], layers: [{ id: "lyr_spec", name: "Especificação: X", members: diagrams.map((d) => ({ id: d.id })) }] }) as unknown as WorkspaceSnapshot;
+  const prepared = (phase: PreparedLayer["phase"]) => ({ layer: { id: "lyr_spec" }, phase, hint: "" }) as unknown as PreparedLayer;
+  const before = new Map([["dgm_tela", 1], ["dgm_proc", 1]]);
+
+  it("no ajuste, cobra o processo que ficou para trás e as marcas do que mudou", () => {
+    const text = pendingWork(prepared("refine"), before, snap([dgm("dgm_tela", "wireframe", 2), dgm("dgm_proc", "bpmn", 1)]))!;
+    expect(text).toContain('"dgm_proc" (dgm_proc) não mudou');
+    expect(text).toContain("Marque com mark_diagram");
+  });
+
+  it("ajuste completo e marcado não cobra nada", () => {
+    expect(pendingWork(prepared("refine"), before, snap([dgm("dgm_tela", "wireframe", 2, "muda"), dgm("dgm_proc", "bpmn", 2, "novo")]))).toBeUndefined();
+    expect(pendingWork(prepared("draft"), before, snap([dgm("dgm_tela", "wireframe", 1), dgm("dgm_proc", "bpmn", 1)]))).toBeUndefined();
   });
 });

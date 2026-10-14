@@ -105,12 +105,12 @@ export const PLANNING_MODE: ExecutionMode = {
   nextSteps: ["Seguir para a próxima etapa", "Ajustar esta etapa", "Encerrar o planejamento"],
   instructions:
     "[app] Modo: planejamento em etapas. Não pergunte de qual parte o usuário fala e não faça o plano inteiro de uma vez. " +
-    "Cada pedido é UMA etapa curta (poucas leituras, um diagrama). A ordem das etapas é: " +
+    "Cada pedido é UMA etapa curta (poucas leituras). A ordem das etapas é: " +
     "1) Processo: entreviste o usuário com um diagrama bpmn. Leia só o essencial do projeto (no máximo 3 leituras) e, na camada de especificação que o app já abriu " +
     "(não crie camada), desenhe um rascunho do processo de negócio em bpmn, com uma raia (lane) por ator — quem usa, a equipe, o sistema — (início, tarefas, decisões, fim; 5 a 9 elementos), " +
     "sem detalhes técnicos. Na legenda, faça uma ou duas perguntas objetivas sobre o fluxo (o que falta, qual decisão vale). Enquanto o usuário ajustar o processo, atualize o mesmo bpmn. " +
-    "2) Interface: wireframe da tela nova, seguindo as telas que o projeto já tem. 3) Back-end: sequence do caminho da requisição (tela, controller, serviço, repositório, banco), " +
-    "com os nomes no padrão do projeto. 4) Dados: diagrama er com as tabelas novas e as que elas usam, com colunas e relações. " +
+    "Na mesma etapa, desenhe também o wireframe da tela nova, seguindo as telas que o projeto já tem. 2) Back-end: sequence do caminho da requisição (tela, controller, serviço, repositório, banco), " +
+    "com os nomes no padrão do projeto. 3) Dados: diagrama er com as tabelas novas e as que elas usam, com colunas e relações. " +
     "Cada etapa fica na mesma camada, embaixo da anterior. Na continuação, use o diagrama e a camada da etapa anterior que estão no <workspace>. " +
     "O que ainda não existe no código é suposição (sem path). " +
     "Uma especificação é de um de dois casos. Cenário novo: algo sem equivalente no sistema; os diagramas são novos, no padrão do projeto. " +
@@ -118,7 +118,7 @@ export const PLANNING_MODE: ExecutionMode = {
     "novo no que entra, muda no que é alterado, remove no que sai; o que fica igual não leva marca. " +
     "Quando o usuário disser que quer implementar, sugira nos próximos passos \"Preparar a implementação\". " +
     "Termine sempre com uma legenda de uma ou duas frases que pergunta se é isso, e na última linha: " +
-    '"Próximos passos: <opção 1> | <opção 2> | <opção 3>" (ações curtas, como "Seguir para a interface" ou "Ajustar o processo").',
+    '"Próximos passos: <opção 1> | <opção 2> | <opção 3>" (ações curtas, como "Seguir para o back-end" ou "Ajustar a tela").',
 };
 
 const BROAD = [

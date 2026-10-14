@@ -21,6 +21,8 @@ export interface TurnOptions {
   /** O pedido é de entendimento de estrutura ou fluxo: a resposta é um diagrama (visual first). */
   explanation: boolean;
   chat: Chat;
+  /** O que o app ainda cobra quando o modelo encerra (etapa incompleta); vai de volta ao modelo, no máximo duas vezes. */
+  followUp?(): string | undefined;
   /** Cada chamada ao modelo, para os totais da conversa. */
   onUsage(usage: Usage, costUsd: number): void;
 }
@@ -29,6 +31,7 @@ export class AgentTurn {
   /** O texto final do modelo: a resposta de uma pergunta pontual, ou a legenda do que foi desenhado. */
   answer = "";
   private nudged = false;
+  private followUps = 0;
 
   constructor(private readonly o: TurnOptions) {}
 
@@ -89,6 +92,14 @@ export class AgentTurn {
    * volta ao modelo para ser desenhada; quem já mexeu no canvas (abriu um arquivo, apagou algo) não é cobrado.
    */
   private nudge(): boolean {
+    if (this.followUps < 2 && !this.o.signal.aborted) {
+      const pending = this.o.followUp?.();
+      if (pending) {
+        this.followUps++;
+        this.o.history.push({ role: "user", text: pending });
+        return true;
+      }
+    }
     if (!this.o.explanation || this.o.budget.ranBatch || this.nudged || this.o.signal.aborted) return false;
     this.nudged = true;
     this.o.history.push({ role: "user", text: VISUAL_NUDGE });
