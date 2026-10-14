@@ -6,8 +6,11 @@ const PADDING = 16;
 const CHAR = 7.4;
 const LINE = 21;
 
+/** A quebra por palavra desperdiça parte de cada linha; sem essa folga, listas e tabelas longas passavam da moldura. */
+const WRAP = 1.15;
+
 /** Linhas que um texto ocupa numa largura. */
-const lines = (text: string | undefined, width: number) => (text ? Math.max(1, Math.ceil((text.length * CHAR) / (width - 2 * PADDING))) : 0);
+const lines = (text: string | undefined, width: number) => (text ? Math.max(1, Math.ceil((text.length * CHAR * WRAP) / (width - 2 * PADDING))) : 0);
 
 /** Altura do conteúdo, por tipo. */
 function contentHeight(block: Pick<Block, "kind" | "title" | "text" | "items" | "columns" | "rows">, width: number): number {

@@ -3,6 +3,8 @@ import type { Camera, Point, Rect } from "@open-semantic/protocol";
 export interface Viewport {
   width: number;
   height: number;
+  /** Faixas da tela cobertas por controles flutuantes (caixa de mensagem, painel de camadas, dicas): o enquadramento as evita. */
+  insets?: { top: number; right: number; bottom: number; left: number };
 }
 
 export interface FrameOptions {
@@ -48,14 +50,17 @@ export function computeFrame(rects: Rect[], viewport: Viewport, options: FrameOp
   const ceiling = intent === "detail" ? (options.maxZoom ?? ZOOM_LIMITS.max) : intent === "overview" ? 0.6 : 1;
   const maxZoom = Math.min(ceiling, options.maxZoom ?? ceiling, ZOOM_LIMITS.max);
 
-  const availableW = Math.max(viewport.width - 2 * padding, 1);
-  const availableH = Math.max(viewport.height - 2 * padding, 1);
+  const inset = viewport.insets ?? { top: 0, right: 0, bottom: 0, left: 0 };
+  const availableW = Math.max(viewport.width - inset.left - inset.right - 2 * padding, 1);
+  const availableH = Math.max(viewport.height - inset.top - inset.bottom - 2 * padding, 1);
   const fit = Math.min(availableW / Math.max(box.size.width, 1), availableH / Math.max(box.size.height, 1));
   const zoom = clamp(fit, minZoom, Math.max(maxZoom, minZoom));
 
+  // O centro da área livre fica deslocado do centro da tela; a câmera compensa.
+  const z = round(zoom);
   return {
-    center: { x: box.position.x + box.size.width / 2, y: box.position.y + box.size.height / 2 },
-    zoom: round(zoom),
+    center: { x: box.position.x + box.size.width / 2 - (inset.left - inset.right) / 2 / z, y: box.position.y + box.size.height / 2 - (inset.top - inset.bottom) / 2 / z },
+    zoom: z,
   };
 }
 

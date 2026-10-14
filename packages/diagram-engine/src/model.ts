@@ -169,3 +169,33 @@ function mergeSet<T extends object>(current: T, set: Record<string, unknown>): T
 function invalid(message: string, argumentPath: string) {
   return new OperationError("INVALID_ARGUMENTS", message, { argumentPath });
 }
+
+const END_KINDS = new Set(["end", "fim"]);
+
+/**
+ * BPMN: todo caminho termina num evento de fim. Tarefa ou decisão sem saída ganha uma seta para o fim
+ * (o que já existe, ou um novo na raia dela). O modelo às vezes esquece a última seta; o processo não pode ficar aberto.
+ */
+export function closeBpmnPaths(nodes: DiagramNode[], edges: DiagramEdge[]): { nodes: DiagramNode[]; edges: DiagramEdge[] } {
+  const hasOut = new Set(edges.map((e) => e.sourceNodeId));
+  const dangling = nodes.filter((n) => !hasOut.has(n.id) && !END_KINDS.has(n.kind) && n.kind !== "start" && n.kind !== "inicio");
+  if (!dangling.length || !nodes.some((n) => n.kind === "start" || n.kind === "inicio")) return { nodes, edges };
+  let end = nodes.find((n) => END_KINDS.has(n.kind));
+  const outNodes = [...nodes];
+  if (!end) {
+    const ids = new Set(nodes.map((n) => n.id));
+    let id = "nd_fim";
+    for (let i = 2; ids.has(id); i++) id = `nd_fim_${i}`;
+    const layer = dangling[0]!.attributes?.layer;
+    end = { id, label: "Fim", kind: "end", ...(layer !== undefined ? { attributes: { layer } } : {}) } as DiagramNode;
+    outNodes.push(end);
+  }
+  const edgeIds = new Set(edges.map((e) => e.id));
+  const added = dangling.map((n) => {
+    let id = `edg_${n.id.replace(/^nd_/, "")}_fim`;
+    for (let i = 2; edgeIds.has(id); i++) id = `edg_${n.id.replace(/^nd_/, "")}_fim_${i}`;
+    edgeIds.add(id);
+    return { id, sourceNodeId: n.id, targetNodeId: end!.id } as DiagramEdge;
+  });
+  return { nodes: outNodes, edges: [...edges, ...added] };
+}

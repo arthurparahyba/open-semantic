@@ -41,15 +41,18 @@ export function LayersPanel({ snapshot, onActivate, onRename, onDissolve }: Prop
             {layer.name}
           </button>
           <span className="layer-count">{layer.members.length}</span>
-          {isSpecLayer(layer) && (
-            <span className="layer-spec-file" data-testid="layer-spec-file" title="O app grava esta camada neste arquivo do repositório">
-              {specPath(layer)}
-            </span>
-          )}
-          {isSpecLayer(layer) && <HandoffButton layer={layer} />}
           <button type="button" className="layer-remove" onClick={() => onDissolve(layer.id)} aria-label={`Desfazer a camada ${layer.name}`} title="Desfazer a camada (nada é apagado)">
             ×
           </button>
+          {isSpecLayer(layer) && (
+            // Segunda linha da camada: o arquivo e o pedido não cabem ao lado do nome sem estourar o painel.
+            <span className="layer-spec">
+              <span className="layer-spec-file" data-testid="layer-spec-file" title={`O app grava esta camada em ${specPath(layer)}`}>
+                {specPath(layer)}
+              </span>
+              <HandoffButton layer={layer} />
+            </span>
+          )}
         </span>
       ))}
     </nav>

@@ -198,15 +198,24 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
 
   useLayoutEffect(() => {
     const el = viewportRef.current!;
+    let last = "";
     const update = () => {
-      const next = { width: el.clientWidth, height: el.clientHeight };
+      const next = { width: el.clientWidth, height: el.clientHeight, insets: coveredEdges(el) };
+      const key = JSON.stringify(next);
+      if (key === last) return;
+      last = key;
       setViewport(next);
       api().setViewport(next);
     };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
-    return () => observer.disconnect();
+    // Os controles flutuantes mudam de tamanho sem a viewport mudar (pergunta no rodapé, camada nova no painel).
+    const timer = setInterval(update, 1000);
+    return () => {
+      observer.disconnect();
+      clearInterval(timer);
+    };
   }, []);
 
   // Esc interrompe um movimento automático.
@@ -385,4 +394,22 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
       </div>
     </div>
   );
+}
+
+/** Controles que flutuam sobre o canvas; o que eles cobrem nas bordas não serve para enquadrar. */
+const OVERLAYS = [".chat-bottom", ".layers", ".hint"];
+
+function coveredEdges(el: HTMLElement): { top: number; right: number; bottom: number; left: number } {
+  const box = el.getBoundingClientRect();
+  const out = { top: 0, right: 0, bottom: 0, left: 0 };
+  for (const sel of OVERLAYS) {
+    for (const node of document.querySelectorAll(sel)) {
+      const r = node.getBoundingClientRect();
+      if (!r.width || !r.height || r.right <= box.left || r.left >= box.right || r.bottom <= box.top || r.top >= box.bottom) continue;
+      // Encostado embaixo (caixa de mensagem, dicas) cobre a faixa de baixo; encostado à esquerda, a faixa da esquerda.
+      if (r.bottom >= box.bottom - 40) out.bottom = Math.max(out.bottom, Math.round(box.bottom - r.top));
+      else if (r.left <= box.left + 40) out.left = Math.max(out.left, Math.round(r.right - box.left));
+    }
+  }
+  return out;
 }
