@@ -18,6 +18,7 @@
     "./projects": "./src/projects.ts",
     "./layers": "./src/layerView.ts",
     "./diagramShapes": "./src/diagramShapes.ts",
-    "./layout": "./src/layout/index.ts"
+    "./layout": "./src/layout/index.ts",
+    "./specs": "./src/specName.ts"
   }
 }

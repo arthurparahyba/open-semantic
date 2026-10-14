@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { WorkspaceSnapshot } from "@open-semantic/protocol";
 
-import { emptySnapshot, renderSpec, specFiles, specSlug } from "../src/index.js";
+import { emptySnapshot, handoffPrompt, isSpecLayer, renderSpec, specFiles, specSlug } from "../src/index.js";
 
 const at = "2026-10-14T12:00:00.000Z";
 const layer = (id: string, name: string, members: string[], parentId?: string) => ({
@@ -70,5 +70,13 @@ describe("especificação em markdown", () => {
     expect(md).toContain('products ||--o{ pets : "1..N"');
     expect(md).toContain("- Novo produto (screen)\n  - Nome (input)\n  - Salvar (button)");
     expect(renderSpec(doc, doc.layers![1]!)).toBe(md);
+  });
+});
+
+describe("pedido para o agente de código", () => {
+  it("aponta para o arquivo da camada e não inventa nada além das regras fixas", () => {
+    const prompt = handoffPrompt(layer("lyr_impl", "Implementação: Cadastro de produto", []));
+    expect(prompt.split("\n")[0]).toBe("Implemente o que está especificado em specs/cadastro-de-produto.md.");
+    expect(isSpecLayer(layer("lyr_x", "Produtos para pets", []))).toBe(false);
   });
 });

@@ -1,5 +1,8 @@
+import { useState } from "react";
+
 import { layerTree } from "@open-semantic/workspace-store/layers";
-import type { WorkspaceSnapshot } from "@open-semantic/protocol";
+import { handoffPrompt, isSpecLayer, specPath } from "@open-semantic/workspace-store/specs";
+import type { Layer, WorkspaceSnapshot } from "@open-semantic/protocol";
 
 interface Props {
   snapshot: WorkspaceSnapshot;
@@ -38,11 +41,31 @@ export function LayersPanel({ snapshot, onActivate, onRename, onDissolve }: Prop
             {layer.name}
           </button>
           <span className="layer-count">{layer.members.length}</span>
+          {isSpecLayer(layer) && <HandoffButton layer={layer} />}
           <button type="button" className="layer-remove" onClick={() => onDissolve(layer.id)} aria-label={`Desfazer a camada ${layer.name}`} title="Desfazer a camada (nada é apagado)">
             ×
           </button>
         </span>
       ))}
     </nav>
+  );
+}
+
+/**
+ * A camada de implementação já está em specs/<assunto>.md (doc 16). Um clique copia o pedido para o agente de código
+ * que o usuário preferir; o app não implementa.
+ */
+function HandoffButton({ layer }: { layer: Layer }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard.writeText(handoffPrompt(layer)).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <button type="button" className="layer-handoff" onClick={copy} data-testid="layer-handoff" title={`Copia o pedido para o agente de código: implementar ${specPath(layer)}`}>
+      {copied ? "Copiado" : "Copiar pedido"}
+    </button>
   );
 }

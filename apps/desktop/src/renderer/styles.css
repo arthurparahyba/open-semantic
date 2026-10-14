@@ -402,6 +402,8 @@ button.chat-mode { background: none; cursor: pointer; }
 .layer-row.is-active { background: #ece7ff; color: #3b25a8; font-weight: 600; }
 .layer-name { flex: 1; text-align: left; background: none; border: none; color: inherit; font: inherit; cursor: pointer; padding: 2px 0; }
 .layer-count { color: #888; font-size: 11px; }
+.layer-handoff { font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); cursor: pointer; white-space: nowrap; }
+.layer-handoff:hover { color: var(--text); border-color: var(--accent); }
 .layer-remove { background: none; border: none; color: #999; cursor: pointer; }
 .layer-remove:hover { color: #c33; }
 .toast-action { margin-left: 10px; background: none; border: 1px solid currentColor; border-radius: 4px; color: inherit; cursor: pointer; }

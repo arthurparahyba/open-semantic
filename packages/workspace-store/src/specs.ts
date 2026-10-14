@@ -8,27 +8,12 @@ import { join } from "node:path";
 import type { Block, DiagramModel, Layer, WorkspaceSnapshot } from "@open-semantic/protocol";
 
 import { documentOrder } from "./layout/flow.js";
+import { SPEC_LAYER, isSpecLayer, specPath } from "./specName.js";
 
-export const SPECS_DIR = "specs";
-/** O modo Implementação nomeia a camada assim: "Implementação: Cadastro de produto". */
-const SPEC_LAYER = /^implementa[cç][aã]o\b\s*:?\s*/i;
+export { SPECS_DIR, handoffPrompt, isSpecLayer, specPath, specSlug } from "./specName.js";
 
 type Node = DiagramModel["nodes"][number];
 type Edge = DiagramModel["edges"][number];
-
-export const isSpecLayer = (layer: Layer) => SPEC_LAYER.test(layer.name);
-
-/** Nome do arquivo: o assunto da camada, sem acentos. */
-export function specSlug(layer: Layer): string {
-  const subject = layer.name.replace(SPEC_LAYER, "") || layer.name;
-  const slug = subject
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || layer.id.replace(/^lyr_/, "");
-}
 
 /** Arquivos de especificação por projeto: caminho relativo à raiz e texto. */
 export function specFiles(snapshot: WorkspaceSnapshot): Map<string, { path: string; text: string }[]> {
@@ -38,7 +23,7 @@ export function specFiles(snapshot: WorkspaceSnapshot): Map<string, { path: stri
     const projectId = projectOf(snapshot, layer);
     if (!projectId) continue;
     const list = files.get(projectId) ?? [];
-    list.push({ path: `${SPECS_DIR}/${specSlug(layer)}.md`, text: renderSpec(snapshot, layer) });
+    list.push({ path: specPath(layer), text: renderSpec(snapshot, layer) });
     files.set(projectId, list);
   }
   return files;
