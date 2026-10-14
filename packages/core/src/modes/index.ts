@@ -80,7 +80,7 @@ export const BRIEF_MODE: ExecutionMode = {
 
 const PLANNING = [
   /\bcomo (eu )?(faco|faria|crio|criaria|criar|implemento|implementaria|implementar|adiciono|adicionar|construo|construir|desenvolvo|desenvolver|monto|montar|fazer) (uma|um|a|o|esse|essa|novas?|novos?)? ?(nova |novo )?(funcionalidade|feature|recurso|tela|cadastro|crud|modulo|servico|endpoint|api|fluxo|processo)/,
-  /\b(quero|queria|preciso|gostaria de|vou) (criar|implementar|adicionar|construir|desenvolver|planejar) (uma|um) (nova |novo )?(funcionalidade|feature|recurso|tela|cadastro|crud|modulo|servico|processo)/,
+  /\b(quero|queria|preciso|gostaria de|vou) (criar|implementar|adicionar|construir|desenvolver|planejar|especificar|desenhar|projetar) (uma|um) (nova |novo )?(funcionalidade|feature|recurso|tela|cadastro|crud|modulo|servico|processo)/,
   /\bdesde (a|o) .{1,40}\bate (o|a|os|as) /,
   /\bda tela (ate|ao|aos) /,
   /\bdo (front ?end|frontend) (ate|ao) /,
@@ -106,8 +106,8 @@ export const PLANNING_MODE: ExecutionMode = {
   instructions:
     "[app] Modo: planejamento em etapas. Não pergunte de qual parte o usuário fala e não faça o plano inteiro de uma vez. " +
     "Cada pedido é UMA etapa curta (poucas leituras, um diagrama). A ordem das etapas é: " +
-    "1) Processo: entreviste o usuário com um diagrama bpmn. Leia só o essencial do projeto (no máximo 3 leituras), abra uma camada para a discussão com layer.create " +
-    "(ancorada no elemento da visão geral de onde ela nasce) e desenhe um rascunho do processo de negócio em bpmn, com uma raia (lane) por ator — quem usa, a equipe, o sistema — (início, tarefas, decisões, fim; 5 a 9 elementos), " +
+    "1) Processo: entreviste o usuário com um diagrama bpmn. Leia só o essencial do projeto (no máximo 3 leituras) e, na camada de especificação que o app já abriu " +
+    "(não crie camada), desenhe um rascunho do processo de negócio em bpmn, com uma raia (lane) por ator — quem usa, a equipe, o sistema — (início, tarefas, decisões, fim; 5 a 9 elementos), " +
     "sem detalhes técnicos. Na legenda, faça uma ou duas perguntas objetivas sobre o fluxo (o que falta, qual decisão vale). Enquanto o usuário ajustar o processo, atualize o mesmo bpmn. " +
     "2) Interface: wireframe da tela nova, seguindo as telas que o projeto já tem. 3) Back-end: sequence do caminho da requisição (tela, controller, serviço, repositório, banco), " +
     "com os nomes no padrão do projeto. 4) Dados: diagrama er com as tabelas novas e as que elas usam, com colunas e relações. " +
@@ -162,15 +162,15 @@ export function asksForImplementation(message: string): boolean {
 export const IMPLEMENTATION_MODE: ExecutionMode = {
   id: "implementacao",
   name: "Implementação",
-  activatesWhen: (message, state) => asksForImplementation(message) || (state.previous === "implementacao" && continues(message)),
+  activatesWhen: (message, state) => asksForImplementation(message) || (state.previous === "implementacao" && continues(message) && !asksForPlanning(message)),
   cadence: "steps",
   nextSteps: ["Refinar os critérios", "Validar os critérios", "Levar para a base"],
   limits: (base) => ({ ...base, maxModelCalls: Math.round(base.maxModelCalls * 2), maxBatches: base.maxBatches + 6 }),
   instructions:
     "[app] Modo: implementação. Aqui se define o que implementar e como saber que ficou pronto; quem implementa é o agente de código que o usuário escolher, fora do app. " +
     "Nunca altere arquivos do projeto neste modo (nada de project.write_file). Não é um plano passo a passo: é o alvo e como validá-lo. Cada pedido é UMA etapa: " +
-    "1) Preparar: a partir dos diagramas da camada de especificação (bpmn, wireframe, sequence, er no <workspace>), abra uma camada filha dela com layer.create " +
-    "(parentId = a camada da especificação, anchors = o diagrama de processo, nome \"Implementação: <assunto>\"; o app grava essa camada em specs/<assunto>.md no repositório). Para cada funcionalidade, use show_blocks: " +
+    "1) Preparar: a partir dos diagramas da camada de especificação (bpmn, wireframe, sequence, er no <workspace>), use a camada filha \"Implementação: <assunto>\" que o app já abriu " +
+    "(não crie camada nem mova diagramas para ela; o app grava essa camada em specs/<assunto>.md no repositório). Para cada funcionalidade, use show_blocks: " +
     "um heading com o nome; um text com a intenção em uma ou duas frases; uma list com os passos focados no resultado (o que o usuário vê, não como codificar); " +
     "uma list \"Restrições do projeto\" com o padrão lido na base (camadas da arquitetura, telas parecidas, banco); " +
     "e uma table \"Critérios de aceite\" com as colunas Critério, Origem, Status. Derive os critérios dos diagramas: cada caminho do bpmn (o feliz e cada exceção) vira um cenário dado/quando/então; " +

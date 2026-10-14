@@ -17,6 +17,7 @@ import { ConversationBusyError, type ConversationOptions, type ConversationView 
 import { Understanding } from "./understand.js";
 import { BUILTIN_MODES, ModeRegistry, splitNextSteps, type ExecutionMode } from "../modes/index.js";
 import { ACCEPT_ALL_HINT, acceptsAll } from "./acceptAll.js";
+import { layerGuard, prepareLayer, type PreparedLayer } from "./layerFlow.js";
 import { asksForExplanation, changedDiagrams, diagramRevisions, kindHint } from "./visualFirst.js";
 
 /** Um pedido em andamento: o laço e as revisões dos diagramas de quando começou (para achar o que ele desenhou). */
@@ -44,6 +45,8 @@ export class Conversation {
   /** Modo do pedido atual (ou do último), para um modo em etapas continuar. */
   private mode: ExecutionMode | undefined;
   private request = "";
+  /** Camada que o app abriu para o pedido atual: destino travado dos diagramas. */
+  private prepared: PreparedLayer | undefined;
   private readonly batches: ConversationBatches;
   private readonly limits: TurnLimits;
   private readonly newId: () => string;
@@ -139,18 +142,20 @@ export class Conversation {
       // Antes do modelo: do que a mensagem fala. O foco vai para lá, e só isso (com um mapa enxuto do resto)
       // vai junto do pedido, para o modelo não gastar uma chamada só para olhar nem ler o workspace inteiro.
       const broad = all || mode.cadence === "steps";
+      this.prepared = await prepareLayer(mode.id, request, { dispatcher: this.options.dispatcher, snapshot: () => this.options.snapshot(), newId: this.newId });
       this.asked = request;
       const workspace = await this.understanding.understand(request, { broad });
       if (!workspace) {
         if (!this.superseded) this.chat.notice("Pedido parado antes de ir para o modelo.", "info");
         return;
       }
-      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${requestHints(mode, request, all ? previous : undefined)}` });
+      this.history.push({ role: "user", text: `<workspace>\n${workspace}\n</workspace>\n\n${message}${requestHints(mode, request, all ? previous : undefined, this.prepared?.hint)}` });
       await turn.agent.run();
     } catch (err) {
       this.fail(err);
     } finally {
       this.superseded = false;
+      this.prepared = undefined;
       this.finish(turn);
       done();
     }
@@ -214,7 +219,12 @@ export class Conversation {
       context: this.understanding.context,
       newId: this.newId,
       note: (text) => void this.chat.push({ kind: "tool", text }),
-      runBatch: (input) => this.batches.run(input, budget),
+      runBatch: async (input) => {
+        const steps = Array.isArray(input.steps) ? (input.steps as Record<string, unknown>[]) : [];
+        const refused = this.prepared && layerGuard(this.prepared, this.options.snapshot(), steps);
+        if (refused) return { status: "rejected", error: refused, note: "Nenhum passo foi executado." };
+        return this.batches.run(input, budget);
+      },
     };
   }
 
@@ -249,8 +259,9 @@ export class Conversation {
 }
 
 /** O que vai junto do pedido: só as instruções do modo ativo (ou a dica de forma do diagrama no modo breve). */
-function requestHints(mode: ExecutionMode, request: string, acceptedAllOf: string | undefined): string {
+function requestHints(mode: ExecutionMode, request: string, acceptedAllOf: string | undefined, layerHint: string | undefined): string {
   const hints = [
+    layerHint,
     acceptedAllOf !== undefined ? `${ACCEPT_ALL_HINT} Pedido anterior: "${acceptedAllOf}"` : undefined,
     mode.instructions ?? (asksForExplanation(request) ? kindHint(request) : undefined),
   ];
