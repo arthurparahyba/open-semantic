@@ -36,6 +36,7 @@ async function readOne(ctx: ToolContext, input: Record<string, unknown>, path: s
   const file = await resolvePath(ctx, where);
   const result = await agentRead(ctx, "project.read_file", { artifactId: file });
   const content = String(result.output?.content ?? "");
+  ctx.reads.set(where.path, content);
   const fingerprint = result.output?.fingerprint as { contentHash?: string } | undefined;
   const cut = content.length > max;
   return {

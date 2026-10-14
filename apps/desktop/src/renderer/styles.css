@@ -167,6 +167,8 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .toggle { display: flex; align-items: center; gap: 6px; color: var(--text-2); user-select: none; margin-left: 8px; }
 
 /* Grupo de uma unidade de contexto (doc 09): só o desenho do agrupamento que sai das âncoras */
+.layer-frame { position: absolute; border: 2px dashed color-mix(in srgb, var(--accent) 55%, var(--border)); border-radius: 14px; pointer-events: none; }
+.layer-frame-title { position: absolute; left: 16px; top: 8px; font-size: 16px; font-weight: 600; color: color-mix(in srgb, var(--accent) 85%, var(--text)); white-space: nowrap; }
 .unit-group {
   position: absolute; border-radius: 18px; pointer-events: none; transition: box-shadow 0.3s;
   border: 1.5px solid color-mix(in srgb, var(--accent) 25%, var(--border));
@@ -232,7 +234,7 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .diagram-edge.q-inferred line { stroke-dasharray: 7 5; }
 .diagram-edge.q-stale line, .diagram-edge.q-broken line { stroke: var(--warn); stroke-dasharray: 2 3; }
 .diagram-edge.is-highlighted line { stroke-width: 2.6; }
-.diagram-edge-label { font-size: 11px; fill: var(--text-2); }
+.diagram-edge-label { font-size: 11px; fill: var(--text-2); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 .diagram-arrow { fill: var(--text-2); }
 .diagram-edge path { stroke: var(--text-2); stroke-width: 1.6; }
 .diagram-edge.q-inferred path { stroke-dasharray: 7 5; }
@@ -258,6 +260,9 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .m-muda { --mark: #c99a16; }
 .m-remove, .m-falhou { --mark: #d0453a; }
 .m-pendente { --mark: #6b7a90; }
+.wire-node.is-error rect { fill: color-mix(in srgb, #d0453a 12%, var(--surface-2)); }
+.wire-node.is-error:not([class*=" m-"]) rect { stroke: #d0453a; }
+.wire-node.is-error .wire-label { fill: #d0453a; }
 .diagram-node.m-remove .diagram-node-label { text-decoration: line-through; }
 .diagram-node.m-remove { opacity: 0.7; }
 .legend-mark { display: inline-flex; align-items: center; gap: 4px; }

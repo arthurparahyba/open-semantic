@@ -18,7 +18,7 @@ test.beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "os-e2e-wire-"));
   projectDir = await mkdtemp(join(tmpdir(), "loja-"));
   await mkdir(join(projectDir, "web", "src"), { recursive: true });
-  await writeFile(join(projectDir, "web", "src", "Home.tsx"), "export const Home = () => <><Header /><Sidebar /><OrdersTable /></>;\n");
+  await writeFile(join(projectDir, "web", "src", "Home.tsx"), "export const Home = () => <><Header /><Sidebar title=\"Menu\" /><OrdersTable /></>;\n");
   scriptFile = join(dataDir, "roteiro-llm.json");
   await writeFile(scriptFile, "[]");
 });
@@ -43,6 +43,7 @@ test("como é a tela inicial: wireframe com elementos uns dentro dos outros", as
   await writeFile(
     scriptFile,
     JSON.stringify([
+      { toolCalls: [{ id: "tu_0", name: "read_file", input: { paths: [home.path] } }] },
       {
         toolCalls: [
           {
@@ -57,7 +58,7 @@ test("como é a tela inicial: wireframe com elementos uns dentro dos outros", as
               caption: "No topo, o logo, a busca e o botão Entrar; embaixo, o menu à esquerda e a tabela de pedidos.",
               source:
                 "scr[Tela inicial]:screen\n  top[Topo]:header\n    logo[Logo]:image\n    busca[Buscar pedidos]:search\n    entrar[Entrar]:button\n  corpo[Corpo]:row\n    menu[Menu]:sidebar\n      l1[Pedidos]:link\n      l2[Clientes]:link\n    lista[Pedidos recentes]:main\n      filtro[Status]:select\n      tab[Tabela de pedidos]:table",
-              evidence: { scr: { ...home, seen: "Componente Home." }, top: { ...home, seen: "<Header />" }, menu: { ...home, seen: "<Sidebar />" }, tab: { ...home, seen: "<OrdersTable />" } },
+              evidence: { scr: { ...home, seen: "Componente Home." }, top: { ...home, seen: "<Header />" }, menu: { ...home, seen: "<Sidebar title=\"Menu\" />" }, tab: { ...home, seen: "<OrdersTable />" } },
             },
           },
         ],

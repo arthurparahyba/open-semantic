@@ -131,6 +131,7 @@ describe("Resposta visual (show_diagram)", () => {
     const provider = new FakeProvider([
       () => ({ toolCalls: [call("show_diagram", overview)] }),
       () => ({ text: "Esboço pronto." }),
+      () => ({ toolCalls: [call("list_dir", { path: "" })] }),
       () => ({
         toolCalls: [
           call("show_diagram", {
@@ -149,7 +150,7 @@ describe("Resposta visual (show_diagram)", () => {
     await conv.send("mostre a arquitetura");
     await conv.send("e o CI, onde entra na arquitetura?");
 
-    const result = lastToolResult(provider.requests[3]!);
+    const result = lastToolResult(provider.requests[4]!);
     expect(result.status, JSON.stringify(result, null, 1)).toBe("completed");
     const snapshot = core.store.snapshot();
     expect(snapshot.diagrams).toHaveLength(1);
@@ -238,9 +239,12 @@ describe("Resposta visual (show_diagram)", () => {
 
 describe("Tipos de diagrama (formato híbrido: texto + evidências)", () => {
   const draw = async (question: string, input: Record<string, unknown>) => {
-    const provider = new FakeProvider([() => ({ toolCalls: [call("show_diagram", input)] }), () => ({ text: "Pronto." })]);
+    // O agente lê antes de desenhar: verificado é o que ele leu nesta conversa.
+    const files = [...new Set(Object.values((input.evidence ?? {}) as Record<string, { path?: string }>).map((e) => e.path).filter((p) => p?.includes(".")))];
+    const read = [call("list_dir", { path: "", depth: 2 }), ...(files.length ? [call("read_file", { paths: files })] : [])];
+    const provider = new FakeProvider([() => ({ toolCalls: read }), () => ({ toolCalls: [call("show_diagram", input)] }), () => ({ text: "Pronto." })]);
     await conversation(provider).send(question);
-    const result = lastToolResult(provider.requests[1]!);
+    const result = lastToolResult(provider.requests[2]!);
     expect(result.status, JSON.stringify(result, null, 1)).toBe("completed");
     return { provider, diagram: core.store.snapshot().diagrams.find((d) => d.id === input.diagramId)! };
   };

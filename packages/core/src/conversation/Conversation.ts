@@ -47,6 +47,8 @@ export class Conversation {
   private request = "";
   /** Camada que o app abriu para o pedido atual: destino travado dos diagramas. */
   private prepared: PreparedLayer | undefined;
+  /** O que o agente leu nesta conversa (para o verificado das caixas). */
+  private readonly reads = new Map<string, string | null>();
   private readonly batches: ConversationBatches;
   private readonly limits: TurnLimits;
   private readonly newId: () => string;
@@ -90,6 +92,7 @@ export class Conversation {
     this.lastRequest = undefined;
     this.lastPromptTokens = 0;
     this.mode = undefined;
+    this.reads.clear();
     this.understanding.reset();
     this.emit();
   }
@@ -219,6 +222,7 @@ export class Conversation {
       snapshot: () => this.options.snapshot(),
       context: this.understanding.context,
       newId: this.newId,
+      reads: this.reads,
       note: (text) => void this.chat.push({ kind: "tool", text }),
       runBatch: async (input) => {
         const steps = Array.isArray(input.steps) ? (input.steps as Record<string, unknown>[]) : [];

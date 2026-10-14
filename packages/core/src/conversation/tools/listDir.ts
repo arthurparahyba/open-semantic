@@ -36,10 +36,12 @@ export const listDir: ConversationTool = {
           continue;
         }
         entries.push(e);
+        if (!ctx.reads.has(e.path)) ctx.reads.set(e.path, null);
         const name = e.path.split("/").pop() ?? "";
         if (e.kind === "directory" && level < depth && !SKIP.has(name)) await walk(e.artifactId, level + 1);
       }
     };
+    if (!ctx.reads.has(where.path)) ctx.reads.set(where.path, null);
     await walk(await resolvePath(ctx, where), 1);
     return {
       path: where.path || ".",

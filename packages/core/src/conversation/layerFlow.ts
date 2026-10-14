@@ -133,7 +133,7 @@ async function activate(layer: Layer, deps: Deps): Promise<Layer | undefined> {
 }
 
 function locked(layer: Layer, phase: PreparedLayer["phase"], snap: WorkspaceSnapshot, spec?: Layer): PreparedLayer {
-  const rule = "Não chame layer.create, layer.activate nem layer.add_members com diagramas de outras camadas.";
+  const rule = "Não chame layer.create, layer.activate nem layer.add_members com diagramas de outras camadas, e não renomeie a camada.";
   const where =
     phase === "impl"
       ? `A camada "${layer.name}" (${layer.id}) já está aberta e ativa, filha de "${spec!.name}" (${spec!.id}): os blocos novos entram nela sozinhos. Os diagramas da especificação ficam na camada deles; leia-os de lá.`
@@ -190,6 +190,8 @@ export function layerGuard(prepared: PreparedLayer, snapshot: WorkspaceSnapshot,
     const args = (step.arguments ?? {}) as Record<string, unknown>;
     if (op === "layer.create" || (op === "layer.activate" && args.layerId !== prepared.layer.id))
       return `O app já abriu a camada "${prepared.layer.name}" (${prepared.layer.id}) para este pedido; desenhe nela, sem ${op}.`;
+    // O nome da camada dá o nome do arquivo specs/<assunto>.md: renomear deixava camada e arquivo com assuntos diferentes.
+    if (op === "layer.update" && args.name !== undefined) return `O nome da camada é do app (dá o nome do arquivo da especificação); não renomeie.`;
     if (op === "layer.add_members") {
       const ids = ((args.members ?? []) as { id?: string }[]).map((m) => m.id);
       const taken = ids.filter((id) => layers.some((l) => l.id !== args.layerId && l.members.some((m) => m.id === id)));

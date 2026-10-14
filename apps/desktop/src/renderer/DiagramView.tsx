@@ -145,6 +145,8 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
               );
             })
           : diagram.edges.map((edge) => {
+              // Ida e volta entre os mesmos dois nós: os rótulos ficavam um em cima do outro.
+              const reverse = (e: typeof edge) => e.sourceNodeId > e.targetNodeId && diagram.edges.some((o) => o.sourceNodeId === e.targetNodeId && o.targetNodeId === e.sourceNodeId);
               const nthOut = (e: typeof edge) => diagram.edges.filter((o) => o.sourceNodeId === e.sourceNodeId).indexOf(e);
               const a = rectOf(edge.sourceNodeId);
               const b = rectOf(edge.targetNodeId);
@@ -164,7 +166,7 @@ export function DiagramView({ diagram, object, snapshot, zoom, highlighted, high
                     <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} markerEnd={`url(#arrow-${diagram.id})`} />
                   )}
                   {edge.label && (
-                    <text x={diagram.kind === "bpmn" ? bpmnRoute(a, b, nthOut(edge)).label.x : mid.x} y={diagram.kind === "bpmn" ? bpmnRoute(a, b, nthOut(edge)).label.y : mid.y - 6} textAnchor="middle" className="diagram-edge-label">
+                    <text x={diagram.kind === "bpmn" ? bpmnRoute(a, b, nthOut(edge)).label.x : mid.x} y={diagram.kind === "bpmn" ? bpmnRoute(a, b, nthOut(edge)).label.y : mid.y - 6 + (reverse(edge) ? 16 : 0)} textAnchor="middle" className="diagram-edge-label">
                       {edge.label}
                     </text>
                   )}
@@ -293,6 +295,11 @@ function ErTable({ label, columns, width, height }: { label: string; columns: st
   );
 }
 
+/** Mensagem de erro da tela: vermelha sempre, mesmo marcada como novo (a marca fica só na borda). */
+const ERROR_KINDS = new Set(["error", "erro", "alert", "alerta", "validation", "validacao"]);
+const isErrorMessage = (node: DiagramModel["nodes"][number]) =>
+  ERROR_KINDS.has(node.kind) || (["text", "label", "message", "hint"].includes(node.kind) && /\b(erro|inv[aá]lid|obrigat[oó]ri|deve ser|n[aã]o pode)/i.test(node.label));
+
 /**
  * Um elemento da tela no wireframe: contêiner com o nome no topo, ou o elemento desenhado pelo tipo
  * (botão, campo, imagem, texto, lista). O tracejado do inferido vale aqui como nos outros tipos.
@@ -301,8 +308,9 @@ function WireNode({ node, rect, quality, highlighted, container }: { node: Diagr
   const { width: w, height: h } = rect.size;
   const kind = node.kind;
   const max = Math.max(4, Math.floor((w - 16) / 7));
+  const error = !container && isErrorMessage(node);
   return (
-    <g className={`diagram-node wire-node wire-${container ? "box" : kind} q-${quality}${markClass(node)}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} data-wire-kind={kind} transform={`translate(${rect.position.x}, ${rect.position.y})`}>
+    <g className={`diagram-node wire-node wire-${container ? "box" : kind} q-${quality}${markClass(node)}${error ? " is-error" : ""}${highlighted ? " is-highlighted" : ""}`} data-node-id={node.id} data-wire-kind={kind} transform={`translate(${rect.position.x}, ${rect.position.y})`}>
       <title>{`${node.label} · ${kind} · ${QUALITY_LABEL[quality]}`}</title>
       <rect width={w} height={h} rx={kind === "button" ? 8 : container ? 6 : 4} />
       {container ? (
