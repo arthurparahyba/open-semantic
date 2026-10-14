@@ -71,9 +71,12 @@ export function App({ workspace }: { workspace: WorkspaceInfo }) {
     if (!snapshot || lastActive.current === activeLayerId) return;
     lastActive.current = activeLayerId;
     const lit = litObjects(snapshot);
-    const ids = lit ? snapshot.canvas.objects.filter((o) => lit.has(o.id)).map((o) => o.id) : [];
+    // O enquadramento é do que é da camada; o que vem das camadas de cima continua visível em volta.
+    const own = new Set(snapshot.layers?.find((l) => l.id === activeLayerId)?.members.map((m) => m.id) ?? []);
+    const litIds = lit ? snapshot.canvas.objects.filter((o) => lit.has(o.id)).map((o) => o.id) : [];
+    const ids = litIds.some((id) => own.has(id)) ? litIds.filter((id) => own.has(id)) : litIds;
     if (lit && !ids.length) return;
-    requestAnimationFrame(() => canvas.current?.frame(ids, ids.length ? "focus" : "overview"));
+    requestAnimationFrame(() => canvas.current?.frame(ids, ids.length ? "focus" : "overview", { readable: ids.length > 0 }));
   }, [activeLayerId, snapshot]);
 
   const fail = (err: unknown) => notify(err instanceof OperationFailed ? err.message : String(err));

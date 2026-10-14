@@ -36,8 +36,9 @@ let dataDir: string;
 let projectDir: string;
 let core: Core;
 
-const conversation = (provider: LlmProvider) =>
+const conversation = (provider: LlmProvider, limits?: { maxModelCalls: number }) =>
   new Conversation({
+    ...(limits ? { limits } : {}),
     provider: () => provider,
     settings: () => ({ model: "claude-haiku-5-5", maxCostPerRequestUsd: 1 }),
     dispatcher: core.dispatcher,
@@ -145,5 +146,22 @@ describe("o que o app cobra no fim da etapa", () => {
   it("ajuste completo e marcado não cobra nada", () => {
     expect(pendingWork(prepared("refine"), before, snap([dgm("dgm_tela", "wireframe", 2, "muda"), dgm("dgm_proc", "bpmn", 2, "novo")]))).toBeUndefined();
     expect(pendingWork(prepared("draft"), before, snap([dgm("dgm_tela", "wireframe", 1), dgm("dgm_proc", "bpmn", 1)]))).toBeUndefined();
+  });
+});
+
+describe("limite de chamadas", () => {
+  it("a última chamada vem com o aviso de responder com o que já leu", async () => {
+    const provider = new FakeProvider([
+      () => ({ toolCalls: [{ id: "tu_1", name: "read_file", input: { paths: ["README.md", "nao-existe.md"] } }] }),
+      (req) => {
+        const tool = [...req.messages].reverse().find((m) => m.role === "tool") as { results: { content: string }[] };
+        const files = JSON.parse(tool.results[0]!.content).files as { path: string; content?: string; error?: string }[];
+        expect(files[0]).toMatchObject({ path: "README.md", content: "# pet clinic\n" });
+        expect(files[1]!.error).toBeTruthy();
+        return { text: "Pronto." };
+      },
+    ]);
+    await conversation(provider, { maxModelCalls: 2 }).send("o que tem no readme?");
+    expect(lastUserText(provider.requests[1]!)).toContain("Esta é a última chamada deste pedido");
   });
 });

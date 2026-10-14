@@ -6,12 +6,13 @@ import { BPMN_ROW, bpmnCellTop } from "./diagramShapes.js";
 export const DIAGRAM_HEADER = 36;
 export const DIAGRAM_PADDING = 24;
 
-/** Linhas da legenda no rodapé do diagrama, no máximo 4 (o resto fica no texto completo, ao passar o mouse). */
+/** Linhas da legenda no rodapé do diagrama, no máximo 5 (o resto fica no texto completo, ao passar o mouse). */
 export const CAPTION_LINE = 17;
 export function captionLines(caption: string | undefined, width: number): number {
   if (!caption) return 0;
-  const perLine = Math.max(20, Math.floor((width - 2 * 12) / 7.2));
-  return Math.min(4, Math.ceil(caption.length / perLine));
+  // Folga para a quebra por palavra: sem ela, a última linha da legenda de telas estreitas saía cortada.
+  const perLine = Math.max(20, Math.floor((width - 2 * 12) / (7.2 * 1.15)));
+  return Math.min(5, Math.ceil(caption.length / perLine));
 }
 
 /**

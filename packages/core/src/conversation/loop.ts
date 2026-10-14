@@ -27,11 +27,16 @@ export interface TurnOptions {
   onUsage(usage: Usage, costUsd: number): void;
 }
 
+export const LAST_CALL =
+  "[app] Esta é a última chamada deste pedido: não leia mais nada. Responda agora com o que já leu (desenhe com show_diagram se ainda não desenhou) " +
+  "e diga na legenda, em uma frase, o que ficou sem ler. Não afirme nada que você não leu no código; o que for suposição, diga que é.";
+
 export class AgentTurn {
   /** O texto final do modelo: a resposta de uma pergunta pontual, ou a legenda do que foi desenhado. */
   answer = "";
   private nudged = false;
   private followUps = 0;
+  private warnedLast = false;
 
   constructor(private readonly o: TurnOptions) {}
 
@@ -45,6 +50,12 @@ export class AgentTurn {
     if (stop) {
       this.o.chat.notice(stop, "limit");
       return false;
+    }
+    if (this.o.budget.lastCall && !this.warnedLast) {
+      // Sem o aviso, o modelo gastava a última chamada lendo mais um arquivo e o pedido acabava sem resposta
+      // (ou com uma resposta que afirmava o que ele não leu).
+      this.warnedLast = true;
+      this.o.history.push({ role: "user", text: LAST_CALL });
     }
     const completion = await this.complete();
     if (this.stopsAt(completion)) return false;
