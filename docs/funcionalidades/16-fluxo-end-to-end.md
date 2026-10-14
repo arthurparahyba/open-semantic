@@ -66,3 +66,10 @@ Fora do MVP: os demais fluxos (atualização, listagem, compra, histórico), bac
 - **Planejamento em etapas** conhece os dois casos da camada 2 e, numa mudança sobre o existente, marca a diferença em relação à base.
 - **Ferramenta `mark_diagram`**: marca nós sem redesenhar (`novo`, `muda`, `remove`, `pendente`, `passou`, `falhou`), por id ou rótulo. A marca fica em `attributes.mark` e continua quando o diagrama é redesenhado.
 - **Canvas**: nós marcados ganham cor (verde novo/passou, amarelo muda, vermelho remove/falhou, cinza pendente; o que sai fica riscado) e uma legenda no rodapé do diagrama.
+
+## Segunda entrega: implementar e validar de verdade
+- **`project.create_file`**: o agente cria arquivos novos (e as pastas do caminho). Recusa se o arquivo já existe; mudar um existente continua sendo `project.write_file` com o hash lido.
+- **`project.run_command`**: roda um comando na raiz do projeto (ou numa pasta dela) e devolve o código de saída, se estourou o tempo e o fim da saída. Tempo padrão de 2 minutos, máximo de 10; no limite, o comando e tudo o que ele abriu param juntos.
+- Ambos pedem confirmação. O cartão de um comando mostra o comando exato e a pasta. A política de comandos da raiz vale: `deny_all` recusa sempre.
+- O modo Implementação usa os dois: na etapa Implementar cria e altera os arquivos num só lote (um cartão), incluindo os testes que cobrem os critérios; na etapa Validar roda os testes do projeto e marca os critérios pelo resultado.
+- Próximo passo: testes de tela (abrir a aplicação e executar o cadastro), usando o mesmo `project.run_command`.
