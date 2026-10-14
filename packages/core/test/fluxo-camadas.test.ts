@@ -165,3 +165,16 @@ describe("limite de chamadas", () => {
     expect(lastUserText(provider.requests[1]!)).toContain("Esta é a última chamada deste pedido");
   });
 });
+
+describe("verificado vem do que o agente leu", () => {
+  it("caixa só é verificada pelo arquivo lido que contém o nome; pasta, quando listada", async () => {
+    const { unsupported } = await import("../src/conversation/tools/showDiagram/tool.js");
+    const reads = new Map<string, string | null>([["src/owner", null], ["src/owner/Owner.java", "class Owner { String telephone; }"]]);
+    expect(unsupported(reads, "src/owner/Owner.java", "Owner", "file")).toBeUndefined();
+    expect(unsupported(reads, "src/owner/Owner.java", "Telefone do dono", "file")).toBe("o nome não aparece em src/owner/Owner.java");
+    expect(unsupported(reads, "src/owner/Owner.java", "Preço", "file")).toContain("não aparece");
+    expect(unsupported(reads, "src/pet/Pet.java", "Pet", "file")).toContain("não foi lido");
+    expect(unsupported(reads, "src/owner", "Donos", "directory")).toBeUndefined();
+    expect(unsupported(reads, "src/vet", "Vets", "directory")).toContain("não foi listada");
+  });
+});

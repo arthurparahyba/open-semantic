@@ -1,5 +1,6 @@
 // show_diagram: a resposta visual. O modelo descreve só o desenho (caixas, ligações, caminhos que viu e a legenda);
 // daqui sai um lote comum que registra as unidades de contexto, cria ou completa o diagrama ancorado e o enquadra.
+import { normalized } from "../../text.js";
 import { agentRead, locate, type ProjectPath } from "../project.js";
 import type { ConversationTool, ToolContext } from "../tool.js";
 import { planShowDiagram } from "./plan.js";
@@ -9,7 +10,7 @@ import { DIAGRAM_KINDS, type ResolvedPath, type ShowDiagramInput } from "./types
 export const showDiagram: ConversationTool = {
   name: "show_diagram",
   description:
-    "Your main way to answer. Draws (or completes) a diagram on the canvas, anchored to its subject, and frames it for the user. Pick the kind that shows the shape of the answer (see kind), write the picture in source (short text, Mermaid-like) and put what you saw in the project for each box in evidence. The app records each box as a context unit (verified when its evidence path exists in the project, inferred otherwise; inferred boxes are drawn dashed), creates or patches the diagram and moves the camera to it, in one batch. Build explanations top to bottom like a document: give each diagram a heading and a short intro, add notes (text, list, table) when they help, and say with continues/details how it relates to what is already on the canvas; the app places it (below for the next step, to the right for a detail). Calling it again with the same diagramId completes that diagram: new boxes and links are added, existing ones updated, nothing is removed unless listed in remove (in a sequence, the messages you send replace the old ones). Returns the batch result and, for each node, its unit and knowledge status.",
+    "Your main way to answer. Draws (or completes) a diagram on the canvas, anchored to its subject, and frames it for the user. Pick the kind that shows the shape of the answer (see kind), write the picture in source (short text, Mermaid-like) and put what you saw in the project for each box in evidence. The app records each box as a context unit (verified only when you read that file with read_file, or listed that folder with list_dir, in this conversation and the box's name appears there; inferred otherwise, drawn dashed. Something new proposed in a specification is never verified), creates or patches the diagram and moves the camera to it, in one batch. Build explanations top to bottom like a document: give each diagram a heading and a short intro, add notes (text, list, table) when they help, and say with continues/details how it relates to what is already on the canvas; the app places it (below for the next step, to the right for a detail). Calling it again with the same diagramId completes that diagram: new boxes and links are added, existing ones updated, nothing is removed unless listed in remove (in a sequence, the messages you send replace the old ones). Returns the batch result and, for each node, its unit and knowledge status.",
   runsBatch: true,
   inputSchema: () => ({
     type: "object",
@@ -23,7 +24,7 @@ export const showDiagram: ConversationTool = {
       source: { type: "string", maxLength: 6000, description: SOURCE_GUIDE },
       evidence: {
         type: "object",
-        description: 'What you saw for each box, by node id: {"owner": {"path": "src/owner", "seen": "Pacote com controller e repositório.", "kind": "module"}}. path makes the box verified; unit reuses an existing sem_ id. For a link, key "a->b" with {"seen": true} when the code at a\'s path shows it. Boxes without evidence are suppositions.',
+        description: 'What you saw for each box, by node id: {"owner": {"path": "src/owner", "seen": "Pacote com controller e repositório.", "kind": "module"}}. path makes the box verified when you read it in this conversation and the name is there; unit reuses an existing sem_ id. For a link, key "a->b" with {"seen": true} when the code at a\'s path shows it. Boxes without evidence are suppositions.',
         additionalProperties: {
           type: "object",
           properties: {
@@ -70,11 +71,32 @@ export const showDiagram: ConversationTool = {
     const diagram = fromSource(input);
     const snapshot = ctx.snapshot();
     const where = locate(snapshot, diagram.projectId ? { projectId: diagram.projectId } : {});
-    const plan = await planShowDiagram(diagram, snapshot, { id: where.projectId }, (path) => resolveIn(ctx, where, path));
+    const plan = await planShowDiagram(diagram, snapshot, { id: where.projectId }, {
+      resolve: (path) => resolveIn(ctx, where, path),
+      unsupported: (path, label, kind) => unsupported(ctx.reads, path, label, kind),
+    });
     const result = await ctx.runBatch({ intent: plan.intent, steps: plan.steps });
     return { ...result, nodes: plan.nodes, ...(plan.notes.length ? { notes: plan.notes } : {}) };
   },
 };
+
+/**
+ * Verificado é o que o agente leu nesta conversa, não o que ele diz ter visto: um arquivo lido em que o nome da
+ * caixa aparece, ou uma pasta listada (ou com arquivo lido dentro). Um campo novo de uma especificação aponta
+ * para um arquivo que não o contém, e fica como suposição.
+ */
+export function unsupported(reads: Map<string, string | null>, path: string, label: string, kind: string): string | undefined {
+  if (kind === "process") return undefined;
+  const inside = (p: string) => !path || p === path || p.startsWith(`${path}/`);
+  if (kind === "directory") return [...reads.keys()].some(inside) ? undefined : `a pasta ${path || "raiz"} não foi listada nesta conversa`;
+  const content = reads.get(path);
+  if (typeof content !== "string") return `${path} não foi lido nesta conversa`;
+  const text = `${normalized(content).replace(/ /g, "")} ${normalized(path).replace(/ /g, "")}`;
+  const words = normalized(label).split(" ").filter((w) => w.length >= 4);
+  const joined = normalized(label).replace(/ /g, "");
+  if (text.includes(joined) || words.some((w) => text.includes(w))) return undefined;
+  return `o nome não aparece em ${path}`;
+}
 
 /** O artefato de um caminho do projeto, ou undefined quando ele não existe. */
 async function resolveIn(ctx: ToolContext, { projectId, rootId }: ProjectPath, path: string): Promise<ResolvedPath | undefined> {

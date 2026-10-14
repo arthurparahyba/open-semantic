@@ -309,6 +309,7 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
   const withRegion = new Set(snapshot.canvas.regions.flatMap((r) => r.semanticEntityIds ?? []));
   const groups = contextGroups(snapshot).filter((g) => !withRegion.has(g.unitId));
   const activeRepo = activeProject(snapshot)?.id;
+  const layerFrame = activeLayerFrame(snapshot, objects);
 
   return (
     <div
@@ -337,6 +338,15 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
             </div>
           );
         })}
+        {layerFrame && (
+          <div
+            className="layer-frame"
+            data-testid="layer-frame"
+            style={{ left: layerFrame.x, top: layerFrame.y, width: layerFrame.width, height: layerFrame.height }}
+          >
+            <span className="layer-frame-title">{layerFrame.name}</span>
+          </div>
+        )}
         {snapshot.canvas.regions.map((region) => (
           <div
             key={region.id}
@@ -394,6 +404,25 @@ export function Canvas({ snapshot, handle, renderObject, onZoomChange, litObject
       </div>
     </div>
   );
+}
+
+/**
+ * Moldura da camada ativa em volta do que é dela, com o nome em cima. Uma camada só de blocos (a de implementação)
+ * não tinha moldura nenhuma, porque as molduras do canvas saem das unidades de contexto, e blocos não têm.
+ */
+function activeLayerFrame(snapshot: WorkspaceSnapshot, objects: CanvasObject[]) {
+  const layer = snapshot.layers?.find((l) => l.id === snapshot.navigation.activeLayerId);
+  if (!layer) return undefined;
+  const own = new Set(layer.members.map((m) => m.id));
+  const rects = objects.filter((o) => own.has(o.id));
+  if (!rects.length) return undefined;
+  const PAD = 24;
+  const TITLE = 36;
+  const x = Math.min(...rects.map((r) => r.position.x)) - PAD;
+  const y = Math.min(...rects.map((r) => r.position.y)) - PAD - TITLE;
+  const right = Math.max(...rects.map((r) => r.position.x + r.size.width)) + PAD;
+  const bottom = Math.max(...rects.map((r) => r.position.y + (r.collapsed ? 40 : r.size.height))) + PAD;
+  return { name: layer.name, x, y, width: right - x, height: bottom - y };
 }
 
 /** Abaixo disto o texto dos cards não se lê (o teste de uso entrava na implementação a 18%). */

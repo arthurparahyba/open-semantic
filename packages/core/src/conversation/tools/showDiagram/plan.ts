@@ -26,11 +26,16 @@ export async function planShowDiagram(
   input: ShowDiagramInput,
   snapshot: WorkspaceSnapshot,
   project: { id: string },
-  resolve: (path: string) => Promise<ResolvedPath | undefined>,
+  paths: {
+    /** O artefato de um caminho do projeto (ou undefined). */
+    resolve(path: string): Promise<ResolvedPath | undefined>;
+    /** Por que a caixa não pode ser verificada pelo que o agente leu (ou undefined quando pode). */
+    unsupported?(path: string, label: string, kind: ResolvedPath["kind"]): string | undefined;
+  },
 ): Promise<ShowDiagramPlan> {
   const caption = checkInput(input);
   const planner = new DiagramPlanner(input, snapshot, project.id);
-  await planner.linkUnits(resolve);
+  await planner.linkUnits(paths.resolve, paths.unsupported ?? (() => undefined));
   return planner.plan(caption);
 }
 
@@ -84,7 +89,7 @@ class DiagramPlanner {
   }
 
   /** Liga cada nó a uma unidade: verificada quando o caminho existe no projeto, suposta no resto. */
-  async linkUnits(resolve: (path: string) => Promise<ResolvedPath | undefined>) {
+  async linkUnits(resolve: (path: string) => Promise<ResolvedPath | undefined>, unsupported: (path: string, label: string, kind: ResolvedPath["kind"]) => string | undefined) {
     const byName = new Map(
       this.snapshot.semantic.entities.filter((e) => e.projectId === this.projectId && e.kind !== "repository").map((e) => [normalized(e.name), e]),
     );
@@ -94,7 +99,9 @@ class DiagramPlanner {
       const path = n.path ? cleanPath(n.path) : undefined;
       const artifact = path === undefined ? undefined : await resolve(path);
       if (path !== undefined && !artifact) this.notes.push(`O caminho '${n.path}' não existe no projeto; '${n.label}' ficou como suposição.`);
-      if (artifact) this.observe(n, unit, artifact, path ?? "");
+      const why = artifact && unsupported(path ?? "", n.label, artifact.kind);
+      if (why) this.notes.push(`'${n.label}' ficou como suposição: ${why}.`);
+      if (artifact && !why) this.observe(n, unit, artifact, path ?? "");
       else this.suppose(n, unit);
     }
   }

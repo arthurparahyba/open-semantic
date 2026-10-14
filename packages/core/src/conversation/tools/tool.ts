@@ -13,6 +13,11 @@ export interface ToolContext {
   newId(): string;
   /** Mostra no chat o que o agente consultou ("Leu README.md"). */
   note(text: string): void;
+  /**
+   * O que o agente de fato leu nesta conversa: caminho → conteúdo (arquivo) ou null (pasta listada).
+   * É daqui, e não da palavra do modelo, que sai o "verificado" de uma caixa.
+   */
+  reads: Map<string, string | null>;
   /** Roda passos como um lote do agente, no orçamento do pedido (a entrada de run_batch). */
   runBatch(input: Record<string, unknown>): Promise<Record<string, unknown>>;
 }
