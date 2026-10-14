@@ -12,7 +12,8 @@
     "start": "node scripts/build.mjs && electron .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
-    "test:e2e": "node scripts/build.mjs && playwright test"
+    "test:e2e": "node scripts/build.mjs && playwright test",
+    "test:uso": "node scripts/build.mjs && playwright test -c playwright.uso.config.ts"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",
